@@ -50,6 +50,10 @@ import {
   registerSlashCommands,
   slashRef as slashRefBase,
 } from './slash-command-surface.js';
+import {
+  createSlashCommandRouter,
+  parseCommandActionButtonId,
+} from './slash-command-router.js';
 import { createTextCommandHandler } from './text-command-handler.js';
 import { createWorkspaceRuntime } from './workspace-runtime.js';
 
@@ -311,7 +315,6 @@ const sessionStore = createSessionStore({
   normalizeUiLanguage,
   normalizeSessionSecurityProfile,
   normalizeSessionTimeoutMs,
-  normalizeSessionProcessLines,
   normalizeSessionCompactStrategy,
   normalizeSessionCompactEnabled,
   normalizeSessionCompactTokenLimit,
@@ -332,7 +335,6 @@ const commandActions = createSessionCommandActions({
   getSessionProvider,
   getProviderShortName,
   resolveTimeoutSetting,
-  resolveProcessLinesSetting,
   listRecentSessions,
   humanAge,
 });
@@ -561,9 +563,61 @@ const {
   parseTimeoutConfigAction,
 });
 
+const routeSlashCommand = createSlashCommandRouter({
+  botProvider: BOT_PROVIDER,
+  defaultUiLanguage: DEFAULT_UI_LANGUAGE,
+  slashRef,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  getSession,
+  getSessionLanguage,
+  getSessionProvider,
+  getProviderDisplayName,
+  getEffectiveSecurityProfile,
+  getRuntimeSnapshot,
+  resolveSecurityContext,
+  resolveTimeoutSetting,
+  isReasoningEffortSupported,
+  commandActions,
+  isOnboardingEnabled,
+  buildOnboardingActionRows,
+  formatOnboardingStepReport,
+  formatOnboardingDisabledMessage,
+  formatOnboardingConfigReport,
+  formatStatusReport,
+  formatQueueReport,
+  formatDoctorReport,
+  formatWorkspaceReport,
+  formatWorkspaceSetHelp,
+  formatWorkspaceUpdateReport,
+  formatDefaultWorkspaceSetHelp,
+  formatDefaultWorkspaceUpdateReport,
+  formatLanguageConfigReport,
+  formatProfileConfigHelp,
+  formatProfileConfigReport,
+  formatTimeoutConfigHelp,
+  formatTimeoutConfigReport,
+  formatProgressReport,
+  formatCancelReport,
+  formatCompactStrategyConfigHelp,
+  formatCompactConfigReport,
+  formatReasoningEffortUnsupported,
+  normalizeProvider,
+  parseWorkspaceCommandAction,
+  parseUiLanguageInput,
+  parseSecurityProfileInput,
+  parseTimeoutConfigAction,
+  parseCompactConfigAction,
+  cancelChannelWork,
+  resolvePath,
+  safeError,
+});
+
 async function handleInteractionCreate(interaction) {
   if (interaction.isButton()) {
-    if (!isOnboardingButtonId(interaction.customId)) return;
+    const commandButton = parseCommandActionButtonId(interaction.customId);
+    if (!isOnboardingButtonId(interaction.customId) && !commandButton) return;
     try {
       if (!isAllowedUser(interaction.user.id)) {
         await interaction.reply({ content: '⛔ 没有权限。', flags: 64 });
@@ -571,6 +625,21 @@ async function handleInteractionCreate(interaction) {
       }
       if (!(await isAllowedInteractionChannel(interaction))) {
         await interaction.reply({ content: '⛔ 当前频道未开放。', flags: 64 });
+        return;
+      }
+      if (commandButton) {
+        if (commandButton.userId !== interaction.user.id) {
+          await interaction.reply({ content: '⛔ 这组快捷按钮属于发起命令的用户。', flags: 64 });
+          return;
+        }
+        const handled = await routeSlashCommand({
+          interaction,
+          commandName: commandButton.command,
+          respond: (payload) => sendInteractionResponse(interaction, payload),
+        });
+        if (!handled) {
+          await interaction.reply({ content: '❌ 快捷按钮已失效，请重新执行 slash 命令。', flags: 64 });
+        }
         return;
       }
       await handleOnboardingButtonInteraction(interaction);
@@ -596,345 +665,14 @@ async function handleInteractionCreate(interaction) {
       return;
     }
 
-    const key = interaction.channelId;
-    if (!key) {
-      await respond({ content: '❌ 无法识别当前频道。', flags: 64 });
-      return;
-    }
-    const session = getSession(key);
     const cmd = normalizeSlashCommandName(interaction.commandName);
-
-    switch (cmd) {
-      case 'status': {
-        await respond({
-          content: formatStatusReport(key, session, interaction.channel),
-          flags: 64,
-        });
-        break;
-      }
-
-      case 'reset': {
-        commandActions.resetSession(session);
-        await respond('♻️ 会话已清空，下条消息新开上下文。');
-        break;
-      }
-
-      case 'sessions': {
-        try {
-          await respond({
-            content: commandActions.formatRecentSessionsReport({
-              key,
-              session,
-              resumeRef: slashRef('resume'),
-            }),
-            flags: 64,
-          });
-        } catch (err) {
-          await respond({ content: `❌ ${safeError(err)}`, flags: 64 });
-        }
-        break;
-      }
-
-      case 'setdir': {
-        const action = parseWorkspaceCommandAction(interaction.options.getString('path'));
-        if (!action || action.type === 'invalid') {
-          await respond({ content: formatWorkspaceSetHelp(getSessionLanguage(session)), flags: 64 });
-          break;
-        }
-        if (action.type === 'status') {
-          await respond({ content: formatWorkspaceReport(key, session), flags: 64 });
-          break;
-        }
-        if (action.type === 'clear') {
-          const result = commandActions.clearWorkspaceDir(session, key);
-          await respond({ content: formatWorkspaceUpdateReport(key, session, result), flags: 64 });
-          break;
-        }
-        const resolved = resolvePath(action.value);
-        if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) {
-          await respond({ content: `❌ 目录不存在或不是目录：\`${resolved}\``, flags: 64 });
-          break;
-        }
-        const result = commandActions.setWorkspaceDir(session, key, resolved);
-        await respond({ content: formatWorkspaceUpdateReport(key, session, result), flags: 64 });
-        break;
-      }
-
-      case 'setdefaultdir': {
-        const action = parseWorkspaceCommandAction(interaction.options.getString('path'));
-        if (!action || action.type === 'invalid') {
-          await respond({ content: formatDefaultWorkspaceSetHelp(getSessionLanguage(session)), flags: 64 });
-          break;
-        }
-        if (action.type === 'status') {
-          await respond({ content: formatWorkspaceReport(key, session), flags: 64 });
-          break;
-        }
-        if (action.type === 'clear') {
-          const result = commandActions.setDefaultWorkspaceDir(session, null);
-          await respond({ content: formatDefaultWorkspaceUpdateReport(key, session, result), flags: 64 });
-          break;
-        }
-        const resolved = resolvePath(action.value);
-        if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) {
-          await respond({ content: `❌ 目录不存在或不是目录：\`${resolved}\``, flags: 64 });
-          break;
-        }
-        const result = commandActions.setDefaultWorkspaceDir(session, resolved);
-        await respond({ content: formatDefaultWorkspaceUpdateReport(key, session, result), flags: 64 });
-        break;
-      }
-
-      case 'provider': {
-        if (BOT_PROVIDER) {
-          await respond({
-            content: `🔒 当前 bot 已锁定 provider = \`${BOT_PROVIDER}\` (${getProviderDisplayName(BOT_PROVIDER)})，不能在频道内切换。`,
-            flags: 64,
-          });
-          break;
-        }
-        const requested = normalizeProvider(interaction.options.getString('name'));
-        if (interaction.options.getString('name') === 'status') {
-          await respond({
-            content: `ℹ️ 当前 provider = \`${getSessionProvider(session)}\` (${getProviderDisplayName(getSessionProvider(session))})`,
-            flags: 64,
-          });
-          break;
-        }
-        const { previous } = commandActions.setProvider(session, requested);
-        await respond(`✅ provider = \`${requested}\` (${getProviderDisplayName(requested)})${previous === requested ? '' : '，已清空旧 session 绑定'}`);
-        break;
-      }
-
-      case 'model': {
-        const name = interaction.options.getString('name');
-        const { model } = commandActions.setModel(session, name);
-        await respond(`✅ model = ${model || '(default)'}`);
-        break;
-      }
-
-      case 'effort': {
-        const level = interaction.options.getString('level');
-        const provider = getSessionProvider(session);
-        if (!isReasoningEffortSupported(provider, level)) {
-          await respond({
-            content: formatReasoningEffortUnsupported(provider, getSessionLanguage(session)),
-            flags: 64,
-          });
-          break;
-        }
-        const { effort } = commandActions.setReasoningEffort(session, level);
-        await respond(`✅ effort = ${effort || '(default)'}`);
-        break;
-      }
-
-      case 'compact': {
-        const language = getSessionLanguage(session);
-        const parsed = parseCompactConfigAction(
-          interaction.options.getString('key'),
-          interaction.options.getString('value') || '',
-        );
-        if (!parsed || parsed.type === 'invalid') {
-          await respond({
-            content: formatCompactStrategyConfigHelp(language),
-            flags: 64,
-          });
-          break;
-        }
-        if (parsed.type === 'status') {
-          await respond({
-            content: formatCompactConfigReport(language, session, false),
-            flags: 64,
-          });
-          break;
-        }
-        commandActions.applyCompactConfig(session, parsed);
-        await respond({
-          content: formatCompactConfigReport(language, session, true),
-          flags: 64,
-        });
-        break;
-      }
-
-      case 'mode': {
-        const type = interaction.options.getString('type');
-        const { mode } = commandActions.setMode(session, type);
-        await respond(`✅ mode = ${mode}`);
-        break;
-      }
-
-      case 'resume': {
-        const sid = interaction.options.getString('session_id');
-        const binding = commandActions.bindSession(session, sid);
-        await respond(`✅ 已绑定 ${binding.providerLabel} session: \`${binding.sessionId}\``);
-        break;
-      }
-
-      case 'name': {
-        const label = interaction.options.getString('label').trim();
-        const renamed = commandActions.renameSession(session, label);
-        await respond(`✅ session 命名为: **${renamed.label}**`);
-        break;
-      }
-
-      case 'queue': {
-        await respond({
-          content: formatQueueReport(key, session, interaction.channel),
-          flags: 64,
-        });
-        break;
-      }
-
-      case 'doctor': {
-        await respond({
-          content: formatDoctorReport(key, session, interaction.channel),
-          flags: 64,
-        });
-        break;
-      }
-
-      case 'onboarding': {
-        const language = getSessionLanguage(session);
-        if (!isOnboardingEnabled(session)) {
-          await respond({
-            content: formatOnboardingDisabledMessage(language),
-            flags: 64,
-          });
-          break;
-        }
-        const step = 1;
-        await respond({
-          content: formatOnboardingStepReport(step, key, session, interaction.channel, language),
-          components: buildOnboardingActionRows(step, interaction.user.id, session, language),
-          flags: 64,
-        });
-        break;
-      }
-
-      case 'onboarding_config': {
-        const action = String(interaction.options.getString('action') || '').trim().toLowerCase();
-        const language = getSessionLanguage(session);
-        if (action === 'on' || action === 'off') {
-          const { enabled } = commandActions.setOnboardingEnabled(session, action === 'on');
-          await respond({
-            content: formatOnboardingConfigReport(language, enabled, true),
-            flags: 64,
-          });
-          break;
-        }
-        await respond({
-          content: formatOnboardingConfigReport(language, isOnboardingEnabled(session), false),
-          flags: 64,
-        });
-        break;
-      }
-
-      case 'language': {
-        const requested = interaction.options.getString('name');
-        const { language } = commandActions.setLanguage(session, parseUiLanguageInput(requested) || DEFAULT_UI_LANGUAGE);
-        await respond({
-          content: formatLanguageConfigReport(language, true),
-          flags: 64,
-        });
-        break;
-      }
-
-      case 'profile': {
-        const requested = interaction.options.getString('name');
-        if (String(requested || '').toLowerCase() === 'status') {
-          await respond({
-            content: formatProfileConfigReport(getSessionLanguage(session), getEffectiveSecurityProfile(session).profile, false),
-            flags: 64,
-          });
-          break;
-        }
-        const profile = parseSecurityProfileInput(requested);
-        if (!profile) {
-          await respond({
-            content: formatProfileConfigHelp(getSessionLanguage(session)),
-            flags: 64,
-          });
-          break;
-        }
-        const updated = commandActions.setSecurityProfile(session, profile);
-        await respond({
-          content: formatProfileConfigReport(getSessionLanguage(session), updated.profile, true),
-          flags: 64,
-        });
-        break;
-      }
-
-      case 'timeout': {
-        const language = getSessionLanguage(session);
-        const parsedTimeout = parseTimeoutConfigAction(interaction.options.getString('value'));
-        if (!parsedTimeout || parsedTimeout.type === 'invalid') {
-          await respond({
-            content: formatTimeoutConfigHelp(language),
-            flags: 64,
-          });
-          break;
-        }
-        if (parsedTimeout.type === 'status') {
-          await respond({
-            content: formatTimeoutConfigReport(language, resolveTimeoutSetting(session), false),
-            flags: 64,
-          });
-          break;
-        }
-        const { timeoutSetting } = commandActions.setTimeoutMs(session, parsedTimeout.timeoutMs);
-        await respond({
-          content: formatTimeoutConfigReport(language, timeoutSetting, true),
-          flags: 64,
-        });
-        break;
-      }
-
-      case 'process_lines': {
-        const language = getSessionLanguage(session);
-        const parsed = parseProcessLinesConfigAction(interaction.options.getString('value'));
-        if (!parsed || parsed.type === 'invalid') {
-          await respond({
-            content: formatProcessLinesConfigHelp(language),
-            flags: 64,
-          });
-          break;
-        }
-        if (parsed.type === 'status') {
-          await respond({
-            content: formatProcessLinesConfigReport(language, resolveProcessLinesSetting(session), false),
-            flags: 64,
-          });
-          break;
-        }
-        const { processLinesSetting } = commandActions.setProcessLines(session, parsed.lines);
-        await respond({
-          content: formatProcessLinesConfigReport(language, processLinesSetting, true),
-          flags: 64,
-        });
-        break;
-      }
-
-      case 'progress': {
-        await respond({
-          content: formatProgressReport(key, session, interaction.channel),
-          flags: 64,
-        });
-        break;
-      }
-
-      case 'cancel': {
-        const outcome = cancelChannelWork(key, 'slash_cancel');
-        await respond({
-          content: formatCancelReport(outcome),
-          flags: 64,
-        });
-        break;
-      }
-
-      default: {
-        await respond({ content: `❌ 未知命令：\`${interaction.commandName}\``, flags: 64 });
-        break;
-      }
+    const handled = await routeSlashCommand({
+      interaction,
+      commandName: cmd,
+      respond,
+    });
+    if (!handled) {
+      await respond({ content: `❌ 未知命令：\`${interaction.commandName}\``, flags: 64 });
     }
   } catch (err) {
     await safeInteractionFailureReply(interaction, err);
@@ -1237,8 +975,6 @@ const handleCommand = createTextCommandHandler({
   formatProfileConfigReport,
   formatTimeoutConfigHelp,
   formatTimeoutConfigReport,
-  formatProcessLinesConfigHelp,
-  formatProcessLinesConfigReport,
   formatProgressReport,
   formatCancelReport,
   formatCompactStrategyConfigHelp,
@@ -1250,14 +986,12 @@ const handleCommand = createTextCommandHandler({
   parseUiLanguageInput,
   parseSecurityProfileInput,
   parseTimeoutConfigAction,
-  parseProcessLinesConfigAction,
   parseCompactConfigFromText,
   parseConfigKey,
   parseReasoningEffortInput,
   parseWorkspaceCommandAction,
   getEffectiveSecurityProfile,
   resolveTimeoutSetting,
-  resolveProcessLinesSetting,
   describeConfigPolicy,
   isConfigKeyAllowed,
   isReasoningEffortSupported,
@@ -1431,14 +1165,13 @@ function formatStatusReport(key, session, channel = null) {
 function formatQueueReport(key, session = null, channel = null) {
   const runtime = getRuntimeSnapshot(key);
   const security = resolveSecurityContext(channel, session);
-  const processLinesSetting = resolveProcessLinesSetting(session);
   const planSummary = formatProgressPlanSummary(runtime.progressPlan);
   const completedSummary = formatCompletedStepsSummary(runtime.completedSteps, {
     planState: runtime.progressPlan,
     latestStep: runtime.progressText,
     maxSteps: 3,
   });
-  const processLines = renderProcessContentLines(runtime.recentActivities, 'en', processLinesSetting.lines);
+  const processLines = renderProcessContentLines(runtime.recentActivities, 'en', PROGRESS_PROCESS_LINES);
   return [
     '📮 **任务队列状态**',
     `• runtime: ${formatRuntimeLabel(runtime)}`,
@@ -1459,7 +1192,6 @@ function formatProgressReport(key, session = null, channel = null) {
   const security = resolveSecurityContext(channel, session);
   const language = getSessionLanguage(session);
   const lang = normalizeUiLanguage(language);
-  const processLinesSetting = resolveProcessLinesSetting(session);
   if (!runtime.running) {
     if (lang === 'en') {
       return [
@@ -1476,7 +1208,7 @@ function formatProgressReport(key, session = null, channel = null) {
       `• 提示: 发送新任务后可用 \`!progress\` / \`${slashRef('progress')}\` 查看实时进度。`,
     ].join('\n');
   }
-  const processLines = renderProcessContentLines(runtime.recentActivities, lang, processLinesSetting.lines);
+  const processLines = renderProcessContentLines(runtime.recentActivities, lang, PROGRESS_PROCESS_LINES);
   const planLines = localizeProgressLines(renderProgressPlanLines(runtime.progressPlan, PROGRESS_PLAN_MAX_LINES), lang);
   const completedLines = localizeProgressLines(renderCompletedStepsLines(runtime.completedSteps, {
     planState: runtime.progressPlan,
@@ -1624,23 +1356,6 @@ function resolveTimeoutSetting(session) {
     return { timeoutMs: sessionTimeout, source: 'session override' };
   }
   return { timeoutMs: CODEX_TIMEOUT_MS, source: 'env default' };
-}
-
-function normalizeSessionProcessLines(value) {
-  if (value === null || value === undefined || value === '') return null;
-  const n = Number(value);
-  if (!Number.isFinite(n)) return null;
-  const rounded = Math.floor(n);
-  if (rounded < 1 || rounded > 5) return null;
-  return rounded;
-}
-
-function resolveProcessLinesSetting(session) {
-  const sessionLines = normalizeSessionProcessLines(session?.processLines);
-  if (sessionLines !== null) {
-    return { lines: sessionLines, source: 'session override' };
-  }
-  return { lines: PROGRESS_PROCESS_LINES, source: 'default' };
 }
 
 function parseTimeoutConfigAction(value) {
@@ -1873,17 +1588,6 @@ function formatSettingSourceLabel(source, language = 'en') {
   return source || (language === 'en' ? 'unknown' : '未知');
 }
 
-function parseProcessLinesConfigAction(value) {
-  const raw = String(value || '').trim().toLowerCase();
-  if (!raw) return null;
-  if (['status', 'show', 'state', '查看', '状态'].includes(raw)) return { type: 'status' };
-  if (!/^\d+$/.test(raw)) return { type: 'invalid' };
-  const lines = normalizeSessionProcessLines(Number(raw));
-  if (lines === null) return { type: 'invalid' };
-  return { type: 'set', lines };
-}
-
-
 function formatLanguageConfigHelp(language) {
   if (language === 'en') {
     return [
@@ -1962,34 +1666,6 @@ function formatTimeoutConfigReport(language, timeoutSetting, changed) {
     : `ℹ️ 当前 Codex 超时为 ${label}`;
 }
 
-function formatProcessLinesConfigHelp(language) {
-  if (language === 'en') {
-    return [
-      'Usage: `!processlines <1|2|3|4|5|status>`',
-      `Slash: \`${slashRef('process_lines')} <1-5|status>\``,
-      'Examples: `!processlines 2`, `!processlines status`',
-    ].join('\n');
-  }
-  return [
-    '用法：`!processlines <1|2|3|4|5|status>`',
-    `Slash：\`${slashRef('process_lines')} <1-5|status>\``,
-    '示例：`!processlines 2`、`!processlines status`',
-  ].join('\n');
-}
-
-function formatProcessLinesConfigReport(language, setting, changed) {
-  const label = `${setting.lines} (${setting.source})`;
-  if (language === 'en') {
-    return changed
-      ? `✅ Process content window set to ${label}`
-      : `ℹ️ Process content window is ${label}`;
-  }
-  return changed
-    ? `✅ 过程内容窗口已设置为 ${label}`
-    : `ℹ️ 当前过程内容窗口为 ${label}`;
-}
-
-
 function formatHelpReport(session) {
   const language = getSessionLanguage(session);
   if (language === 'en') {
@@ -2010,10 +1686,10 @@ function formatHelpReport(session) {
       `• \`${slashRef('language')} <中文|English>\` / \`!lang <zh|en>\` — message language`,
       `• \`${slashRef('profile')} <auto|solo|team|public|status>\` / \`!profile <...|status>\` — channel security profile`,
       `• \`${slashRef('timeout')} <ms|off|status>\` / \`!timeout <...>\` — runner timeout`,
-      `• \`${slashRef('process_lines')} <1-5|status>\` / \`!processlines <...>\` — process content window lines`,
-      '• `!progress` — current run progress',
-      '• `!abort` / `!cancel` / `!stop` — stop running task and clear queue',
-      '• `!reset` — clear session context',
+      `• \`${slashRef('progress')}\` / \`!progress\` — current run progress`,
+      `• \`${slashRef('cancel')}\` / \`${slashRef('abort')}\` / \`!abort\` / \`!cancel\` / \`!stop\` — stop running task and clear queue`,
+      `• \`${slashRef('new')}\` / \`!new\` — switch to a fresh session but keep channel settings`,
+      `• \`${slashRef('reset')}\` / \`!reset\` — clear session context and extra config overrides`,
       '• `!resume <session_id>` — bind existing provider session',
       '• `!sessions` — list recent provider sessions',
       !BOT_PROVIDER ? '• `!provider <codex|claude|status>` — switch provider for current channel' : null,
@@ -2051,10 +1727,10 @@ function formatHelpReport(session) {
     `• \`${slashRef('language')} <中文|English>\` / \`!lang <zh|en>\` — 消息提示语言`,
     `• \`${slashRef('profile')} <auto|solo|team|public|status>\` / \`!profile <...|status>\` — 当前频道 security profile`,
     `• \`${slashRef('timeout')} <毫秒|off|status>\` / \`!timeout <...>\` — runner 超时`,
-    `• \`${slashRef('process_lines')} <1-5|status>\` / \`!processlines <...>\` — 过程内容窗口行数`,
-    '• `!progress` — 查看当前任务的最新进度',
-    '• `!abort` / `!cancel` / `!stop` — 中断当前任务并清空队列',
-    '• `!reset` — 清空会话，下条消息新开上下文',
+    `• \`${slashRef('progress')}\` / \`!progress\` — 查看当前任务的最新进度`,
+    `• \`${slashRef('cancel')}\` / \`${slashRef('abort')}\` / \`!abort\` / \`!cancel\` / \`!stop\` — 中断当前任务并清空队列`,
+    `• \`${slashRef('new')}\` / \`!new\` — 切到新会话，但保留当前频道配置`,
+    `• \`${slashRef('reset')}\` / \`!reset\` — 清空会话与额外配置，下条消息新开上下文`,
     '• `!resume <session_id>` — 继承一个已有的 provider session',
     '• `!sessions` — 列出最近的 provider sessions',
     !BOT_PROVIDER ? '• `!provider <codex|claude|status>` — 切换当前频道 provider' : null,
@@ -2451,7 +2127,7 @@ async function handlePrompt(message, key, prompt, channelState) {
     message,
     channelState,
     language: getSessionLanguage(session),
-    processLines: resolveProcessLinesSetting(session).lines,
+    processLines: PROGRESS_PROCESS_LINES,
   });
   await progress?.start();
   let progressOutcome = { ok: false, cancelled: false, timedOut: false, error: '' };

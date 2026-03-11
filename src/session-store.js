@@ -32,7 +32,6 @@ export function createSessionStore({
   normalizeUiLanguage,
   normalizeSessionSecurityProfile,
   normalizeSessionTimeoutMs,
-  normalizeSessionProcessLines,
   normalizeSessionCompactStrategy,
   normalizeSessionCompactEnabled,
   normalizeSessionCompactTokenLimit,
@@ -60,7 +59,6 @@ export function createSessionStore({
         onboardingEnabled: defaults.onboardingEnabled,
         securityProfile: null,
         timeoutMs: null,
-        processLines: null,
         compactStrategy: null,
         compactEnabled: null,
         compactThresholdTokens: null,
@@ -135,10 +133,6 @@ export function createSessionStore({
       session.timeoutMs = null;
       migrated = true;
     }
-    if (session.processLines === undefined) {
-      session.processLines = null;
-      migrated = true;
-    }
     if (session.compactStrategy === undefined) {
       session.compactStrategy = null;
       migrated = true;
@@ -183,9 +177,16 @@ export function createSessionStore({
       session.timeoutMs = normalizedTimeoutMs;
       migrated = true;
     }
-    const normalizedProcessLines = normalizeSessionProcessLines(session.processLines);
-    if (session.processLines !== normalizedProcessLines) {
-      session.processLines = normalizedProcessLines;
+    if ('lastPrompt' in session) {
+      delete session.lastPrompt;
+      migrated = true;
+    }
+    if ('lastPromptAt' in session) {
+      delete session.lastPromptAt;
+      migrated = true;
+    }
+    if ('processLines' in session) {
+      delete session.processLines;
       migrated = true;
     }
     const normalizedCompactStrategy = normalizeSessionCompactStrategy(session.compactStrategy);

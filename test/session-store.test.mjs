@@ -27,12 +27,6 @@ function normalizeSessionTimeoutMs(value) {
   return Number.isFinite(n) ? n : null;
 }
 
-function normalizeSessionProcessLines(value) {
-  if (value === null || value === undefined || value === '') return null;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
-}
-
 function normalizeSessionCompactStrategy(value) {
   if (!value) return null;
   return value;
@@ -71,7 +65,6 @@ test('createSessionStore keeps legacy fallback for fresh thread when no default 
     normalizeUiLanguage,
     normalizeSessionSecurityProfile,
     normalizeSessionTimeoutMs,
-    normalizeSessionProcessLines,
     normalizeSessionCompactStrategy,
     normalizeSessionCompactEnabled,
     normalizeSessionCompactTokenLimit,
@@ -108,7 +101,6 @@ test('createSessionStore resolves provider default workspace without persisting 
     normalizeUiLanguage,
     normalizeSessionSecurityProfile,
     normalizeSessionTimeoutMs,
-    normalizeSessionProcessLines,
     normalizeSessionCompactStrategy,
     normalizeSessionCompactEnabled,
     normalizeSessionCompactTokenLimit,
@@ -147,6 +139,9 @@ test('createSessionStore migrates persisted legacy thread workspace to null so d
         mode: 'safe',
         language: 'zh',
         onboardingEnabled: true,
+        lastPrompt: 'legacy prompt',
+        lastPromptAt: '2026-01-01T00:00:00.000Z',
+        processLines: 5,
       },
     },
   }, null, 2));
@@ -165,7 +160,6 @@ test('createSessionStore migrates persisted legacy thread workspace to null so d
     normalizeUiLanguage,
     normalizeSessionSecurityProfile,
     normalizeSessionTimeoutMs,
-    normalizeSessionProcessLines,
     normalizeSessionCompactStrategy,
     normalizeSessionCompactEnabled,
     normalizeSessionCompactTokenLimit,
@@ -182,4 +176,7 @@ test('createSessionStore migrates persisted legacy thread workspace to null so d
   assert.equal(session.workspaceDir, null);
   assert.equal(binding.workspaceDir, defaultWorkspaceDir);
   assert.equal(binding.source, 'provider default');
+  assert.equal('lastPrompt' in session, false);
+  assert.equal('lastPromptAt' in session, false);
+  assert.equal('processLines' in session, false);
 });

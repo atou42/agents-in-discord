@@ -38,8 +38,6 @@ export function createTextCommandHandler({
   formatProfileConfigReport,
   formatTimeoutConfigHelp,
   formatTimeoutConfigReport,
-  formatProcessLinesConfigHelp,
-  formatProcessLinesConfigReport,
   formatProgressReport,
   formatCancelReport,
   formatCompactStrategyConfigHelp,
@@ -52,13 +50,11 @@ export function createTextCommandHandler({
   parseUiLanguageInput,
   parseSecurityProfileInput,
   parseTimeoutConfigAction,
-  parseProcessLinesConfigAction,
   parseCompactConfigFromText,
   parseConfigKey,
   parseReasoningEffortInput,
   getEffectiveSecurityProfile,
   resolveTimeoutSetting,
-  resolveProcessLinesSetting,
   describeConfigPolicy,
   isConfigKeyAllowed,
   isReasoningEffortSupported,
@@ -184,24 +180,6 @@ export function createTextCommandHandler({
         break;
       }
 
-      case '!processlines':
-      case '!progresslines':
-      case '!plines': {
-        const language = getSessionLanguage(session);
-        const parsed = parseProcessLinesConfigAction(arg || 'status');
-        if (!parsed || parsed.type === 'invalid') {
-          await safeReply(message, formatProcessLinesConfigHelp(language));
-          break;
-        }
-        if (parsed.type === 'status') {
-          await safeReply(message, formatProcessLinesConfigReport(language, resolveProcessLinesSetting(session), false));
-          break;
-        }
-        const { processLinesSetting } = commandActions.setProcessLines(session, parsed.lines);
-        await safeReply(message, formatProcessLinesConfigReport(language, processLinesSetting, true));
-        break;
-      }
-
       case '!progress': {
         await safeReply(message, formatProgressReport(key, session, message.channel));
         break;
@@ -212,6 +190,20 @@ export function createTextCommandHandler({
       case '!stop': {
         const outcome = cancelChannelWork(key, `text_command:${cmd.toLowerCase()}`);
         await safeReply(message, formatCancelReport(outcome));
+        break;
+      }
+
+      case '!new':
+      case '!fresh':
+      case '!next':
+      case '!start': {
+        const outcome = cancelChannelWork(key, `text_command:${cmd.toLowerCase()}`);
+        commandActions.startNewSession(session);
+        const lines = ['🆕 已切换到新会话。'];
+        if (outcome.cancelledRunning) lines.push('当前运行中的任务已尝试取消。');
+        if (outcome.clearedQueued > 0) lines.push(`已清空 ${outcome.clearedQueued} 个排队任务。`);
+        lines.push('下一条普通消息会开启新的上下文。');
+        await safeReply(message, lines.join('\n'));
         break;
       }
 

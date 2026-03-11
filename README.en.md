@@ -71,7 +71,8 @@ Then in your Discord server, invite the bot, and use these slash commands. Examp
 - `/cx_compact key:<status|strategy|token_limit|native_limit|enabled|reset> value:<...>` — configure compact for current channel (Codex only)
 - `/cx_mode <safe|dangerous>` — set execution mode
 - `/cx_name <label>` — name the session (for display)
-- `/cx_reset` — clear current thread session
+- `/cx_new` — switch to a fresh session while keeping current channel settings
+- `/cx_reset` — clear current thread session and extra config overrides
 - `/cx_resume <session_id>` — bind an existing Codex session id
 - `/cx_sessions` — list recent local Codex sessions
 - `/cx_queue` — show running/queued task count in current channel
@@ -82,6 +83,7 @@ Then in your Discord server, invite the bot, and use these slash commands. Examp
 - `/cx_profile <auto|solo|team|public|status>` — set or view current channel security profile override
 - `/cx_timeout <ms|off|status>` — set current channel codex timeout override
 - `/cx_progress` — show latest progress snapshot for the running task
+- `/cx_abort` — interrupt current run and clear queued prompts
 - `/cx_cancel` — interrupt current run and clear queued prompts
 
 If you want **separate Discord bots** for Codex and Claude, keep everything in one `.env`, but group provider-specific values with clear prefixes:

@@ -71,7 +71,8 @@ Git hooks 说明：
 - `/cx_compact key:<status|strategy|token_limit|native_limit|enabled|reset> value:<...>` - 配置当前频道 compact（仅 Codex）
 - `/cx_mode <safe|dangerous>` - 设置执行模式
 - `/cx_name <label>` - 命名会话（用于显示）
-- `/cx_reset` - 清空当前线程会话
+- `/cx_new` - 切到新会话，但保留当前频道配置
+- `/cx_reset` - 清空当前线程会话与额外配置
 - `/cx_resume <session_id>` - 绑定已有 Codex 会话 ID
 - `/cx_sessions` - 列出本地最近 Codex 会话
 - `/cx_queue` - 查看当前频道运行中/排队任务数量
@@ -82,6 +83,7 @@ Git hooks 说明：
 - `/cx_profile <auto|solo|team|public|status>` - 设置或查看当前频道 security profile 覆盖
 - `/cx_timeout <毫秒|off|status>` - 设置当前频道 codex timeout 覆盖
 - `/cx_progress` - 查看当前运行任务的最新进度快照
+- `/cx_abort` - 中断当前运行并清空队列
 - `/cx_cancel` - 中断当前运行并清空队列
 
 如果你希望 **Codex 和 Claude 绑定不同 Discord bot**，现在改成只用一个 `.env`，但在文件里分段分组：

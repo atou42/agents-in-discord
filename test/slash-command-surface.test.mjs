@@ -72,7 +72,7 @@ test('slashRef renders clickable command reference', () => {
   assert.equal(slashRef('progress', ''), '/progress');
 });
 
-test('buildSlashCommands includes workspace commands', () => {
+test('buildSlashCommands includes workspace commands and aliases', () => {
   const commands = buildSlashCommands({
     SlashCommandBuilder: MockSlashCommandBuilder,
     slashPrefix: 'cx',
@@ -82,4 +82,9 @@ test('buildSlashCommands includes workspace commands', () => {
   const names = commands.map((command) => command.name);
   assert.ok(names.includes('cx_setdir'));
   assert.ok(names.includes('cx_setdefaultdir'));
+  assert.ok(names.includes('cx_new'));
+  assert.ok(names.includes('cx_abort'));
+  assert.ok(names.includes('cx_onboarding_config'));
+  assert.ok(!names.includes('cx_retry'));
+  assert.ok(!names.includes('cx_process_lines'));
 });

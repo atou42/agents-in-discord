@@ -50,3 +50,33 @@ test('createTextCommandHandler updates mode through shared command actions', asy
   assert.equal(saveCount, 1);
   assert.deepEqual(replies, ['✅ mode = dangerous']);
 });
+
+test('createTextCommandHandler switches to a fresh session without retry hint', async () => {
+  const replies = [];
+  const session = { provider: 'codex', runnerSessionId: 'sess-1', codexThreadId: 'sess-1', lastInputTokens: 42 };
+  let startCalls = 0;
+
+  const handleCommand = createTextCommandHandler({
+    getSession: () => session,
+    commandActions: {
+      startNewSession(currentSession) {
+        currentSession.runnerSessionId = null;
+        currentSession.codexThreadId = null;
+        currentSession.lastInputTokens = null;
+        startCalls += 1;
+      },
+    },
+    cancelChannelWork: () => ({ cancelledRunning: false, clearedQueued: 0 }),
+    safeReply: async (_message, payload) => {
+      replies.push(payload);
+    },
+  });
+
+  await handleCommand(createMessage(), 'thread-1', '!new');
+
+  assert.equal(startCalls, 1);
+  assert.equal(session.runnerSessionId, null);
+  assert.equal(session.codexThreadId, null);
+  assert.equal(session.lastInputTokens, null);
+  assert.deepEqual(replies, ['🆕 已切换到新会话。\n下一条普通消息会开启新的上下文。']);
+});

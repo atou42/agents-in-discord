@@ -19,7 +19,6 @@ export function createSessionCommandActions({
   getSessionProvider,
   getProviderShortName,
   resolveTimeoutSetting,
-  resolveProcessLinesSetting,
   listRecentSessions,
   humanAge,
 } = {}) {
@@ -45,12 +44,6 @@ export function createSessionCommandActions({
     session.timeoutMs = timeoutMs;
     saveDb();
     return { timeoutSetting: resolveTimeoutSetting(session) };
-  }
-
-  function setProcessLines(session, lines) {
-    session.processLines = lines;
-    saveDb();
-    return { processLinesSetting: resolveProcessLinesSetting(session) };
   }
 
   function setProvider(session, requested) {
@@ -101,6 +94,16 @@ export function createSessionCommandActions({
     session.mode = mode;
     saveDb();
     return { mode: session.mode };
+  }
+
+  function startNewSession(session) {
+    clearSessionId(session);
+    session.lastInputTokens = null;
+    saveDb();
+    return {
+      sessionId: getSessionId(session),
+      preservedName: session.name || null,
+    };
   }
 
   function bindSession(session, sessionId) {
@@ -216,6 +219,7 @@ export function createSessionCommandActions({
 
   function resetSession(session) {
     clearSessionId(session);
+    session.lastInputTokens = null;
     session.configOverrides = [];
     saveDb();
     return { sessionId: getSessionId(session), configOverrides: session.configOverrides };
@@ -242,12 +246,12 @@ export function createSessionCommandActions({
     setLanguage,
     setSecurityProfile,
     setTimeoutMs,
-    setProcessLines,
     setProvider,
     setModel,
     setReasoningEffort,
     applyCompactConfig,
     setMode,
+    startNewSession,
     bindSession,
     renameSession,
     setWorkspaceDir,

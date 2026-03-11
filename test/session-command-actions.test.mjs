@@ -32,7 +32,6 @@ test('createSessionCommandActions.setProvider clears bound session and persists'
     getSessionProvider: (session) => session.provider || 'codex',
     getProviderShortName: (provider) => provider === 'claude' ? 'Claude' : 'Codex',
     resolveTimeoutSetting: () => ({ timeoutMs: 60000, source: 'session override' }),
-    resolveProcessLinesSetting: () => ({ lines: 2, source: 'session override' }),
     listRecentSessions: () => [],
     humanAge: () => '0s',
   });
@@ -66,7 +65,6 @@ test('createSessionCommandActions.setWorkspaceDir resets codex session when work
     getSessionProvider: (session) => session.provider || 'codex',
     getProviderShortName: (provider) => provider === 'claude' ? 'Claude' : 'Codex',
     resolveTimeoutSetting: () => ({ timeoutMs: 60000, source: 'session override' }),
-    resolveProcessLinesSetting: () => ({ lines: 2, source: 'session override' }),
     listRecentSessions: () => [],
     humanAge: () => '0s',
   });
@@ -98,7 +96,6 @@ test('createSessionCommandActions.setWorkspaceDir keeps claude session when work
     getSessionProvider: (session) => session.provider || 'codex',
     getProviderShortName: (provider) => provider === 'claude' ? 'Claude' : 'Codex',
     resolveTimeoutSetting: () => ({ timeoutMs: 60000, source: 'session override' }),
-    resolveProcessLinesSetting: () => ({ lines: 2, source: 'session override' }),
     listRecentSessions: () => [],
     humanAge: () => '0s',
   });
@@ -150,7 +147,6 @@ test('createSessionCommandActions.setDefaultWorkspaceDir clears affected codex s
     getSessionProvider: (session) => session.provider || 'codex',
     getProviderShortName: (provider) => provider === 'claude' ? 'Claude' : 'Codex',
     resolveTimeoutSetting: () => ({ timeoutMs: 60000, source: 'session override' }),
-    resolveProcessLinesSetting: () => ({ lines: 2, source: 'session override' }),
     listRecentSessions: () => [],
     humanAge: () => '0s',
   });
@@ -164,6 +160,41 @@ test('createSessionCommandActions.setDefaultWorkspaceDir clears affected codex s
   assert.equal(saveCount, 1);
 });
 
+test('createSessionCommandActions.startNewSession clears bound session and token snapshot', () => {
+  let saveCount = 0;
+  const actions = createSessionCommandActions({
+    saveDb: () => {
+      saveCount += 1;
+    },
+    ensureWorkspace: () => '/tmp/workspace',
+    clearSessionId: (session) => {
+      session.runnerSessionId = null;
+      session.codexThreadId = null;
+    },
+    getSessionId: (session) => session.runnerSessionId,
+    setSessionId: () => {},
+    getSessionProvider: (session) => session.provider || 'codex',
+    getProviderShortName: () => 'Codex',
+    resolveTimeoutSetting: () => ({ timeoutMs: 60000, source: 'session override' }),
+    listRecentSessions: () => [],
+    humanAge: () => '0s',
+  });
+  const session = {
+    provider: 'codex',
+    runnerSessionId: 'sess-1',
+    codexThreadId: 'sess-1',
+    lastInputTokens: 123,
+  };
+
+  const result = actions.startNewSession(session);
+
+  assert.equal(result.sessionId, null);
+  assert.equal(session.runnerSessionId, null);
+  assert.equal(session.codexThreadId, null);
+  assert.equal(session.lastInputTokens, null);
+  assert.equal(saveCount, 1);
+});
+
 test('createSessionCommandActions.formatRecentSessionsReport renders resume hint and items', () => {
   const actions = createSessionCommandActions({
     saveDb: () => {},
@@ -174,7 +205,6 @@ test('createSessionCommandActions.formatRecentSessionsReport renders resume hint
     getSessionProvider: (session) => session.provider || 'codex',
     getProviderShortName: (provider) => provider === 'claude' ? 'Claude' : 'Codex',
     resolveTimeoutSetting: () => ({ timeoutMs: 60000, source: 'session override' }),
-    resolveProcessLinesSetting: () => ({ lines: 2, source: 'session override' }),
     listRecentSessions: () => [
       { id: 'abc123', mtime: Date.now() - 1_000 },
       { id: 'def456', mtime: Date.now() - 5_000 },
