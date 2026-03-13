@@ -32,8 +32,7 @@ import {
   listRecentSessions as listRecentProviderSessions,
   readGeminiSessionState,
 } from './provider-sessions.js';
-import { createChannelQueue } from './channel-queue.js';
-import { createChannelRuntimeStore, stopChildProcess } from './channel-runtime.js';
+import { stopChildProcess } from './channel-runtime.js';
 import { loadRuntimeEnv } from './env-loader.js';
 import {
   extractRawProgressTextFromEvent as extractRawProgressTextFromEventBase,
@@ -45,11 +44,10 @@ import {
   extractAgentMessageText,
   isFinalAnswerLikeAgentMessage,
 } from './codex-event-utils.js';
-import { createRunnerExecutor } from './runner-executor.js';
 import { createCommandSurface } from './command-surface.js';
+import { createPromptRuntime } from './prompt-runtime.js';
 import { createSessionCommandActions } from './session-command-actions.js';
 import { createSessionStore, ensureDir } from './session-store.js';
-import { createSessionProgressBridgeFactory } from './session-progress-bridge.js';
 import {
   registerSlashCommands,
 } from './slash-command-surface.js';
@@ -91,7 +89,6 @@ import {
 import {
   parseCommandActionButtonId,
 } from './slash-command-router.js';
-import { createPromptOrchestrator } from './prompt-orchestrator.js';
 import { createDiscordAccessPolicy } from './discord-access-policy.js';
 import { createDiscordEntryHandlers } from './discord-entry-handlers.js';
 import * as discordMessageInput from './discord-message-input.js';
@@ -102,7 +99,6 @@ import {
   readCodexDefaults,
   renderMissingDiscordTokenHint,
 } from './runtime-bootstrap.js';
-import { createRuntimePresentation } from './runtime-presentation.js';
 import {
   extractInputTokensFromUsage,
   formatTokenValue,
@@ -398,25 +394,11 @@ const commandActions = createSessionCommandActions({
   humanAge,
 });
 
-const channelRuntimeStore = createChannelRuntimeStore({
-  cloneProgressPlan,
-  truncate,
-});
-const {
-  getChannelState,
-  setActiveRun,
-  cancelChannelWork,
-  cancelAllChannelWork,
-  getRuntimeSnapshot,
-} = channelRuntimeStore;
-
 const { acquireWorkspace, readLock: readWorkspaceLock } = createWorkspaceRuntime({
   lockRoot: WORKSPACE_LOCK_ROOT,
   ensureDir,
 });
 
-let enqueuePrompt;
-let runCodex;
 let discordLifecycle = null;
 const ONBOARDING_TOTAL_STEPS = 4;
 const createClient = () => createDiscordClient({
@@ -424,6 +406,126 @@ const createClient = () => createDiscordClient({
   GatewayIntentBits,
   Partials,
   restProxyAgent,
+});
+const commandSurfaceBindings = {
+  formatWorkspaceBusyReport: () => '⏳ Workspace busy',
+  slashRef: (base) => `/${base}`,
+};
+const {
+  cancelAllChannelWork,
+  cancelChannelWork,
+  enqueuePrompt,
+  formatCompletedStepsSummary,
+  formatPermissionsLabel,
+  formatProgressPlanSummary,
+  formatRuntimeLabel,
+  formatSessionStatusLabel,
+  formatTimeoutLabel,
+  getRuntimeSnapshot,
+  localizeProgressLines,
+  renderCompletedStepsLines,
+  renderProcessContentLines,
+  renderProgressPlanLines,
+} = createPromptRuntime({
+  runtimePresentationOptions: {
+    showReasoning: SHOW_REASONING,
+    progressTextPreviewChars: PROGRESS_TEXT_PREVIEW_CHARS,
+    progressDoneStepsMax: PROGRESS_DONE_STEPS_MAX,
+    progressActivityMaxLines: PROGRESS_ACTIVITY_MAX_LINES,
+    progressProcessLines: PROGRESS_PROCESS_LINES,
+    humanAge,
+    getSessionId,
+    getSessionProvider,
+    formatSessionIdLabel,
+  },
+  channelRuntimeStoreOptions: {
+    truncate,
+  },
+  sessionProgressBridgeOptions: {
+    normalizeProvider,
+    extractRawProgressTextFromEvent: extractRawProgressTextFromEventBase,
+    findLatestRolloutFileBySessionId,
+    findLatestClaudeSessionFileBySessionId,
+  },
+  runnerExecutorOptions: {
+    debugEvents: DEBUG_EVENTS,
+    spawnEnv: SPAWN_ENV,
+    defaultTimeoutMs: CODEX_TIMEOUT_MS,
+    defaultModel: DEFAULT_MODEL,
+    ensureDir,
+    normalizeProvider,
+    getSessionProvider,
+    getProviderBin,
+    getSessionId,
+    getProviderDefaultWorkspace: resolveProviderDefaultWorkspace,
+    resolveTimeoutSetting,
+    resolveCompactStrategySetting,
+    resolveCompactEnabledSetting,
+    resolveNativeCompactTokenLimitSetting,
+    normalizeTimeoutMs,
+    safeError,
+    stopChildProcess,
+    extractAgentMessageText,
+    isFinalAnswerLikeAgentMessage,
+    readGeminiSessionState,
+  },
+  promptOrchestratorOptions: {
+    defaultUiLanguage: DEFAULT_UI_LANGUAGE,
+    progressUpdatesEnabled: PROGRESS_UPDATES_ENABLED,
+    progressProcessLines: PROGRESS_PROCESS_LINES,
+    progressUpdateIntervalMs: PROGRESS_UPDATE_INTERVAL_MS,
+    progressEventFlushMs: PROGRESS_EVENT_FLUSH_MS,
+    progressEventDedupeWindowMs: PROGRESS_EVENT_DEDUPE_WINDOW_MS,
+    progressIncludeStdout: PROGRESS_INCLUDE_STDOUT,
+    progressIncludeStderr: PROGRESS_INCLUDE_STDERR,
+    progressTextPreviewChars: PROGRESS_TEXT_PREVIEW_CHARS,
+    progressProcessPushIntervalMs: PROGRESS_PROCESS_PUSH_INTERVAL_MS,
+    progressMessageMaxChars: PROGRESS_MESSAGE_MAX_CHARS,
+    progressPlanMaxLines: PROGRESS_PLAN_MAX_LINES,
+    progressDoneStepsMax: PROGRESS_DONE_STEPS_MAX,
+    showReasoning: SHOW_REASONING,
+    resultChunkChars: 1900,
+    safeReply,
+    withDiscordNetworkRetry,
+    splitForDiscord,
+    getSession,
+    ensureWorkspace,
+    saveDb,
+    clearSessionId,
+    getSessionId,
+    setSessionId,
+    getSessionProvider,
+    getSessionLanguage,
+    normalizeUiLanguage,
+    getProviderDisplayName,
+    getProviderShortName,
+    getProviderDefaultBin,
+    getProviderBinEnvName,
+    resolveTimeoutSetting,
+    resolveCompactStrategySetting,
+    resolveCompactEnabledSetting,
+    resolveCompactThresholdSetting,
+    formatWorkspaceBusyReport: (...args) => commandSurfaceBindings.formatWorkspaceBusyReport(...args),
+    acquireWorkspace,
+    stopChildProcess,
+    isCliNotFound,
+    slashRef: (...args) => commandSurfaceBindings.slashRef(...args),
+    safeError,
+    truncate,
+    toOptionalInt,
+    humanElapsed,
+    createProgressEventDeduper,
+    buildProgressEventDedupeKey,
+    extractInputTokensFromUsage,
+    composeFinalAnswerText,
+  },
+  channelQueueOptions: {
+    getSession,
+    resolveSecurityContext,
+    safeReply,
+    safeError,
+    getCurrentUserId: () => discordLifecycle?.getClient()?.user?.id,
+  },
 });
 
 // ── Slash Commands ──────────────────────────────────────────────
@@ -596,6 +698,8 @@ const {
     safeError,
   },
 });
+commandSurfaceBindings.formatWorkspaceBusyReport = formatWorkspaceBusyReport;
+commandSurfaceBindings.slashRef = slashRef;
 
 // ── Message handler (prompts → Codex) ──────────────────────────
 
@@ -621,7 +725,7 @@ const discordEntryHandlers = createDiscordEntryHandlers({
   getSession,
   resolveSecurityContext,
   handleCommand,
-  enqueuePrompt: (...args) => enqueuePrompt(...args),
+  enqueuePrompt,
   messageInput: discordMessageInput,
   parseCommandActionButtonId,
   isWorkspaceBrowserComponentId,
@@ -661,142 +765,3 @@ try {
   console.error(`❌ Failed to boot Discord client: ${safeError(err)}`);
   process.exit(1);
 }
-const {
-  appendCompletedStep,
-  appendRecentActivity,
-  cloneProgressPlan,
-  extractCompletedStepFromEvent,
-  extractPlanStateFromEvent,
-  extractRawProgressTextFromEvent,
-  formatCompletedStepsSummary,
-  formatPermissionsLabel,
-  formatProgressPlanSummary,
-  formatRuntimeLabel,
-  formatRuntimePhaseLabel,
-  formatSessionStatusLabel,
-  formatTimeoutLabel,
-  localizeProgressLines,
-  renderCompletedStepsLines,
-  renderProcessContentLines,
-  renderProgressPlanLines,
-  renderRecentActivitiesLines,
-  summarizeCodexEvent,
-} = createRuntimePresentation({
-  showReasoning: SHOW_REASONING,
-  progressTextPreviewChars: PROGRESS_TEXT_PREVIEW_CHARS,
-  progressDoneStepsMax: PROGRESS_DONE_STEPS_MAX,
-  progressActivityMaxLines: PROGRESS_ACTIVITY_MAX_LINES,
-  progressProcessLines: PROGRESS_PROCESS_LINES,
-  humanAge,
-  getSessionId,
-  getSessionProvider,
-  formatSessionIdLabel,
-});
-
-const { startSessionProgressBridge } = createSessionProgressBridgeFactory({
-  normalizeProvider,
-  extractRawProgressTextFromEvent: extractRawProgressTextFromEventBase,
-  findLatestRolloutFileBySessionId,
-  findLatestClaudeSessionFileBySessionId,
-});
-
-({ runCodex } = createRunnerExecutor({
-  debugEvents: DEBUG_EVENTS,
-  spawnEnv: SPAWN_ENV,
-  defaultTimeoutMs: CODEX_TIMEOUT_MS,
-  defaultModel: DEFAULT_MODEL,
-  ensureDir,
-  normalizeProvider,
-  getSessionProvider,
-  getProviderBin,
-  getSessionId,
-  getProviderDefaultWorkspace: resolveProviderDefaultWorkspace,
-  resolveTimeoutSetting,
-  resolveCompactStrategySetting,
-  resolveCompactEnabledSetting,
-  resolveNativeCompactTokenLimitSetting,
-  normalizeTimeoutMs,
-  safeError,
-  stopChildProcess,
-  startSessionProgressBridge,
-  extractAgentMessageText,
-  isFinalAnswerLikeAgentMessage,
-  readGeminiSessionState,
-}));
-
-const { handlePrompt } = createPromptOrchestrator({
-  defaultUiLanguage: DEFAULT_UI_LANGUAGE,
-  progressUpdatesEnabled: PROGRESS_UPDATES_ENABLED,
-  progressProcessLines: PROGRESS_PROCESS_LINES,
-  progressUpdateIntervalMs: PROGRESS_UPDATE_INTERVAL_MS,
-  progressEventFlushMs: PROGRESS_EVENT_FLUSH_MS,
-  progressEventDedupeWindowMs: PROGRESS_EVENT_DEDUPE_WINDOW_MS,
-  progressIncludeStdout: PROGRESS_INCLUDE_STDOUT,
-  progressIncludeStderr: PROGRESS_INCLUDE_STDERR,
-  progressTextPreviewChars: PROGRESS_TEXT_PREVIEW_CHARS,
-  progressProcessPushIntervalMs: PROGRESS_PROCESS_PUSH_INTERVAL_MS,
-  progressMessageMaxChars: PROGRESS_MESSAGE_MAX_CHARS,
-  progressPlanMaxLines: PROGRESS_PLAN_MAX_LINES,
-  progressDoneStepsMax: PROGRESS_DONE_STEPS_MAX,
-  showReasoning: SHOW_REASONING,
-  resultChunkChars: 1900,
-  safeReply,
-  withDiscordNetworkRetry,
-  splitForDiscord,
-  getSession,
-  ensureWorkspace,
-  saveDb,
-  clearSessionId,
-  getSessionId,
-  setSessionId,
-  getSessionProvider,
-  getSessionLanguage,
-  normalizeUiLanguage,
-  getProviderDisplayName,
-  getProviderShortName,
-  getProviderDefaultBin,
-  getProviderBinEnvName,
-  resolveTimeoutSetting,
-  resolveCompactStrategySetting,
-  resolveCompactEnabledSetting,
-  resolveCompactThresholdSetting,
-  formatWorkspaceBusyReport,
-  formatTimeoutLabel,
-  setActiveRun,
-  acquireWorkspace,
-  stopChildProcess,
-  runTask: (options) => runCodex(options),
-  isCliNotFound,
-  slashRef,
-  safeError,
-  truncate,
-  toOptionalInt,
-  humanElapsed,
-  summarizeCodexEvent,
-  extractRawProgressTextFromEvent,
-  cloneProgressPlan,
-  extractPlanStateFromEvent,
-  extractCompletedStepFromEvent,
-  appendCompletedStep,
-  appendRecentActivity,
-  formatProgressPlanSummary,
-  renderProcessContentLines,
-  localizeProgressLines,
-  renderProgressPlanLines,
-  renderCompletedStepsLines,
-  formatRuntimePhaseLabel,
-  createProgressEventDeduper,
-  buildProgressEventDedupeKey,
-  extractInputTokensFromUsage,
-  composeFinalAnswerText,
-});
-
-({ enqueuePrompt } = createChannelQueue({
-  getChannelState,
-  getSession,
-  resolveSecurityContext,
-  safeReply,
-  safeError,
-  getCurrentUserId: () => discordLifecycle?.getClient()?.user?.id,
-  handlePrompt,
-}));
