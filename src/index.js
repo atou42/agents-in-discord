@@ -115,6 +115,12 @@ import {
 import { createTextCommandHandler } from './text-command-handler.js';
 import { createPromptOrchestrator } from './prompt-orchestrator.js';
 import { autoRepairProxyEnv } from './proxy-env.js';
+import {
+  createDiscordLifecycle,
+  isIgnorableDiscordRuntimeError,
+  isRecoverableGatewayCloseCode,
+} from './discord-lifecycle.js';
+import { createSingleInstanceLock } from './single-instance-lock.js';
 import { createWorkspaceRuntime } from './workspace-runtime.js';
 import { createWorkspaceBrowser } from './workspace-browser.js';
 
@@ -472,11 +478,7 @@ const { acquireWorkspace, readLock: readWorkspaceLock } = createWorkspaceRuntime
 
 let enqueuePrompt;
 let runCodex;
-
-let client = null;
-let selfHealTimer = null;
-let selfHealInFlight = false;
-let lockFd = null;
+let discordLifecycle = null;
 const ONBOARDING_TOTAL_STEPS = 4;
 
 function createClient() {
@@ -496,7 +498,7 @@ function createClient() {
   return bot;
 }
 
-function bindClientHandlers(bot) {
+function bindClientHandlers(bot, lifecycle) {
   bot.once('ready', async () => {
     console.log(`✅ Logged in as ${bot.user.tag}`);
     await registerSlashCommands({
@@ -585,12 +587,12 @@ function bindClientHandlers(bot) {
       return;
     }
     console.error('Discord client error:', err);
-    scheduleSelfHeal('client_error', err);
+    lifecycle.scheduleSelfHeal('client_error', err);
   });
 
   bot.on('shardError', (err, shardId) => {
     console.error(`Discord shard error (shard=${shardId}):`, err);
-    scheduleSelfHeal(`shard_error:${shardId}`, err);
+    lifecycle.scheduleSelfHeal(`shard_error:${shardId}`, err);
   });
 
   bot.on('shardDisconnect', (event, shardId) => {
@@ -598,13 +600,13 @@ function bindClientHandlers(bot) {
     const recoverable = isRecoverableGatewayCloseCode(code);
     console.warn(`Discord shard disconnected (shard=${shardId}, code=${code}, recoverable=${recoverable})`);
     if (recoverable) {
-      scheduleSelfHeal(`shard_disconnect:${shardId}:code=${code}`);
+      lifecycle.scheduleSelfHeal(`shard_disconnect:${shardId}:code=${code}`);
     }
   });
 
   bot.on('invalidated', () => {
     console.error('Discord session invalidated.');
-    scheduleSelfHeal('session_invalidated');
+    lifecycle.scheduleSelfHeal('session_invalidated');
   });
 }
 
@@ -922,238 +924,6 @@ async function safeInteractionFailureReply(interaction, err) {
   }
 }
 
-async function bootClient(reason) {
-  if (!client) {
-    client = createClient();
-    bindClientHandlers(client);
-  }
-  await loginClientWithRetry(client, reason);
-}
-
-async function loginClientWithRetry(bot, reason) {
-  if (!SELF_HEAL_ENABLED) {
-    await bot.login(DISCORD_TOKEN);
-    return;
-  }
-
-  let attempt = 0;
-  const baseDelay = Math.max(1000, SELF_HEAL_RESTART_DELAY_MS);
-  const maxDelay = Math.max(baseDelay, SELF_HEAL_MAX_LOGIN_BACKOFF_MS);
-
-  while (true) {
-    attempt += 1;
-    try {
-      await bot.login(DISCORD_TOKEN);
-      if (attempt > 1) {
-        console.log(`✅ Discord reconnect success after ${attempt} attempts (reason=${reason}).`);
-      }
-      return;
-    } catch (err) {
-      if (isInvalidTokenError(err)) {
-        throw err;
-      }
-
-      const delay = Math.min(maxDelay, baseDelay * (2 ** Math.min(10, attempt - 1)));
-      console.error(`Discord login failed (reason=${reason}, attempt=${attempt}): ${safeError(err)}; retrying in ${delay}ms`);
-      await sleep(delay);
-    }
-  }
-}
-
-function scheduleSelfHeal(reason, err = null) {
-  if (!SELF_HEAL_ENABLED) return;
-  if (err && isInvalidTokenError(err)) {
-    console.error('❌ Discord token invalid. Self-heal skipped; please fix DISCORD_TOKEN.');
-    return;
-  }
-  if (selfHealInFlight || selfHealTimer) return;
-
-  if (err) {
-    console.error(`♻️ Self-heal triggered by ${reason}:`, safeError(err));
-  } else {
-    console.error(`♻️ Self-heal triggered by ${reason}.`);
-  }
-
-  const delay = Math.max(1000, SELF_HEAL_RESTART_DELAY_MS);
-  selfHealTimer = setTimeout(() => {
-    selfHealTimer = null;
-    restartClient(reason).catch((restartErr) => {
-      console.error('Self-heal restart failed:', restartErr);
-      scheduleSelfHeal('restart_failed', restartErr);
-    });
-  }, delay);
-  selfHealTimer.unref?.();
-}
-
-async function restartClient(reason) {
-  if (!SELF_HEAL_ENABLED) return;
-  if (selfHealInFlight) return;
-
-  selfHealInFlight = true;
-  cancelAllChannelWork(`self_heal:${reason}`);
-
-  try {
-    if (client) {
-      client.removeAllListeners();
-      client.destroy();
-    }
-  } catch (err) {
-    console.error('Failed to destroy previous Discord client:', safeError(err));
-  }
-
-  client = createClient();
-  bindClientHandlers(client);
-
-  try {
-    await loginClientWithRetry(client, `self_heal:${reason}`);
-    console.log(`✅ Self-heal recovered (reason=${reason}).`);
-  } finally {
-    selfHealInFlight = false;
-  }
-}
-
-function setupProcessSelfHeal() {
-  if (!SELF_HEAL_ENABLED) return;
-
-  process.on('unhandledRejection', (reason) => {
-    const err = reason instanceof Error ? reason : new Error(String(reason));
-    if (isIgnorableDiscordRuntimeError(err)) {
-      console.warn(`Ignoring non-fatal unhandled rejection: ${safeError(err)}`);
-      return;
-    }
-    console.error('Unhandled rejection:', err);
-    if (isInvalidTokenError(err)) return;
-    scheduleSelfHeal('unhandled_rejection', err);
-  });
-
-  process.on('uncaughtException', (err) => {
-    if (isIgnorableDiscordRuntimeError(err)) {
-      console.warn(`Ignoring non-fatal uncaught exception: ${safeError(err)}`);
-      return;
-    }
-    console.error('Uncaught exception:', err);
-    if (isInvalidTokenError(err)) return;
-    scheduleSelfHeal('uncaught_exception', err);
-  });
-}
-
-function isRecoverableGatewayCloseCode(code) {
-  const n = Number(code);
-  if (!Number.isFinite(n)) return true;
-
-  // 4004/4010+/4014 are usually configuration/token/intents issues.
-  if ([4004, 4010, 4011, 4012, 4013, 4014].includes(n)) return false;
-  return true;
-}
-
-function isInvalidTokenError(err) {
-  const msg = String(err?.message || err || '').toLowerCase();
-  return msg.includes('invalid token');
-}
-
-function isIgnorableDiscordRuntimeError(err) {
-  const code = Number(err?.code);
-  if (code === 10062 || code === 40060) return true;
-
-  const msg = String(err?.message || err || '').toLowerCase();
-  return msg.includes('unknown interaction') || msg.includes('interaction has already been acknowledged');
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function acquireSingleInstanceLock() {
-  ensureDir(DATA_DIR);
-  const lockBody = JSON.stringify({
-    pid: process.pid,
-    startedAt: new Date().toISOString(),
-    root: ROOT,
-  }, null, 2);
-
-  try {
-    lockFd = fs.openSync(LOCK_FILE, 'wx');
-    fs.writeFileSync(lockFd, `${lockBody}\n`, 'utf8');
-    console.log(`🔒 Single-instance lock acquired: ${LOCK_FILE} (pid=${process.pid})`);
-    return;
-  } catch (err) {
-    if (err?.code !== 'EEXIST') throw err;
-  }
-
-  const existing = readLockFile();
-  if (existing?.pid && isProcessAlive(existing.pid)) {
-    console.error(`⛔ Another bot instance is running (pid=${existing.pid}). Exit without takeover.`);
-    process.exit(0);
-  }
-
-  // stale lock
-  try {
-    fs.unlinkSync(LOCK_FILE);
-    lockFd = fs.openSync(LOCK_FILE, 'wx');
-    fs.writeFileSync(lockFd, `${lockBody}\n`, 'utf8');
-    console.warn(`♻️ Removed stale lock and acquired new lock: ${LOCK_FILE} (pid=${process.pid})`);
-  } catch (err) {
-    console.error(`❌ Failed to acquire lock ${LOCK_FILE}: ${safeError(err)}`);
-    process.exit(1);
-  }
-}
-
-function setupLockCleanupHandlers() {
-  process.on('exit', () => {
-    releaseSingleInstanceLock();
-  });
-
-  for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGQUIT']) {
-    process.on(signal, () => {
-      releaseSingleInstanceLock();
-      process.exit(0);
-    });
-  }
-}
-
-function releaseSingleInstanceLock() {
-  if (lockFd !== null) {
-    try {
-      fs.closeSync(lockFd);
-    } catch {
-      // ignore
-    }
-    lockFd = null;
-  }
-
-  try {
-    fs.unlinkSync(LOCK_FILE);
-  } catch (err) {
-    if (err?.code !== 'ENOENT') {
-      console.warn(`Failed to remove lock file ${LOCK_FILE}: ${safeError(err)}`);
-    }
-  }
-}
-
-function readLockFile() {
-  try {
-    if (!fs.existsSync(LOCK_FILE)) return null;
-    const raw = fs.readFileSync(LOCK_FILE, 'utf8');
-    const parsed = JSON.parse(raw);
-    return {
-      pid: toOptionalInt(parsed?.pid),
-    };
-  } catch {
-    return null;
-  }
-}
-
-function isProcessAlive(pid) {
-  const n = Number(pid);
-  if (!Number.isInteger(n) || n <= 0) return false;
-  try {
-    process.kill(n, 0);
-    return true;
-  } catch (err) {
-    return err?.code === 'EPERM';
-  }
-}
-
 const handleCommand = createTextCommandHandler({
   botProvider: BOT_PROVIDER,
   enableConfigCmd: ENABLE_CONFIG_CMD,
@@ -1217,11 +987,31 @@ const handleCommand = createTextCommandHandler({
 
 // ── Message handler (prompts → Codex) ──────────────────────────
 
-acquireSingleInstanceLock();
-setupLockCleanupHandlers();
-setupProcessSelfHeal();
+const singleInstanceLock = createSingleInstanceLock({
+  dataDir: DATA_DIR,
+  lockFile: LOCK_FILE,
+  rootDir: ROOT,
+  ensureDir,
+  safeError,
+  logger: console,
+});
+singleInstanceLock.acquire();
+singleInstanceLock.setupCleanupHandlers();
+
+discordLifecycle = createDiscordLifecycle({
+  selfHealEnabled: SELF_HEAL_ENABLED,
+  restartDelayMs: SELF_HEAL_RESTART_DELAY_MS,
+  maxLoginBackoffMs: SELF_HEAL_MAX_LOGIN_BACKOFF_MS,
+  discordToken: DISCORD_TOKEN,
+  createClient,
+  bindClientHandlers,
+  cancelAllChannelWork,
+  safeError,
+  logger: console,
+});
+discordLifecycle.setupProcessSelfHeal();
 try {
-  await bootClient('startup');
+  await discordLifecycle.bootClient('startup');
 } catch (err) {
   console.error(`❌ Failed to boot Discord client: ${safeError(err)}`);
   process.exit(1);
@@ -1520,7 +1310,7 @@ const { handlePrompt } = createPromptOrchestrator({
   resolveSecurityContext,
   safeReply,
   safeError,
-  getCurrentUserId: () => client?.user?.id,
+  getCurrentUserId: () => discordLifecycle?.getClient()?.user?.id,
   handlePrompt,
 }));
 
