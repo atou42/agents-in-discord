@@ -83,6 +83,11 @@ import {
   parseOptionalBool,
 } from './security-policy.js';
 import {
+  createProviderDefaultWorkspaceStore,
+  resolveConfiguredWorkspaceDir,
+  resolvePath,
+} from './provider-default-workspace.js';
+import {
   createSessionSettings,
   describeCompactStrategy,
   formatLanguageLabel,
@@ -109,6 +114,7 @@ import {
 } from './slash-command-router.js';
 import { createTextCommandHandler } from './text-command-handler.js';
 import { createPromptOrchestrator } from './prompt-orchestrator.js';
+import { autoRepairProxyEnv } from './proxy-env.js';
 import { createWorkspaceRuntime } from './workspace-runtime.js';
 import { createWorkspaceBrowser } from './workspace-browser.js';
 
@@ -213,6 +219,15 @@ const PROVIDER_DEFAULT_WORKSPACE_OVERRIDES = {
   claude: resolveConfiguredWorkspaceDir(process.env.CLAUDE__DEFAULT_WORKSPACE_DIR),
   gemini: resolveConfiguredWorkspaceDir(process.env.GEMINI__DEFAULT_WORKSPACE_DIR),
 };
+const {
+  resolve: resolveProviderDefaultWorkspace,
+  set: setProviderDefaultWorkspace,
+} = createProviderDefaultWorkspaceStore({
+  env: process.env,
+  envFilePath: ENV_FILE,
+  sharedDefaultWorkspaceDir: SHARED_DEFAULT_WORKSPACE_DIR,
+  providerDefaultWorkspaceOverrides: PROVIDER_DEFAULT_WORKSPACE_OVERRIDES,
+});
 const DEFAULT_PROVIDER = BOT_PROVIDER || normalizeProvider(process.env.DEFAULT_PROVIDER || process.env.CLI_PROVIDER || 'codex');
 const DEFAULT_MODEL = process.env.DEFAULT_MODEL || null;
 const DEFAULT_MODE = (process.env.DEFAULT_MODE || 'safe').toLowerCase() === 'dangerous' ? 'dangerous' : 'safe';
@@ -1509,117 +1524,6 @@ const { handlePrompt } = createPromptOrchestrator({
   handlePrompt,
 }));
 
-function autoRepairProxyEnv(envFilePath) {
-  const logs = [];
-  const updates = {};
-
-  const http = firstNonEmptyEnv(['HTTP_PROXY', 'http_proxy', 'HTTPS_PROXY', 'https_proxy']);
-  const https = firstNonEmptyEnv(['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy']);
-  let socks = firstNonEmptyEnv(['SOCKS_PROXY', 'ALL_PROXY', 'all_proxy']);
-
-  if (!socks) {
-    const inferred = inferLocalSocksProxy(http || https);
-    if (inferred) {
-      socks = inferred;
-      logs.push(`🛠️ Proxy auto-repair: inferred SOCKS proxy from local HTTP proxy -> ${inferred}`);
-    }
-  }
-
-  fillMissingEnvKeys(['HTTP_PROXY', 'http_proxy'], http, updates);
-  fillMissingEnvKeys(['HTTPS_PROXY', 'https_proxy'], https || http, updates);
-  fillMissingEnvKeys(['SOCKS_PROXY', 'ALL_PROXY', 'all_proxy'], socks, updates);
-
-  const repairedKeys = Object.keys(updates);
-  if (repairedKeys.length) {
-    logs.push(`🛠️ Proxy auto-repair: filled ${repairedKeys.join(', ')}`);
-    persistEnvUpdates(envFilePath, updates);
-    logs.push(`🛠️ Proxy auto-repair: persisted updates into ${path.basename(envFilePath)}`);
-  }
-
-  return { updates, logs };
-}
-
-function firstNonEmptyEnv(keys) {
-  for (const key of keys) {
-    const value = String(process.env[key] || '').trim();
-    if (value) return value;
-  }
-  return '';
-}
-
-function fillMissingEnvKeys(keys, value, updates) {
-  const normalized = String(value || '').trim();
-  if (!normalized) return;
-
-  for (const key of keys) {
-    const current = String(process.env[key] || '').trim();
-    if (current) continue;
-    process.env[key] = normalized;
-    updates[key] = normalized;
-  }
-}
-
-function inferLocalSocksProxy(proxyValue) {
-  const parsed = parseProxyUrl(proxyValue);
-  if (!parsed) return '';
-  if (!isLocalProxyHost(parsed.hostname)) return '';
-  if (!parsed.port) return '';
-  return `socks5h://${parsed.hostname}:${parsed.port}`;
-}
-
-function parseProxyUrl(raw) {
-  const value = String(raw || '').trim();
-  if (!value) return null;
-  const withScheme = value.includes('://') ? value : `http://${value}`;
-
-  try {
-    return new URL(withScheme);
-  } catch {
-    return null;
-  }
-}
-
-function isLocalProxyHost(host) {
-  const value = String(host || '').trim().toLowerCase();
-  if (!value) return false;
-  return value === '127.0.0.1' || value === 'localhost' || value === '::1';
-}
-
-function persistEnvUpdates(envFilePath, updates) {
-  const keys = Object.keys(updates);
-  if (!keys.length) return;
-
-  let content = '';
-  try {
-    content = fs.existsSync(envFilePath) ? fs.readFileSync(envFilePath, 'utf8') : '';
-  } catch {
-    content = '';
-  }
-
-  for (const key of keys) {
-    const rendered = `${key}=${renderEnvValue(updates[key])}`;
-    const pattern = new RegExp(`^\\s*${escapeRegExp(key)}\\s*=.*$`, 'm');
-    if (pattern.test(content)) {
-      content = content.replace(pattern, rendered);
-    } else {
-      if (content && !content.endsWith('\n')) content += '\n';
-      content += `${rendered}\n`;
-    }
-  }
-
-  fs.writeFileSync(envFilePath, content, 'utf8');
-}
-
-function renderEnvValue(value) {
-  const text = String(value || '');
-  if (!/[#\s"']/g.test(text)) return text;
-  return JSON.stringify(text);
-}
-
-function escapeRegExp(text) {
-  return String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 function doesMessageTargetBot(message, botUserId) {
   const mentioned = Boolean(message.mentions?.users?.has?.(botUserId));
   const repliedToBot = message.mentions?.repliedUser?.id === botUserId;
@@ -1634,47 +1538,6 @@ function normalizeSlashPrefix(value) {
     .replace(/^_+|_+$/g, '');
   if (!raw) return '';
   return raw.slice(0, 12);
-}
-
-function getProviderDefaultWorkspaceEnvKey(provider) {
-  return `${normalizeProvider(provider).toUpperCase()}__DEFAULT_WORKSPACE_DIR`;
-}
-
-function resolveProviderDefaultWorkspace(provider) {
-  const normalizedProvider = normalizeProvider(provider);
-  const scopedWorkspaceDir = PROVIDER_DEFAULT_WORKSPACE_OVERRIDES[normalizedProvider] || null;
-  if (scopedWorkspaceDir) {
-    return {
-      provider: normalizedProvider,
-      workspaceDir: scopedWorkspaceDir,
-      source: 'provider-scoped env',
-      envKey: getProviderDefaultWorkspaceEnvKey(normalizedProvider),
-    };
-  }
-  if (SHARED_DEFAULT_WORKSPACE_DIR) {
-    return {
-      provider: normalizedProvider,
-      workspaceDir: SHARED_DEFAULT_WORKSPACE_DIR,
-      source: 'shared env',
-      envKey: 'DEFAULT_WORKSPACE_DIR',
-    };
-  }
-  return {
-    provider: normalizedProvider,
-    workspaceDir: null,
-    source: 'unset',
-    envKey: getProviderDefaultWorkspaceEnvKey(normalizedProvider),
-  };
-}
-
-function setProviderDefaultWorkspace(provider, workspaceDir) {
-  const normalizedProvider = normalizeProvider(provider);
-  const envKey = getProviderDefaultWorkspaceEnvKey(normalizedProvider);
-  const normalizedWorkspaceDir = resolveConfiguredWorkspaceDir(workspaceDir);
-  PROVIDER_DEFAULT_WORKSPACE_OVERRIDES[normalizedProvider] = normalizedWorkspaceDir;
-  process.env[envKey] = normalizedWorkspaceDir || '';
-  persistEnvUpdates(ENV_FILE, { [envKey]: normalizedWorkspaceDir || '' });
-  return resolveProviderDefaultWorkspace(normalizedProvider);
 }
 
 function isAllowedUser(userId) {
@@ -1843,24 +1706,6 @@ function renderMissingDiscordTokenHint({ botProvider = null, env = process.env }
   }
 
   return 'Missing DISCORD_TOKEN in environment';
-}
-
-function resolveConfiguredWorkspaceDir(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return null;
-  return resolvePath(raw);
-}
-
-function resolvePath(input) {
-  const raw = String(input || '').trim();
-  if (!raw) return path.resolve(process.cwd());
-  const home = process.env.HOME || process.env.USERPROFILE || '';
-  if (raw === '~' && home) return home;
-  if (home && (raw.startsWith('~/') || raw.startsWith('~\\'))) {
-    return path.join(home, raw.slice(2));
-  }
-  if (path.isAbsolute(raw)) return path.normalize(raw);
-  return path.resolve(process.cwd(), raw);
 }
 
 function safeError(err) {
