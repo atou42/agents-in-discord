@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project follows Semantic Versioning.
 
+## [0.5.0] - 2026-03-14
+
+### Added
+- Gemini CLI provider support, including dedicated bot mode, provider-aware CLI health checks, and provider-specific session/runtime handling.
+- Workspace browser flows for selecting directories from Discord, plus recent/favorite workspace navigation helpers.
+- Dedicated startup paths for shared, Codex, Claude, and Gemini bot instances with provider-scoped env overrides.
+
+### Changed
+- Refactored the runtime into smaller modules for app composition, orchestrator/progress/reporting, Discord lifecycle/entry handlers, and provider/runtime helpers.
+- Renamed the project and operational surfaces from `Codex-ClaudeCode-in-Discord` to `agents-in-discord`, including package metadata, repo/docs references, and local service labels/scripts.
+- Auto-upgrade scripts and local launchd/task-scheduler defaults now use the new `agents-in-discord` naming.
+
+### Fixed
+- Claude final answers now render correctly in Discord instead of falling back to "no visible text", and final-answer payloads no longer pollute progress "process content".
+- Restored the missing slash registration import in the index bootstrap path.
+
 ## [0.3.1] - 2026-03-07
 
 ### Added
