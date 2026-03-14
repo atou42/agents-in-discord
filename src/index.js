@@ -80,6 +80,7 @@ import {
   parseWorkspaceCommandAction,
 } from './session-settings.js';
 import {
+  buildCommandActionButtonId,
   parseCommandActionButtonId,
 } from './slash-command-router.js';
 import {
@@ -402,6 +403,18 @@ const appContext = createAppContext({
       buildProgressEventDedupeKey,
       extractInputTokensFromUsage,
       composeFinalAnswerText,
+      buildRunningComponents: ({ message }) => {
+        const userId = String(message?.author?.id || '').trim();
+        if (!userId) return [];
+        return [
+          new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId(buildCommandActionButtonId('cancel', userId))
+              .setLabel('Cancel')
+              .setStyle(ButtonStyle.Danger),
+          ),
+        ];
+      },
     },
     channelQueueOptions: {
       safeReply,

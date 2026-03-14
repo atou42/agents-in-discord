@@ -10,6 +10,43 @@ function defaultTruncate(value, max) {
   return `${text.slice(0, limit - 3)}...`;
 }
 
+function joinLinesWithinLimit(lines, maxChars, truncate = defaultTruncate) {
+  const normalized = Array.isArray(lines)
+    ? lines
+      .map((line) => String(line || '').trimEnd())
+      .filter(Boolean)
+    : [];
+  if (!normalized.length) return '';
+
+  const limit = Math.max(1, Number(maxChars) || 0);
+  const output = [];
+  let used = 0;
+  let overflowed = false;
+
+  for (const line of normalized) {
+    const nextLength = line.length + (output.length ? 1 : 0);
+    if (used + nextLength > limit) {
+      overflowed = true;
+      break;
+    }
+    output.push(line);
+    used += nextLength;
+  }
+
+  if (!output.length) {
+    return truncate(normalized[0], limit);
+  }
+
+  if (overflowed) {
+    const overflowLine = '...';
+    if (used + overflowLine.length + 1 <= limit) {
+      output.push(overflowLine);
+    }
+  }
+
+  return output.join('\n');
+}
+
 function createNoopProgressReporter({
   channelState,
   initialLatestStep = '',
@@ -75,6 +112,7 @@ export function createPromptProgressReporterFactory({
   now = () => Date.now(),
   setIntervalFn = setInterval,
   clearIntervalFn = clearInterval,
+  buildRunningComponents = () => [],
 } = {}) {
   const {
     summarizeCodexEvent = () => '',
@@ -162,7 +200,7 @@ export function createPromptProgressReporterFactory({
       const statusLine = status === 'running'
         ? (lang === 'en' ? '⏳ **Task Running**' : '⏳ **任务进行中**')
         : status;
-      const body = [
+      const lines = [
         statusLine,
         `${lang === 'en' ? '• elapsed' : '• 耗时'}: ${elapsed}`,
         `${lang === 'en' ? '• phase' : '• 阶段'}: ${phase}`,
@@ -177,8 +215,29 @@ export function createPromptProgressReporterFactory({
         }), lang),
         `${lang === 'en' ? '• queued prompts' : '• 排队任务'}: ${channelState?.queue?.length || 0}`,
         `${lang === 'en' ? '• hint' : '• 提示'}: ${hint}`,
-      ].filter(Boolean).join('\n');
-      return truncate(body, progressMessageMaxChars);
+      ].filter(Boolean);
+      return joinLinesWithinLimit(lines, progressMessageMaxChars, truncate);
+    };
+
+    const buildPayload = (body, status = 'running') => {
+      if (status === 'running') {
+        const components = buildRunningComponents({
+          message,
+          channelState,
+          language: lang,
+        });
+        if (Array.isArray(components) && components.length) {
+          return {
+            content: body,
+            components,
+          };
+        }
+      }
+
+      return {
+        content: body,
+        components: [],
+      };
     };
 
     const emit = async (force = false) => {
@@ -191,11 +250,12 @@ export function createPromptProgressReporterFactory({
       const currentTime = now();
       if (!force && currentTime - lastEmitAt < progressEventFlushMs) return;
       const body = render('running');
+      const payload = buildPayload(body, 'running');
       if (!force && body === lastRendered) return;
 
       isEmitting = true;
       try {
-        await progressMessage.edit(body);
+        await progressMessage.edit(payload);
         lastEmitAt = now();
         lastRendered = body;
         syncActiveRun();
@@ -259,7 +319,7 @@ export function createPromptProgressReporterFactory({
       syncActiveRun();
       try {
         const body = render('running');
-        progressMessage = await safeReply(message, body);
+        progressMessage = await safeReply(message, buildPayload(body, 'running'));
         lastEmitAt = now();
         lastRendered = body;
         syncActiveRun();
@@ -353,7 +413,7 @@ export function createPromptProgressReporterFactory({
           : timedOut
             ? (lang === 'en' ? '⏱️ **Task Timed Out**' : '⏱️ **任务超时**')
             : (lang === 'en' ? '❌ **Task Failed**' : '❌ **任务失败**');
-      const body = [
+      const lines = [
         status,
         `${lang === 'en' ? '• elapsed' : '• 耗时'}: ${elapsed}`,
         `${lang === 'en' ? '• phase' : '• 阶段'}: ${formatRuntimePhaseLabel(channelState?.activeRun?.phase || 'done', lang)}`,
@@ -367,11 +427,11 @@ export function createPromptProgressReporterFactory({
           maxSteps: progressDoneStepsMax,
         }), lang),
         !ok && !cancelled && error ? `${lang === 'en' ? '• error' : '• 错误'}: ${truncate(String(error), 260)}` : null,
-      ].filter(Boolean).join('\n');
-      const safeBody = truncate(body, progressMessageMaxChars);
+      ].filter(Boolean);
+      const safeBody = joinLinesWithinLimit(lines, progressMessageMaxChars, truncate);
 
       try {
-        await progressMessage.edit(safeBody);
+        await progressMessage.edit(buildPayload(safeBody, 'done'));
       } catch {
         // ignore
       }

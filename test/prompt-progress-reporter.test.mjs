@@ -32,7 +32,7 @@ function createHarness(overrides = {}) {
       recentActivities: [],
     },
   };
-  const message = { id: 'msg-1' };
+  const message = { id: 'msg-1', author: { id: '12345' } };
 
   const createProgressReporter = createPromptProgressReporterFactory({
     defaultUiLanguage: 'zh',
@@ -96,6 +96,11 @@ function createHarness(overrides = {}) {
     clearIntervalFn: (handle) => {
       cleared.push(handle);
     },
+    buildRunningComponents: ({ message: progressMessage }) => (
+      progressMessage?.author?.id
+        ? [{ type: 'row', customId: `cmd:cancel:${progressMessage.author.id}` }]
+        : []
+    ),
     ...overrides.factoryOptions,
   });
 
@@ -122,17 +127,20 @@ test('createPromptProgressReporterFactory seeds initial step and updates final p
   const harness = createHarness();
 
   await harness.reporter.start();
-  assert.match(harness.sent[0], /Waiting for workspace lock: \/repo\/demo/);
+  assert.match(harness.sent[0].content, /Waiting for workspace lock: \/repo\/demo/);
+  assert.deepEqual(harness.sent[0].components, [{ type: 'row', customId: 'cmd:cancel:12345' }]);
   assert.equal(harness.channelState.activeRun.lastProgressText, 'Waiting for workspace lock: /repo/demo');
   assert.equal(harness.channelState.activeRun.progressMessageId, 'progress-1');
 
   harness.channelState.activeRun.phase = 'exec';
   harness.advance(50);
   harness.reporter.setLatestStep('Workspace lock acquired: /repo/demo');
-  assert.match(harness.edits[0], /Workspace lock acquired: \/repo\/demo/);
+  assert.match(harness.edits[0].content, /Workspace lock acquired: \/repo\/demo/);
+  assert.deepEqual(harness.edits[0].components, [{ type: 'row', customId: 'cmd:cancel:12345' }]);
 
   await harness.reporter.finish({ ok: true });
-  assert.match(harness.edits[harness.edits.length - 1], /✅ \*\*Task Completed\*\*/);
+  assert.match(harness.edits[harness.edits.length - 1].content, /✅ \*\*Task Completed\*\*/);
+  assert.deepEqual(harness.edits[harness.edits.length - 1].components, []);
   assert.equal(harness.cleared.length, 2);
 });
 
@@ -171,7 +179,7 @@ test('createPromptProgressReporterFactory dedupes repeated events and drains buf
 
   await harness.reporter.finish({ ok: true });
 
-  const finalCard = harness.edits[harness.edits.length - 1];
+  const finalCard = harness.edits[harness.edits.length - 1].content;
   assert.match(finalCard, /process: rg src/);
   assert.match(finalCard, /process: rg test/);
   assert.match(finalCard, /done: Inspect code/);
@@ -190,5 +198,28 @@ test('createPromptProgressReporterFactory ignores stderr when disabled and keeps
   harness.reporter.onLog('stdout line', 'stdout');
   assert.equal(harness.channelState.activeRun.progressEvents, 1);
   assert.equal(harness.channelState.activeRun.lastProgressText, 'stdout: stdout line');
-  assert.match(harness.edits[harness.edits.length - 1], /stdout: stdout line/);
+  assert.match(harness.edits[harness.edits.length - 1].content, /stdout: stdout line/);
+});
+
+test('createPromptProgressReporterFactory truncates overflowing cards on line boundaries', async () => {
+  const harness = createHarness({
+    factoryOptions: {
+      progressMessageMaxChars: 120,
+    },
+  });
+
+  await harness.reporter.start();
+  harness.channelState.activeRun.phase = 'exec';
+
+  harness.reporter.onEvent({ summaryStep: 'Locate regression', rawActivity: 'inspect dispatcher' });
+  harness.reporter.onEvent({ summaryStep: 'Inspect renderer', rawActivity: 'inspect renderer' });
+  harness.reporter.onEvent({ summaryStep: 'Inspect bridge', rawActivity: 'inspect bridge' });
+  harness.reporter.onEvent({ summaryStep: 'Patch tests', rawActivity: 'patch tests' });
+
+  const runningCard = harness.edits[harness.edits.length - 1].content;
+  assert.match(runningCard, /\n\.\.\.$/);
+
+  await harness.reporter.finish({ ok: true });
+  const finalCard = harness.edits[harness.edits.length - 1].content;
+  assert.match(finalCard, /\n\.\.\.$/);
 });
