@@ -1,0 +1,188 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+import {
+  handleClaudeRunnerEvent,
+  handleCodexRunnerEvent,
+  handleGeminiRunnerEvent,
+} from '../src/runner-event-handlers.js';
+import {
+  extractAgentMessageText,
+  isFinalAnswerLikeAgentMessage,
+} from '../src/codex-event-utils.js';
+
+test('handleCodexRunnerEvent captures codex 0.111 item.completed final answer', () => {
+  const state = {
+    messages: [],
+    finalAnswerMessages: [],
+    reasonings: [],
+    logs: [],
+    usage: null,
+    threadId: null,
+    meta: {},
+  };
+  const bridges = [];
+
+  handleCodexRunnerEvent({
+    type: 'thread.started',
+    thread_id: 'thread-123',
+  }, state, (threadId) => bridges.push(threadId), {
+    extractAgentMessageText,
+    isFinalAnswerLikeAgentMessage,
+  });
+
+  handleCodexRunnerEvent({
+    type: 'item.completed',
+    item: {
+      id: 'item_0',
+      type: 'agent_message',
+      text: '你好',
+    },
+  }, state, () => {}, {
+    extractAgentMessageText,
+    isFinalAnswerLikeAgentMessage,
+  });
+
+  handleCodexRunnerEvent({
+    type: 'turn.completed',
+    usage: {
+      input_tokens: 13200,
+      output_tokens: 28,
+    },
+  }, state, () => {}, {
+    extractAgentMessageText,
+    isFinalAnswerLikeAgentMessage,
+  });
+
+  assert.deepEqual(bridges, ['thread-123']);
+  assert.equal(state.threadId, 'thread-123');
+  assert.deepEqual(state.finalAnswerMessages, ['你好']);
+  assert.deepEqual(state.messages, []);
+  assert.deepEqual(state.usage, {
+    type: 'turn.completed',
+    usage: {
+      input_tokens: 13200,
+      output_tokens: 28,
+    },
+  });
+});
+
+test('handleCodexRunnerEvent keeps commentary item.completed out of final answer', () => {
+  const state = {
+    messages: [],
+    finalAnswerMessages: [],
+    reasonings: [],
+    logs: [],
+    usage: null,
+    threadId: null,
+    meta: {},
+  };
+
+  handleCodexRunnerEvent({
+    type: 'item.completed',
+    item: {
+      id: 'item_1',
+      type: 'agent_message',
+      text: '我先看一下代码结构。',
+      phase: 'commentary',
+    },
+  }, state, () => {}, {
+    extractAgentMessageText,
+    isFinalAnswerLikeAgentMessage,
+  });
+
+  assert.deepEqual(state.messages, ['我先看一下代码结构。']);
+  assert.deepEqual(state.finalAnswerMessages, []);
+});
+
+test('handleGeminiRunnerEvent captures init, delta messages, and result stats', () => {
+  const state = {
+    messages: [],
+    finalAnswerMessages: [],
+    reasonings: [],
+    logs: [],
+    usage: null,
+    threadId: null,
+    meta: {
+      geminiDeltaBuffer: '',
+    },
+  };
+  const bridges = [];
+
+  handleGeminiRunnerEvent({
+    type: 'init',
+    session_id: 'gemini-session-123',
+  }, state, (threadId) => bridges.push(threadId));
+
+  handleGeminiRunnerEvent({
+    type: 'message',
+    role: 'assistant',
+    content: 'I will inspect the repo.',
+    delta: true,
+  }, state, () => {});
+
+  handleGeminiRunnerEvent({
+    type: 'result',
+    stats: {
+      input_tokens: 18,
+      output_tokens: 7,
+    },
+  }, state, () => {});
+
+  assert.deepEqual(bridges, ['gemini-session-123']);
+  assert.equal(state.threadId, 'gemini-session-123');
+  assert.equal(state.meta.geminiDeltaBuffer, 'I will inspect the repo.');
+  assert.deepEqual(state.usage, {
+    input_tokens: 18,
+    output_tokens: 7,
+  });
+});
+
+test('handleClaudeRunnerEvent captures tool use session id and final result text', () => {
+  const state = {
+    messages: [],
+    finalAnswerMessages: [],
+    reasonings: [],
+    logs: [],
+    usage: null,
+    threadId: null,
+    meta: {
+      claudeSawAgentToolUse: false,
+      claudeStopReason: '',
+    },
+  };
+  const bridges = [];
+
+  handleClaudeRunnerEvent({
+    type: 'stream_event',
+    event: {
+      type: 'content_block_start',
+      content_block: {
+        type: 'tool_use',
+        name: 'agent',
+      },
+    },
+  }, state, () => {});
+
+  handleClaudeRunnerEvent({
+    type: 'session.created',
+    session_id: 'claude-session-1',
+  }, state, (threadId) => bridges.push(threadId));
+
+  handleClaudeRunnerEvent({
+    type: 'result',
+    session_id: 'claude-session-1',
+    stop_reason: 'end_turn',
+    usage: { input_tokens: 21, output_tokens: 8 },
+    content: [
+      { type: 'text', text: '结论：可以继续推进。' },
+    ],
+  }, state, (threadId) => bridges.push(threadId));
+
+  assert.equal(state.meta.claudeSawAgentToolUse, true);
+  assert.equal(state.meta.claudeStopReason, 'end_turn');
+  assert.equal(state.threadId, 'claude-session-1');
+  assert.deepEqual(state.finalAnswerMessages, ['结论：可以继续推进。']);
+  assert.deepEqual(state.usage, { input_tokens: 21, output_tokens: 8 });
+  assert.deepEqual(bridges, ['claude-session-1', 'claude-session-1']);
+});

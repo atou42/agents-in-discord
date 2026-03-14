@@ -1,0 +1,83 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+import { createRunnerArgsBuilder, uniqueDirs } from '../src/runner-args.js';
+
+test('uniqueDirs removes blanks and duplicates while keeping order', () => {
+  assert.deepEqual(
+    uniqueDirs([' /repo/a ', '', null, '/repo/b', '/repo/a', '  ', '/repo/b']),
+    ['/repo/a', '/repo/b'],
+  );
+});
+
+test('createRunnerArgsBuilder builds gemini args instead of codex args', () => {
+  const { buildSessionRunnerArgs } = createRunnerArgsBuilder({
+    defaultModel: null,
+    normalizeProvider: (value) => value,
+    getSessionId: (session) => session.runnerSessionId,
+    resolveCompactStrategySetting: () => ({ strategy: 'hard' }),
+    resolveCompactEnabledSetting: () => ({ enabled: false }),
+    resolveNativeCompactTokenLimitSetting: () => ({ tokens: 0 }),
+  });
+
+  const args = buildSessionRunnerArgs({
+    provider: 'gemini',
+    session: {
+      provider: 'gemini',
+      mode: 'dangerous',
+      model: 'gemini-2.5-pro',
+      runnerSessionId: 'sess-gm-1',
+    },
+    workspaceDir: '/tmp/workspace',
+    prompt: 'summarize the repo',
+  });
+
+  assert.deepEqual(args, [
+    '--output-format',
+    'stream-json',
+    '--yolo',
+    '--model',
+    'gemini-2.5-pro',
+    '--resume',
+    'sess-gm-1',
+    '--prompt',
+    'summarize the repo',
+  ]);
+});
+
+test('createRunnerArgsBuilder adds native compact config for codex when enabled', () => {
+  const { buildSessionRunnerArgs } = createRunnerArgsBuilder({
+    defaultModel: 'gpt-5-codex',
+    normalizeProvider: (value) => value,
+    getSessionId: () => null,
+    resolveCompactStrategySetting: () => ({ strategy: 'native' }),
+    resolveCompactEnabledSetting: () => ({ enabled: true }),
+    resolveNativeCompactTokenLimitSetting: () => ({ tokens: 123456 }),
+  });
+
+  const args = buildSessionRunnerArgs({
+    provider: 'codex',
+    session: {
+      mode: 'safe',
+      configOverrides: ['foo="bar"'],
+    },
+    workspaceDir: '/tmp/workspace',
+    prompt: 'inspect',
+  });
+
+  assert.deepEqual(args, [
+    'exec',
+    '--json',
+    '--skip-git-repo-check',
+    '--full-auto',
+    '-C',
+    '/tmp/workspace',
+    '-m',
+    'gpt-5-codex',
+    '-c',
+    'model_auto_compact_token_limit=123456',
+    '-c',
+    'foo="bar"',
+    'inspect',
+  ]);
+});
