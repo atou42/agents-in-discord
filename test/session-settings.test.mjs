@@ -6,9 +6,11 @@ import {
   describeCompactStrategy,
   formatLanguageLabel,
   normalizeCompactStrategy,
+  normalizeSessionFastMode,
   normalizeUiLanguage,
   parseCompactConfigAction,
   parseCompactConfigFromText,
+  parseFastModeAction,
   parseReasoningEffortInput,
   parseWorkspaceCommandAction,
 } from '../src/session-settings.js';
@@ -53,6 +55,16 @@ test('session-settings resolves timeout security profile and compact values with
   assert.deepEqual(settings.resolveTimeoutSetting({}), {
     timeoutMs: 60_000,
     source: 'env default',
+  });
+  assert.deepEqual(settings.resolveFastModeSetting({ provider: 'codex', fastMode: 'on' }), {
+    enabled: true,
+    supported: true,
+    source: 'session override',
+  });
+  assert.deepEqual(settings.resolveFastModeSetting({ provider: 'codex' }), {
+    enabled: false,
+    supported: true,
+    source: 'config.toml',
   });
   assert.deepEqual(settings.resolveTaskRetrySetting({
     taskMaxAttempts: '4',
@@ -106,6 +118,10 @@ test('session-settings parses compact, reasoning and workspace command inputs', 
     tokens: 99_999,
   });
   assert.deepEqual(parseCompactConfigFromText('reset'), { type: 'reset' });
+  assert.deepEqual(parseFastModeAction('on'), { type: 'set', enabled: true });
+  assert.deepEqual(parseFastModeAction('default'), { type: 'set', enabled: null });
+  assert.deepEqual(parseFastModeAction('status'), { type: 'status' });
+  assert.equal(normalizeSessionFastMode('off'), false);
   assert.deepEqual(parseWorkspaceCommandAction('browse'), { type: 'browse' });
   assert.deepEqual(parseWorkspaceCommandAction('~/repo'), { type: 'set', value: '~/repo' });
   assert.equal(parseReasoningEffortInput('HIGH'), 'high');
@@ -116,7 +132,7 @@ test('session-settings parses compact, reasoning and workspace command inputs', 
 test('session-settings provides compact descriptions and provider defaults', () => {
   const warnings = [];
   const settings = createSessionSettings({
-    readCodexDefaults: () => ({ model: 'gpt-5-codex', effort: 'high' }),
+    readCodexDefaults: () => ({ model: 'gpt-5-codex', effort: 'high', fastMode: true }),
     normalizeProvider: (provider) => String(provider || '').trim().toLowerCase() || 'codex',
     getSupportedCompactStrategies: () => ['hard', 'native', 'off'],
   });
@@ -132,11 +148,13 @@ test('session-settings provides compact descriptions and provider defaults', () 
   assert.deepEqual(settings.getProviderDefaults('codex'), {
     model: 'gpt-5-codex',
     effort: 'high',
+    fastMode: true,
     source: 'config.toml',
   });
   assert.deepEqual(settings.getProviderDefaults('gemini'), {
     model: '(provider default)',
     effort: '(provider default)',
+    fastMode: false,
     source: 'provider',
   });
 });

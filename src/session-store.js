@@ -68,6 +68,7 @@ export function createSessionStore({
   normalizeProvider,
   normalizeUiLanguage,
   normalizeSessionSecurityProfile,
+  normalizeSessionFastMode = () => null,
   normalizeSessionTimeoutMs,
   normalizeSessionCompactStrategy,
   normalizeSessionCompactEnabled,
@@ -135,6 +136,7 @@ export function createSessionStore({
         lastInputTokens: null,
         model: null,
         effort: null,
+        fastMode: null,
         mode: defaults.mode,
         language: defaults.language,
         onboardingEnabled: defaults.onboardingEnabled,
@@ -235,6 +237,10 @@ export function createSessionStore({
       session.timeoutMs = null;
       migrated = true;
     }
+    if (session.fastMode === undefined) {
+      session.fastMode = null;
+      migrated = true;
+    }
     if (session.compactStrategy === undefined) {
       session.compactStrategy = null;
       migrated = true;
@@ -277,6 +283,11 @@ export function createSessionStore({
     const normalizedTimeoutMs = normalizeSessionTimeoutMs(session.timeoutMs);
     if (session.timeoutMs !== normalizedTimeoutMs) {
       session.timeoutMs = normalizedTimeoutMs;
+      migrated = true;
+    }
+    const normalizedFastMode = normalizeSessionFastMode(session.fastMode);
+    if (session.fastMode !== normalizedFastMode) {
+      session.fastMode = normalizedFastMode;
       migrated = true;
     }
     if ('lastPrompt' in session) {

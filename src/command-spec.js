@@ -199,6 +199,19 @@ export function buildSlashCommandEntries({ botProvider = null } = {}) {
         return builder.addStringOption(o => o.setName('name').setDescription('模型名（如 o3, gpt-5.3-codex）或 default').setRequired(true));
       },
     },
+    (!lockedProvider || lockedProvider === 'codex') && {
+      name: 'fast',
+      description: '切换 Codex Fast mode（on/off/status/default）',
+      configure(builder) {
+        return builder.addStringOption(o => o.setName('action').setDescription('Fast mode 操作').setRequired(true)
+          .addChoices(
+            { name: 'on', value: 'on' },
+            { name: 'off', value: 'off' },
+            { name: 'status', value: 'status' },
+            { name: 'default', value: 'default' },
+          ));
+      },
+    },
     effortChoices.length && {
       name: 'effort',
       description: '设置 reasoning effort',

@@ -27,6 +27,7 @@ function createRouterState(overrides = {}) {
   const cancelCalls = [];
   const retryCalls = [];
   const browseCalls = [];
+  let fastModeSetting = { enabled: false, supported: true, source: 'config.toml' };
   let retryOutcome = { ok: true, enqueued: true, queuedAhead: 0 };
 
   const router = createSlashCommandRouter({
@@ -36,6 +37,7 @@ function createRouterState(overrides = {}) {
     getSessionProvider: (currentSession) => currentSession.provider,
     getProviderDisplayName: (provider) => provider,
     getEffectiveSecurityProfile: () => ({ profile: 'team' }),
+    resolveFastModeSetting: () => fastModeSetting,
     resolveTimeoutSetting: () => ({ timeoutMs: 0, source: 'default' }),
     isReasoningEffortSupported: () => true,
     commandActions: {
@@ -51,6 +53,10 @@ function createRouterState(overrides = {}) {
       setDefaultWorkspaceDir: () => ({}),
       setProvider: () => ({ previous: 'codex' }),
       setModel: () => ({ model: null }),
+      setFastMode(_session, enabled) {
+        fastModeSetting = { enabled: Boolean(enabled), supported: true, source: enabled === null ? 'config.toml' : 'session override' };
+        return { fastModeSetting };
+      },
       setReasoningEffort: () => ({ effort: null }),
       applyCompactConfig() {},
       setMode: () => ({ mode: 'safe' }),
@@ -75,6 +81,8 @@ function createRouterState(overrides = {}) {
     formatDefaultWorkspaceSetHelp: () => '',
     formatDefaultWorkspaceUpdateReport: () => '',
     formatLanguageConfigReport: () => '',
+    formatFastModeConfigHelp: () => 'fast-help',
+    formatFastModeConfigReport: (_language, provider, setting, changed) => `${provider}:${setting.supported}:${setting.enabled}:${setting.source}:${changed}`,
     formatProfileConfigHelp: () => '',
     formatProfileConfigReport: () => '',
     formatTimeoutConfigHelp: () => '',
@@ -90,6 +98,14 @@ function createRouterState(overrides = {}) {
       ? { type: 'browse' }
       : { type: 'status' },
     parseUiLanguageInput: () => 'zh',
+    parseFastModeAction: (value) => {
+      const raw = String(value || '').trim().toLowerCase();
+      if (raw === 'status') return { type: 'status' };
+      if (raw === 'default') return { type: 'set', enabled: null };
+      if (raw === 'on') return { type: 'set', enabled: true };
+      if (raw === 'off') return { type: 'set', enabled: false };
+      return { type: 'invalid' };
+    },
     parseSecurityProfileInput: () => 'team',
     parseTimeoutConfigAction: () => ({ type: 'status' }),
     parseCompactConfigAction: () => ({ type: 'status' }),
@@ -124,6 +140,7 @@ function createRouterState(overrides = {}) {
     setRetryOutcome: (value) => {
       retryOutcome = value;
     },
+    getFastModeSetting: () => fastModeSetting,
   };
 }
 
@@ -241,6 +258,48 @@ test('createSlashCommandRouter rejects only unsupported compact actions for non-
   assert.equal(handled, true);
   assert.deepEqual(state.replies, [{
     content: '⚠️ 当前 provider Gemini CLI 不支持 `native` 压缩。',
+    flags: 64,
+  }]);
+});
+
+test('createSlashCommandRouter updates fast mode for codex provider', async () => {
+  const state = createRouterState();
+  const interaction = createInteraction('cx_fast');
+  interaction.options.getString = () => 'on';
+
+  const handled = await state.router({
+    interaction,
+    commandName: 'fast',
+    respond: async (payload) => {
+      state.replies.push(payload);
+    },
+  });
+
+  assert.equal(handled, true);
+  assert.deepEqual(state.getFastModeSetting(), { enabled: true, supported: true, source: 'session override' });
+  assert.deepEqual(state.replies, [{
+    content: 'codex:true:true:session override:true',
+    flags: 64,
+  }]);
+});
+
+test('createSlashCommandRouter reports fast mode unsupported for non-codex providers', async () => {
+  const state = createRouterState();
+  state.session.provider = 'claude';
+  const interaction = createInteraction('cx_fast');
+  interaction.options.getString = () => 'status';
+
+  const handled = await state.router({
+    interaction,
+    commandName: 'fast',
+    respond: async (payload) => {
+      state.replies.push(payload);
+    },
+  });
+
+  assert.equal(handled, true);
+  assert.deepEqual(state.replies, [{
+    content: 'claude:false:false:provider unsupported:false',
     flags: 64,
   }]);
 });

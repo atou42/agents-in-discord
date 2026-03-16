@@ -16,23 +16,25 @@ function makeTempRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'agents-in-discord-runtime-bootstrap-'));
 }
 
-test('readCodexDefaults reads model and reasoning effort from ~/.codex/config.toml', () => {
+test('readCodexDefaults reads model reasoning effort and fast mode from ~/.codex/config.toml', () => {
   const rootDir = makeTempRoot();
   const homeDir = path.join(rootDir, 'home');
   const configDir = path.join(homeDir, '.codex');
   fs.mkdirSync(configDir, { recursive: true });
   fs.writeFileSync(
     path.join(configDir, 'config.toml'),
-    ['model = "o3"', 'model_reasoning_effort = "high"'].join('\n'),
+    ['model = "o3"', 'model_reasoning_effort = "high"', '[features]', 'fast_mode = true'].join('\n'),
   );
 
   assert.deepEqual(readCodexDefaults({ env: { HOME: homeDir } }), {
     model: 'o3',
     effort: 'high',
+    fastMode: true,
   });
   assert.deepEqual(readCodexDefaults({ env: { HOME: path.join(rootDir, 'missing') } }), {
     model: '(unknown)',
     effort: '(unknown)',
+    fastMode: false,
   });
 });
 

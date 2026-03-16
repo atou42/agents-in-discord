@@ -29,6 +29,26 @@ export function formatSecurityProfileLabel(profile) {
   return parseSecurityProfileInput(profile) || 'team';
 }
 
+export function normalizeSessionFastMode(value) {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'boolean') return value;
+  const raw = String(value).trim().toLowerCase();
+  if (['1', 'true', 'on', 'enable', 'enabled', 'yes', '开启', '启用', '打开'].includes(raw)) return true;
+  if (['0', 'false', 'off', 'disable', 'disabled', 'no', '关闭', '禁用'].includes(raw)) return false;
+  return null;
+}
+
+export function parseFastModeAction(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw || ['status', 'show', 'state', '查看', '状态'].includes(raw)) return { type: 'status' };
+  if (['default', 'inherit', 'clear', 'reset', '跟随默认', '清除'].includes(raw)) {
+    return { type: 'set', enabled: null };
+  }
+  const enabled = normalizeSessionFastMode(raw);
+  if (enabled === null) return { type: 'invalid' };
+  return { type: 'set', enabled };
+}
+
 export function normalizeTimeoutMs(value, fallback) {
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
@@ -207,7 +227,7 @@ export function createSessionSettings({
   compactOnThreshold = true,
   maxInputTokensBeforeCompact = 250000,
   modelAutoCompactTokenLimit = maxInputTokensBeforeCompact,
-  readCodexDefaults = () => ({ model: '(unknown)', effort: '(unknown)' }),
+  readCodexDefaults = () => ({ model: '(unknown)', effort: '(unknown)', fastMode: false }),
   normalizeProvider = (provider) => String(provider || '').trim().toLowerCase() || 'codex',
   getSupportedCompactStrategies = () => ['hard', 'native', 'off'],
 } = {}) {
@@ -246,6 +266,32 @@ export function createSessionSettings({
       baseDelayMs,
       maxDelayMs,
       source: hasOverride ? 'session override' : 'env default',
+    };
+  }
+
+  function resolveFastModeSetting(session) {
+    const provider = normalizeProvider(session?.provider);
+    if (provider !== 'codex') {
+      return {
+        enabled: false,
+        supported: false,
+        source: 'provider unsupported',
+      };
+    }
+
+    const sessionFastMode = normalizeSessionFastMode(session?.fastMode);
+    if (sessionFastMode !== null) {
+      return {
+        enabled: sessionFastMode,
+        supported: true,
+        source: 'session override',
+      };
+    }
+
+    return {
+      enabled: Boolean(readCodexDefaults().fastMode),
+      supported: true,
+      source: 'config.toml',
     };
   }
 
@@ -297,7 +343,12 @@ export function createSessionSettings({
 
   function getProviderDefaults(provider) {
     if (normalizeProvider(provider) !== 'codex') {
-      return { model: '(provider default)', effort: '(provider default)', source: 'provider' };
+      return {
+        model: '(provider default)',
+        effort: '(provider default)',
+        fastMode: false,
+        source: 'provider',
+      };
     }
     return {
       ...readCodexDefaults(),
@@ -310,6 +361,7 @@ export function createSessionSettings({
     getEffectiveSecurityProfile,
     resolveTimeoutSetting,
     resolveTaskRetrySetting,
+    resolveFastModeSetting,
     resolveCompactStrategySetting,
     resolveCompactEnabledSetting,
     resolveCompactThresholdSetting,

@@ -28,6 +28,7 @@ export function buildRunnerArgs({
   mode = 'safe',
   model = null,
   effort = null,
+  fastMode = null,
   extraConfigs = [],
   compactStrategy = 'native',
   compactOnThreshold = true,
@@ -59,6 +60,7 @@ export function buildRunnerArgs({
     mode,
     model,
     effort,
+    fastMode,
     extraConfigs,
     compactStrategy,
     compactOnThreshold,
@@ -73,6 +75,7 @@ function buildCodexArgs({
   mode,
   model,
   effort,
+  fastMode,
   extraConfigs,
   compactStrategy,
   compactOnThreshold,
@@ -85,6 +88,9 @@ function buildCodexArgs({
   const common = [];
   if (model) common.push('-m', model);
   if (effort) common.push('-c', `model_reasoning_effort="${effort}"`);
+  if (typeof fastMode === 'boolean') {
+    common.push('-c', `features.fast_mode=${fastMode ? 'true' : 'false'}`);
+  }
   if (compactStrategy === 'native' && compactOnThreshold) {
     common.push('-c', `model_auto_compact_token_limit=${modelAutoCompactTokenLimit}`);
   }

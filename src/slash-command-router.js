@@ -56,6 +56,7 @@ export function createSlashCommandRouter({
   getProviderDisplayName,
   getEffectiveSecurityProfile,
   getRuntimeSnapshot = () => ({ running: false, queued: 0 }),
+  resolveFastModeSetting = () => ({ enabled: false, supported: false, source: 'provider unsupported' }),
   resolveTimeoutSetting,
   isReasoningEffortSupported,
   commandActions = {},
@@ -73,6 +74,8 @@ export function createSlashCommandRouter({
   formatDefaultWorkspaceSetHelp,
   formatDefaultWorkspaceUpdateReport,
   formatLanguageConfigReport,
+  formatFastModeConfigHelp = () => '',
+  formatFastModeConfigReport = () => '',
   formatProfileConfigHelp,
   formatProfileConfigReport,
   formatTimeoutConfigHelp,
@@ -87,6 +90,7 @@ export function createSlashCommandRouter({
   normalizeProvider,
   parseWorkspaceCommandAction,
   parseUiLanguageInput,
+  parseFastModeAction = () => ({ type: 'status' }),
   parseSecurityProfileInput,
   parseTimeoutConfigAction,
   parseCompactConfigAction,
@@ -252,6 +256,38 @@ export function createSlashCommandRouter({
     const name = interaction.options.getString('name');
     const { model } = commandActions.setModel(session, name);
     await respond(`✅ model = ${model || '(provider default)'}`);
+  });
+
+  registerSlashHandlers(handlers, ['fast'], async ({ interaction, session, respond }) => {
+    const provider = getSessionProvider(session);
+    const language = getSessionLanguage(session);
+    const action = parseFastModeAction(interaction.options.getString('action'));
+    if (provider !== 'codex') {
+      await respond({
+        content: formatFastModeConfigReport(language, provider, { enabled: false, supported: false, source: 'provider unsupported' }, false),
+        flags: 64,
+      });
+      return;
+    }
+    if (!action || action.type === 'invalid') {
+      await respond({
+        content: formatFastModeConfigHelp(language, provider),
+        flags: 64,
+      });
+      return;
+    }
+    if (action.type === 'status') {
+      await respond({
+        content: formatFastModeConfigReport(language, provider, resolveFastModeSetting(session), false),
+        flags: 64,
+      });
+      return;
+    }
+    const { fastModeSetting } = commandActions.setFastMode(session, action.enabled);
+    await respond({
+      content: formatFastModeConfigReport(language, provider, fastModeSetting, true),
+      flags: 64,
+    });
   });
 
   registerSlashHandlers(handlers, ['effort'], async ({ interaction, session, respond }) => {

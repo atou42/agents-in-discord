@@ -14,14 +14,17 @@ export function readCodexDefaults({ env = process.env } = {}) {
     const raw = fs.readFileSync(configPath, 'utf-8');
     const modelMatch = raw.match(/^model\s*=\s*"([^"]+)"/m);
     const effortMatch = raw.match(/^model_reasoning_effort\s*=\s*"([^"]+)"/m);
+    const fastModeMatch = raw.match(/^\s*fast_mode\s*=\s*(true|false)\s*$/m);
     return {
       model: modelMatch?.[1] || UNKNOWN_CODEX_DEFAULT,
       effort: effortMatch?.[1] || UNKNOWN_CODEX_DEFAULT,
+      fastMode: fastModeMatch?.[1] === 'true',
     };
   } catch {
     return {
       model: UNKNOWN_CODEX_DEFAULT,
       effort: UNKNOWN_CODEX_DEFAULT,
+      fastMode: false,
     };
   }
 }

@@ -20,6 +20,7 @@ export function createRunnerArgsBuilder({
   defaultModel = null,
   normalizeProvider = (value) => String(value || '').trim().toLowerCase(),
   getSessionId = () => null,
+  resolveFastModeSetting = () => ({ enabled: false, source: 'provider unsupported' }),
   resolveCompactStrategySetting = () => ({ strategy: 'native' }),
   resolveCompactEnabledSetting = () => ({ enabled: false }),
   resolveNativeCompactTokenLimitSetting = () => ({ tokens: 0 }),
@@ -53,6 +54,7 @@ export function createRunnerArgsBuilder({
 
     const model = session.model || defaultModel;
     const effort = session.effort;
+    const fastMode = resolveFastModeSetting(session);
     const extraConfigs = session.configOverrides || [];
     const compactSetting = resolveCompactStrategySetting(session);
     const compactEnabled = resolveCompactEnabledSetting(session);
@@ -61,6 +63,9 @@ export function createRunnerArgsBuilder({
     const common = [];
     if (model) common.push('-m', model);
     if (effort) common.push('-c', `model_reasoning_effort="${effort}"`);
+    if (fastMode.source === 'session override') {
+      common.push('-c', `features.fast_mode=${fastMode.enabled ? 'true' : 'false'}`);
+    }
     if (compactSetting.strategy === 'native' && compactEnabled.enabled) {
       common.push('-c', `model_auto_compact_token_limit=${nativeLimit.tokens}`);
     }

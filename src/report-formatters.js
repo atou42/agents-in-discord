@@ -35,6 +35,7 @@ export function createReportFormatters({
   getRuntimeSnapshot = () => ({ running: false, queued: 0 }),
   resolveSecurityContext = () => ({ mentionOnly: false, maxQueuePerChannel: 0 }),
   resolveTimeoutSetting = () => ({ timeoutMs: 0, source: 'env default' }),
+  resolveFastModeSetting = () => ({ enabled: false, supported: false, source: 'provider unsupported' }),
   getEffectiveSecurityProfile = () => ({ profile: 'team', source: 'env default' }),
   resolveCompactStrategySetting = () => ({ strategy: 'native', source: 'env default' }),
   resolveCompactEnabledSetting = () => ({ enabled: true, source: 'env default' }),
@@ -87,13 +88,25 @@ export function createReportFormatters({
     if (source === 'session override') {
       return language === 'en' ? 'session override' : '频道覆盖';
     }
+    if (source === 'config.toml') {
+      return 'config.toml';
+    }
     if (source === 'session threshold fallback') {
       return language === 'en' ? 'threshold fallback' : '阈值回退';
     }
     if (source === 'env default') {
       return language === 'en' ? 'env default' : '环境默认';
     }
+    if (source === 'provider unsupported') {
+      return language === 'en' ? 'provider unsupported' : '当前 provider 不支持';
+    }
     return source || (language === 'en' ? 'unknown' : '未知');
+  }
+
+  function formatFastModeLabel(enabled, language = 'en') {
+    return enabled
+      ? (language === 'en' ? 'on' : '开启')
+      : (language === 'en' ? 'off' : '关闭');
   }
 
   function formatWorkspaceSourceLabel(source, language = 'zh') {
@@ -226,6 +239,7 @@ export function createReportFormatters({
     const defaults = getProviderDefaults(provider);
     const cliHealth = getCliHealth(provider);
     const security = resolveSecurityContext(channel, session);
+    const fastMode = resolveFastModeSetting(session);
     const compactSetting = resolveCompactStrategySetting(session);
     const compactEnabled = resolveCompactEnabledSetting(session);
     const compactThreshold = resolveCompactThresholdSetting(session);
@@ -248,6 +262,7 @@ export function createReportFormatters({
         `• model: ${session.model || defaultModel}`,
         `• mode: ${modeDesc}`,
         `• effort: ${session.effort || defaultEffort}`,
+        fastMode.supported ? `• fast mode: ${formatFastModeLabel(fastMode.enabled, lang)} (${formatSettingSourceLabel(fastMode.source, lang)})` : null,
         ...workspaceLines,
         `• compact strategy: ${describeCompactStrategy(compactSetting.strategy, lang)} (${formatSettingSourceLabel(compactSetting.source, lang)})`,
         `• compact enabled: ${compactEnabled.enabled ? 'on' : 'off'} (${formatSettingSourceLabel(compactEnabled.source, lang)})`,
@@ -269,6 +284,7 @@ export function createReportFormatters({
       `• model: ${session.model || defaultModel}`,
       `• mode: ${modeDesc}`,
       `• effort: ${session.effort || defaultEffort}`,
+      fastMode.supported ? `• fast mode: ${formatFastModeLabel(fastMode.enabled, lang)}（${formatSettingSourceLabel(fastMode.source, lang)}）` : null,
       ...workspaceLines,
       `• compact strategy: ${describeCompactStrategy(compactSetting.strategy, lang)}（${formatSettingSourceLabel(compactSetting.source, lang)}）`,
       `• compact enabled: ${compactEnabled.enabled ? 'on' : 'off'}（${formatSettingSourceLabel(compactEnabled.source, lang)}）`,
@@ -388,6 +404,7 @@ export function createReportFormatters({
     const cliHealth = getCliHealth(provider);
     const security = resolveSecurityContext(channel, session);
     const timeoutSetting = resolveTimeoutSetting(session);
+    const fastMode = resolveFastModeSetting(session);
     const securitySetting = getEffectiveSecurityProfile(session);
     const compactSetting = resolveCompactStrategySetting(session);
     const compactEnabled = resolveCompactEnabledSetting(session);
@@ -427,6 +444,7 @@ export function createReportFormatters({
       `• ALLOWED_CHANNEL_IDS: ${allowedChannelIds ? `${allowedChannelIds.size} configured` : '(all channels)'}`,
       `• ALLOWED_USER_IDS: ${allowedUserIds ? `${allowedUserIds.size} configured` : '(all users)'}`,
       `• runner timeout: ${formatTimeoutLabel(timeoutSetting.timeoutMs)} (${timeoutSetting.source})`,
+      fastMode.supported ? `• fast mode: ${formatFastModeLabel(fastMode.enabled)} (${fastMode.source})` : null,
       `• compact strategy: ${describeCompactStrategy(compactSetting.strategy)} (${compactSetting.source})`,
       `• compact enabled: ${compactEnabled.enabled ? 'on' : 'off'} (${compactEnabled.source})`,
       `• compact token limit: ${compactThreshold.tokens} (${compactThreshold.source})`,
@@ -518,6 +536,46 @@ export function createReportFormatters({
     return language === 'en'
       ? `Usage: \`!effort <${usage}>\``
       : `用法：\`!effort <${usage}>\``;
+  }
+
+  function formatFastModeConfigHelp(language, provider = 'codex') {
+    if (provider !== 'codex') {
+      return language === 'en'
+        ? `Current provider ${getProviderDisplayName(provider)} does not expose Fast mode.`
+        : `当前 provider ${getProviderDisplayName(provider)} 不支持 Fast mode。`;
+    }
+    if (language === 'en') {
+      return [
+        'Usage: `!fast <on|off|status|default>`',
+        `Slash: \`${slashRef('fast')} <on|off|status|default>\``,
+        'Note: Fast mode is a Codex feature intended for the GPT-5.4 path and may use plan quota faster.',
+      ].join('\n');
+    }
+    return [
+      '用法：`!fast <on|off|status|default>`',
+      `Slash：\`${slashRef('fast')} <on|off|status|default>\``,
+      '说明：Fast mode 是 Codex 的能力，主要对应 GPT-5.4 路径，可能会更快消耗套餐额度。',
+    ].join('\n');
+  }
+
+  function formatFastModeConfigReport(language, provider, fastModeSetting, changed = false) {
+    if (!fastModeSetting?.supported) {
+      return language === 'en'
+        ? `⚠️ Current provider ${getProviderDisplayName(provider)} does not support Fast mode.`
+        : `⚠️ 当前 provider ${getProviderDisplayName(provider)} 不支持 Fast mode。`;
+    }
+    if (language === 'en') {
+      return [
+        changed ? '✅ Fast mode updated' : 'ℹ️ Fast mode',
+        `• status: ${formatFastModeLabel(fastModeSetting.enabled, language)} (${formatSettingSourceLabel(fastModeSetting.source, language)})`,
+        '• note: this mirrors Codex `/fast` behavior by passing `features.fast_mode` in non-interactive runs when overridden per channel.',
+      ].join('\n');
+    }
+    return [
+      changed ? '✅ Fast mode 已更新' : 'ℹ️ 当前 Fast mode',
+      `• 状态：${formatFastModeLabel(fastModeSetting.enabled, language)}（${formatSettingSourceLabel(fastModeSetting.source, language)}）`,
+      '• 说明：频道覆盖时，bot 会在非交互 `codex exec` 中透传 `features.fast_mode`，对齐 Codex 里的 `/fast` 行为。',
+    ].join('\n');
   }
 
   function formatLanguageConfigHelp(language) {
@@ -641,6 +699,7 @@ export function createReportFormatters({
         '',
         '**Model & Runtime**',
         '• `!model <name|default>` — set model override',
+        provider === 'codex' ? `• \`${slashRef('fast')} <on|off|status|default>\` / \`!fast <...>\` — toggle Codex Fast mode for this channel` : null,
         reasoningLevels.length
           ? `• \`!effort <${[...reasoningLevels, 'default'].join('|')}>\` — reasoning effort`
           : `• reasoning effort — not exposed by current provider (${getProviderDisplayName(provider)})`,
@@ -692,6 +751,7 @@ export function createReportFormatters({
       '',
       '**模型 & 执行**',
       '• `!model <name|default>` — 切换模型（如 gpt-5.3-codex, o3）',
+      provider === 'codex' ? `• \`${slashRef('fast')} <on|off|status|default>\` / \`!fast <...>\` — 切换当前频道的 Codex Fast mode` : null,
       reasoningLevels.length
         ? `• \`!effort <${[...reasoningLevels, 'default'].join('|')}>\` — reasoning effort`
         : `• reasoning effort — 当前 provider (${getProviderDisplayName(provider)}) 未暴露`,
@@ -816,6 +876,8 @@ export function createReportFormatters({
     formatReasoningEffortHelp,
     formatLanguageConfigHelp,
     formatLanguageConfigReport,
+    formatFastModeConfigHelp,
+    formatFastModeConfigReport,
     formatProfileConfigHelp,
     formatProfileConfigReport,
     formatTimeoutConfigHelp,

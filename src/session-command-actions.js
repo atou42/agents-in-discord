@@ -24,6 +24,7 @@ export function createSessionCommandActions({
   getSessionLanguage = () => 'zh',
   normalizeUiLanguage = (value) => (String(value || '').trim().toLowerCase() === 'en' ? 'en' : 'zh'),
   getProviderShortName = (provider) => String(provider || ''),
+  resolveFastModeSetting = () => ({ enabled: false, supported: false, source: 'provider unsupported' }),
   formatProviderSessionLabel = (provider, language = 'en', { plural = false } = {}) => (
     language === 'en'
       ? `${getProviderShortName(provider)} ${plural ? 'sessions' : 'session'}`
@@ -77,6 +78,12 @@ export function createSessionCommandActions({
     session.effort = effort === 'default' ? null : effort;
     saveDb();
     return { effort: session.effort };
+  }
+
+  function setFastMode(session, enabled) {
+    session.fastMode = enabled;
+    saveDb();
+    return { fastModeSetting: resolveFastModeSetting(session) };
   }
 
   function applyCompactConfig(session, parsed) {
@@ -275,6 +282,7 @@ export function createSessionCommandActions({
     setProvider,
     setModel,
     setReasoningEffort,
+    setFastMode,
     applyCompactConfig,
     setMode,
     startNewSession,

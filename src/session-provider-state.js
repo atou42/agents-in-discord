@@ -4,6 +4,7 @@ const PROVIDER_SCOPED_SESSION_DEFAULTS = Object.freeze({
   lastInputTokens: null,
   model: null,
   effort: null,
+  fastMode: null,
   compactStrategy: null,
   compactEnabled: null,
   compactThresholdTokens: null,
@@ -17,6 +18,7 @@ export const PROVIDER_SCOPED_SESSION_FIELDS = Object.freeze([
   'lastInputTokens',
   'model',
   'effort',
+  'fastMode',
   'compactStrategy',
   'compactEnabled',
   'compactThresholdTokens',
@@ -182,4 +184,3 @@ export function switchSessionProviderState(session, nextProvider, {
     provider,
   };
 }
-

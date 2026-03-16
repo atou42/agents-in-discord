@@ -168,3 +168,52 @@ test('createTextCommandHandler accepts !c as cancel alias', async () => {
   assert.deepEqual(cancelCalls, [{ key: 'thread-1', reason: 'text_command:!c' }]);
   assert.deepEqual(replies, [JSON.stringify({ cancelledRunning: true, clearedQueued: 2 })]);
 });
+
+test('createTextCommandHandler updates codex fast mode', async () => {
+  const replies = [];
+  const session = { provider: 'codex', language: 'zh', fastMode: null };
+
+  const handleCommand = createTextCommandHandler({
+    getSession: () => session,
+    getSessionProvider: (currentSession) => currentSession.provider,
+    getSessionLanguage: () => 'zh',
+    parseFastModeAction: () => ({ type: 'set', enabled: true }),
+    resolveFastModeSetting: () => ({ enabled: false, supported: true, source: 'config.toml' }),
+    commandActions: {
+      setFastMode(currentSession, enabled) {
+        currentSession.fastMode = enabled;
+        return { fastModeSetting: { enabled, supported: true, source: 'session override' } };
+      },
+    },
+    formatFastModeConfigHelp: () => 'help',
+    formatFastModeConfigReport: (_language, provider, setting, changed) => `${provider}:${setting.enabled}:${setting.source}:${changed}`,
+    safeReply: async (_message, payload) => {
+      replies.push(payload);
+    },
+  });
+
+  await handleCommand(createMessage(), 'thread-1', '!fast on');
+
+  assert.equal(session.fastMode, true);
+  assert.deepEqual(replies, ['codex:true:session override:true']);
+});
+
+test('createTextCommandHandler reports fast mode unsupported on non-codex providers', async () => {
+  const replies = [];
+  const session = { provider: 'claude', language: 'zh' };
+
+  const handleCommand = createTextCommandHandler({
+    getSession: () => session,
+    getSessionProvider: (currentSession) => currentSession.provider,
+    getSessionLanguage: () => 'zh',
+    formatFastModeConfigHelp: () => 'help',
+    formatFastModeConfigReport: (_language, provider, setting, changed) => `${provider}:${setting.supported}:${setting.source}:${changed}`,
+    safeReply: async (_message, payload) => {
+      replies.push(payload);
+    },
+  });
+
+  await handleCommand(createMessage(), 'thread-1', '!fast status');
+
+  assert.deepEqual(replies, ['claude:false:provider unsupported:false']);
+});

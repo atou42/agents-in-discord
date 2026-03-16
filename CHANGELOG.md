@@ -6,6 +6,14 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-03-16
+
+### Added
+- Added channel-scoped Codex Fast mode controls via `/fast` and `!fast`, with `on|off|status|default` actions and fallback to `~/.codex/config.toml` when no thread override is set.
+
+### Changed
+- Status, doctor, and help output now surface whether Codex Fast mode is inherited from config or overridden for the current channel.
+
 ## [0.6.2] - 2026-03-16
 
 ### Changed

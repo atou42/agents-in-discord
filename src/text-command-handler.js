@@ -38,6 +38,8 @@ export function createTextCommandHandler({
   formatOnboardingReport,
   formatLanguageConfigHelp,
   formatLanguageConfigReport,
+  formatFastModeConfigHelp = () => '',
+  formatFastModeConfigReport = () => '',
   formatProfileConfigHelp,
   formatProfileConfigReport,
   formatTimeoutConfigHelp,
@@ -55,12 +57,14 @@ export function createTextCommandHandler({
   parseWorkspaceCommandAction,
   parseOnboardingConfigAction,
   parseUiLanguageInput,
+  parseFastModeAction = () => ({ type: 'status' }),
   parseSecurityProfileInput,
   parseTimeoutConfigAction,
   parseCompactConfigFromText,
   parseConfigKey,
   parseReasoningEffortInput,
   getEffectiveSecurityProfile,
+  resolveFastModeSetting = () => ({ enabled: false, supported: false, source: 'provider unsupported' }),
   resolveTimeoutSetting,
   describeConfigPolicy,
   isConfigKeyAllowed,
@@ -338,6 +342,27 @@ export function createTextCommandHandler({
         }
         const { model } = commandActions.setModel(session, arg);
         await safeReply(message, `✅ model = ${model || '(provider default)'}`);
+        break;
+      }
+
+      case 'fast': {
+        const provider = getSessionProvider(session);
+        const language = getSessionLanguage(session);
+        if (provider !== 'codex') {
+          await safeReply(message, formatFastModeConfigReport(language, provider, { enabled: false, supported: false, source: 'provider unsupported' }, false));
+          break;
+        }
+        const action = parseFastModeAction(arg || 'status');
+        if (!action || action.type === 'invalid') {
+          await safeReply(message, formatFastModeConfigHelp(language, provider));
+          break;
+        }
+        if (action.type === 'status') {
+          await safeReply(message, formatFastModeConfigReport(language, provider, resolveFastModeSetting(session), false));
+          break;
+        }
+        const { fastModeSetting } = commandActions.setFastMode(session, action.enabled);
+        await safeReply(message, formatFastModeConfigReport(language, provider, fastModeSetting, true));
         break;
       }
 
