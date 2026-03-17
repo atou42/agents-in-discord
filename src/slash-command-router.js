@@ -544,7 +544,7 @@ export function createSlashCommandRouter({
     const handler = handlers.get(normalizedCommand);
     if (!handler) return false;
 
-    const session = getSession(key);
+    const session = getSession(key, { channel: interaction.channel || null });
     await handler({
       interaction,
       commandName: normalizedCommand,

@@ -212,7 +212,7 @@ export function createPromptOrchestrator({
       return { ok: false, cancelled: true };
     }
 
-    const session = getSession(key);
+    const session = getSession(key, { channel: message.channel || null });
     const workspaceDir = ensureWorkspace(session, key);
     const language = normalizeUiLanguage(getSessionLanguage(session));
     const taskRetryPolicy = normalizeTaskRetryPolicy(resolveTaskRetrySetting(session));

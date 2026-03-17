@@ -230,7 +230,29 @@ export function createSessionSettings({
   readCodexDefaults = () => ({ model: '(unknown)', effort: '(unknown)', fastMode: false }),
   normalizeProvider = (provider) => String(provider || '').trim().toLowerCase() || 'codex',
   getSupportedCompactStrategies = () => ['hard', 'native', 'off'],
+  getParentSession = () => null,
 } = {}) {
+  let resolveParentSessionFn = getParentSession;
+
+  function readProviderScopedValue(session, provider, field) {
+    if (!session || typeof session !== 'object') return null;
+    const normalizedProvider = normalizeProvider(provider);
+    const state = session.providers?.[normalizedProvider];
+    if (state && typeof state === 'object' && !Array.isArray(state) && field in state) {
+      return state[field];
+    }
+    if (normalizeProvider(session.provider) === normalizedProvider) {
+      return session[field];
+    }
+    return null;
+  }
+
+  function resolveParentSession(session) {
+    const parent = typeof resolveParentSessionFn === 'function' ? resolveParentSessionFn(session) : null;
+    if (!parent || parent === session) return null;
+    return parent;
+  }
+
   function getSessionLanguage(session) {
     if (!session) return defaultUiLanguage;
     return normalizeUiLanguage(session.language || defaultUiLanguage);
@@ -288,10 +310,60 @@ export function createSessionSettings({
       };
     }
 
+    const parentSession = resolveParentSession(session);
+    const parentFastMode = normalizeSessionFastMode(readProviderScopedValue(parentSession, provider, 'fastMode'));
+    if (parentFastMode !== null) {
+      return {
+        enabled: parentFastMode,
+        supported: true,
+        source: 'parent channel',
+      };
+    }
+
     return {
       enabled: Boolean(readCodexDefaults().fastMode),
       supported: true,
       source: 'config.toml',
+    };
+  }
+
+  function resolveModelSetting(session) {
+    const provider = normalizeProvider(session?.provider);
+    const currentValue = String(session?.model || '').trim();
+    if (currentValue) {
+      return { value: currentValue, source: 'session override' };
+    }
+
+    const parentSession = resolveParentSession(session);
+    const parentValue = String(readProviderScopedValue(parentSession, provider, 'model') || '').trim();
+    if (parentValue) {
+      return { value: parentValue, source: 'parent channel' };
+    }
+
+    const defaults = getProviderDefaults(provider);
+    return {
+      value: defaults.model,
+      source: defaults.source,
+    };
+  }
+
+  function resolveReasoningEffortSetting(session) {
+    const provider = normalizeProvider(session?.provider);
+    const currentValue = String(session?.effort || '').trim();
+    if (currentValue) {
+      return { value: currentValue, source: 'session override' };
+    }
+
+    const parentSession = resolveParentSession(session);
+    const parentValue = String(readProviderScopedValue(parentSession, provider, 'effort') || '').trim();
+    if (parentValue) {
+      return { value: parentValue, source: 'parent channel' };
+    }
+
+    const defaults = getProviderDefaults(provider);
+    return {
+      value: defaults.effort,
+      source: defaults.source,
     };
   }
 
@@ -305,6 +377,16 @@ export function createSessionSettings({
         source: 'session override',
       };
     }
+
+    const parentSession = resolveParentSession(session);
+    const parentStrategy = normalizeSessionCompactStrategy(readProviderScopedValue(parentSession, provider, 'compactStrategy'));
+    if (parentStrategy) {
+      return {
+        strategy: supportedStrategies.has(parentStrategy) ? parentStrategy : 'hard',
+        source: 'parent channel',
+      };
+    }
+
     return {
       strategy: supportedStrategies.has(compactStrategy) ? compactStrategy : 'hard',
       source: 'env default',
@@ -316,6 +398,14 @@ export function createSessionSettings({
     if (enabled !== null) {
       return { enabled, source: 'session override' };
     }
+
+    const provider = normalizeProvider(session?.provider);
+    const parentSession = resolveParentSession(session);
+    const parentEnabled = normalizeSessionCompactEnabled(readProviderScopedValue(parentSession, provider, 'compactEnabled'));
+    if (parentEnabled !== null) {
+      return { enabled: parentEnabled, source: 'parent channel' };
+    }
+
     return { enabled: compactOnThreshold, source: 'env default' };
   }
 
@@ -324,10 +414,19 @@ export function createSessionSettings({
     if (tokens !== null) {
       return { tokens, source: 'session override' };
     }
+
+    const provider = normalizeProvider(session?.provider);
+    const parentSession = resolveParentSession(session);
+    const parentTokens = normalizeSessionCompactTokenLimit(readProviderScopedValue(parentSession, provider, 'compactThresholdTokens'));
+    if (parentTokens !== null) {
+      return { tokens: parentTokens, source: 'parent channel' };
+    }
+
     return { tokens: maxInputTokensBeforeCompact, source: 'env default' };
   }
 
   function resolveNativeCompactTokenLimitSetting(session) {
+    const provider = normalizeProvider(session?.provider);
     const direct = normalizeSessionCompactTokenLimit(session?.nativeCompactTokenLimit);
     if (direct !== null) {
       return { tokens: direct, source: 'session override' };
@@ -336,6 +435,17 @@ export function createSessionSettings({
     const threshold = normalizeSessionCompactTokenLimit(session?.compactThresholdTokens);
     if (threshold !== null) {
       return { tokens: threshold, source: 'session threshold fallback' };
+    }
+
+    const parentSession = resolveParentSession(session);
+    const parentDirect = normalizeSessionCompactTokenLimit(readProviderScopedValue(parentSession, provider, 'nativeCompactTokenLimit'));
+    if (parentDirect !== null) {
+      return { tokens: parentDirect, source: 'parent channel' };
+    }
+
+    const parentThreshold = normalizeSessionCompactTokenLimit(readProviderScopedValue(parentSession, provider, 'compactThresholdTokens'));
+    if (parentThreshold !== null) {
+      return { tokens: parentThreshold, source: 'parent channel threshold fallback' };
     }
 
     return { tokens: modelAutoCompactTokenLimit, source: 'env default' };
@@ -357,10 +467,15 @@ export function createSessionSettings({
   }
 
   return {
+    setParentSessionResolver(resolver) {
+      resolveParentSessionFn = typeof resolver === 'function' ? resolver : () => null;
+    },
     getSessionLanguage,
     getEffectiveSecurityProfile,
     resolveTimeoutSetting,
     resolveTaskRetrySetting,
+    resolveModelSetting,
+    resolveReasoningEffortSetting,
     resolveFastModeSetting,
     resolveCompactStrategySetting,
     resolveCompactEnabledSetting,

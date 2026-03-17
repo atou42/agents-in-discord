@@ -69,7 +69,7 @@ export function createDiscordEntryHandlers({
       if (!isAllowedUser(message.author.id)) return;
       const channelAllowed = isAllowedChannel(message.channel);
       const key = message.channel.id;
-      const session = getSession(key);
+      const session = getSession(key, { channel: message.channel });
       const security = resolveSecurityContext(message.channel, session);
 
       const chId = message.channel.id;

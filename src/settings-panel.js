@@ -27,6 +27,7 @@ function formatSettingSourceLabel(source, language) {
   const value = String(source || '').trim().toLowerCase();
   if (language === 'en') {
     if (value === 'session override') return 'this channel';
+    if (value === 'parent channel') return 'parent channel';
     if (value === 'config.toml') return 'global config';
     if (value === 'env default') return 'env default';
     if (value === 'provider') return 'provider default';
@@ -39,6 +40,7 @@ function formatSettingSourceLabel(source, language) {
   }
 
   if (value === 'session override') return '当前频道';
+  if (value === 'parent channel') return '父频道默认';
   if (value === 'config.toml') return '全局配置';
   if (value === 'env default') return '环境默认';
   if (value === 'provider') return 'provider 默认';
@@ -154,6 +156,8 @@ export function createSettingsPanel({
   getSupportedReasoningEffortLevels = () => [],
   getProviderCompactCapabilities = () => ({ strategies: ['hard', 'native', 'off'] }),
   normalizeUiLanguage = normalizeLanguage,
+  resolveModelSetting = (session) => ({ value: session?.model || '(provider default)', source: session?.model ? 'session override' : 'provider' }),
+  resolveReasoningEffortSetting = (session) => ({ value: session?.effort || '(provider default)', source: session?.effort ? 'session override' : 'provider' }),
   resolveFastModeSetting = () => ({ enabled: false, supported: false, source: 'provider unsupported' }),
   resolveCompactStrategySetting = () => ({ strategy: 'native', source: 'env default' }),
   commandActions = {},
@@ -180,6 +184,8 @@ export function createSettingsPanel({
     const language = normalizeUiLanguage(getSessionLanguage(session) || defaultUiLanguage);
     const provider = getSessionProvider(session);
     const defaults = getProviderDefaults(provider);
+    const modelSetting = resolveModelSetting(session);
+    const effortSetting = resolveReasoningEffortSetting(session);
     const fastMode = resolveFastModeSetting(session);
     const compact = resolveCompactStrategySetting(session);
     const workspace = getWorkspaceBinding(session, key) || { workspaceDir: null, source: 'unset' };
@@ -187,6 +193,7 @@ export function createSettingsPanel({
 
     return {
       language,
+      isThread: Boolean(session?.parentChannelId),
       provider,
       providerLabel: getProviderDisplayName(provider),
       defaults,
@@ -194,10 +201,10 @@ export function createSettingsPanel({
       compact,
       workspace,
       effortLevels,
-      modelValue: session?.model || defaults.model,
-      modelSource: session?.model ? 'session override' : defaults.source,
-      effortValue: effortLevels.length ? (session?.effort || defaults.effort) : null,
-      effortSource: session?.effort ? 'session override' : defaults.source,
+      modelValue: modelSetting?.value || defaults.model,
+      modelSource: modelSetting?.source || defaults.source,
+      effortValue: effortLevels.length ? (effortSetting?.value || defaults.effort) : null,
+      effortSource: effortLevels.length ? (effortSetting?.source || defaults.source) : defaults.source,
     };
   }
 
@@ -286,11 +293,14 @@ export function createSettingsPanel({
         const selected = snapshot.fastMode.source === 'session override'
           ? (snapshot.fastMode.enabled ? 'on' : 'off')
           : 'follow';
+        const followLabel = snapshot.isThread
+          ? (snapshot.language === 'en' ? 'Follow parent/global' : '跟随父频道/全局')
+          : (snapshot.language === 'en' ? 'Follow global' : '跟随全局');
         return [
           new ActionRowBuilder().addComponents(
             new ButtonBuilder()
               .setCustomId(buildSettingsComponentId('set', 'fast', 'follow', userId))
-              .setLabel(snapshot.language === 'en' ? 'Follow global' : '跟随全局')
+              .setLabel(followLabel)
               .setStyle(selected === 'follow' ? ButtonStyle.Primary : ButtonStyle.Secondary),
             new ButtonBuilder()
               .setCustomId(buildSettingsComponentId('set', 'fast', 'on', userId))
@@ -400,8 +410,12 @@ export function createSettingsPanel({
           : '可以通过弹窗输入自定义模型名，也可以清掉当前频道覆盖，回退到 provider 默认模型。';
       case 'fast':
         return snapshot.language === 'en'
-          ? 'Fast mode only exists on Codex. "Follow global" means this channel stops overriding and inherits `~/.codex/config.toml`.'
-          : 'Fast mode 仅对 Codex 生效。选择“跟随全局”表示当前频道不再覆盖，改为继承 `~/.codex/config.toml`。';
+          ? (snapshot.isThread
+            ? 'Fast mode only exists on Codex. "Follow parent/global" means this thread stops overriding and inherits the parent channel setting first, then `~/.codex/config.toml`.'
+            : 'Fast mode only exists on Codex. "Follow global" means this channel stops overriding and inherits `~/.codex/config.toml`.')
+          : (snapshot.isThread
+            ? 'Fast mode 仅对 Codex 生效。选择“跟随父频道/全局”表示当前 thread 不再覆盖，优先继承父频道设置，其次继承 `~/.codex/config.toml`。'
+            : 'Fast mode 仅对 Codex 生效。选择“跟随全局”表示当前频道不再覆盖，改为继承 `~/.codex/config.toml`。');
       case 'effort':
         return snapshot.language === 'en'
           ? 'Reasoning effort options are provider-specific. "default" clears this channel override.'
@@ -512,7 +526,7 @@ export function createSettingsPanel({
     if (!parsed) return false;
 
     const key = String(interaction.channelId || '').trim();
-    const session = key ? getSession(key) : null;
+    const session = key ? getSession(key, { channel: interaction.channel || null }) : null;
     const language = normalizeUiLanguage(getSessionLanguage(session) || defaultUiLanguage);
 
     if (!key || !session) {
@@ -637,7 +651,7 @@ export function createSettingsPanel({
     if (!parsed) return false;
 
     const key = String(interaction.channelId || '').trim();
-    const session = key ? getSession(key) : null;
+    const session = key ? getSession(key, { channel: interaction.channel || null }) : null;
     const language = normalizeUiLanguage(getSessionLanguage(session) || defaultUiLanguage);
 
     if (!key || !session) {

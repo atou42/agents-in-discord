@@ -26,7 +26,7 @@ export function createChannelQueue({
 
   async function enqueuePrompt(message, key, content, securityContext = null) {
     const state = getChannelState(key);
-    const security = securityContext || resolveSecurityContext(message.channel, getSession(key));
+    const security = securityContext || resolveSecurityContext(message.channel, getSession(key, { channel: message.channel || null }));
     const maxQueue = security.maxQueuePerChannel;
     if (maxQueue > 0 && state.queue.length >= maxQueue) {
       await safeReply(

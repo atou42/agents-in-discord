@@ -158,6 +158,21 @@ export function projectSessionProviderState(session, {
   return ensured.state;
 }
 
+export function readSessionProviderScopedField(session, field, {
+  normalizeProvider,
+  provider = null,
+} = {}) {
+  if (!PROVIDER_SCOPED_SESSION_FIELDS.includes(field)) {
+    return undefined;
+  }
+  const ensured = ensureSessionProviderStates(session, {
+    normalizeProvider,
+    provider,
+    hydrateFromTopLevel: true,
+  });
+  return cloneProviderScopedValue(field, ensured?.state?.[field]);
+}
+
 export function switchSessionProviderState(session, nextProvider, {
   normalizeProvider,
 } = {}) {

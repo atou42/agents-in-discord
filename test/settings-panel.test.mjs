@@ -143,11 +143,20 @@ function createPanel({ session, botProvider = null, openWorkspaceBrowser, comman
     getSupportedReasoningEffortLevels: (provider) => provider === 'gemini' ? [] : (provider === 'claude' ? ['high', 'medium', 'low'] : ['xhigh', 'high', 'medium', 'low']),
     getProviderCompactCapabilities: () => ({ strategies: ['hard', 'native', 'off'] }),
     normalizeUiLanguage: (value) => String(value || '').trim().toLowerCase() === 'en' ? 'en' : 'zh',
+    resolveModelSetting: (currentSession) => ({
+      value: currentSession?.model || currentSession?.inheritedModel || 'gpt-5.4',
+      source: currentSession?.modelSource || (currentSession?.model ? 'session override' : 'config.toml'),
+    }),
+    resolveReasoningEffortSetting: (currentSession) => ({
+      value: currentSession?.effort || currentSession?.inheritedEffort || 'high',
+      source: currentSession?.effortSource || (currentSession?.effort ? 'session override' : 'config.toml'),
+    }),
     resolveFastModeSetting: (currentSession) => currentSession?.provider === 'codex'
       ? {
-        enabled: currentSession?.fastMode ?? false,
+        enabled: currentSession?.fastMode ?? currentSession?.inheritedFastMode ?? false,
         supported: true,
-        source: currentSession?.fastMode === null || currentSession?.fastMode === undefined ? 'config.toml' : 'session override',
+        source: currentSession?.fastModeSource
+          || (currentSession?.fastMode === null || currentSession?.fastMode === undefined ? 'config.toml' : 'session override'),
       }
       : { enabled: false, supported: false, source: 'provider unsupported' },
     resolveCompactStrategySetting: (currentSession) => ({
@@ -224,6 +233,51 @@ test('createSettingsPanel updates fast mode through button interaction', async (
   assert.equal(updates.length, 1);
   assert.match(updates[0].content, /当前项：fast/);
   assert.match(updates[0].content, /fast mode：开启（当前频道）/);
+});
+
+test('createSettingsPanel shows parent channel as the inherited fast mode source for threads', () => {
+  const session = {
+    provider: 'codex',
+    language: 'zh',
+    mode: 'safe',
+    fastMode: null,
+    fastModeSource: 'parent channel',
+    inheritedFastMode: true,
+    parentChannelId: 'channel-1',
+  };
+  const panel = createPanel({ session });
+
+  const payload = panel.openSettingsPanel({
+    key: 'thread-1',
+    session,
+    userId: '12345',
+    activeSection: 'fast',
+  });
+
+  assert.match(payload.content, /fast mode：开启（父频道默认）/);
+  assert.equal(payload.components[2].components[0].data.label, '跟随父频道/全局');
+});
+
+test('createSettingsPanel shows parent channel as the inherited model source for threads', () => {
+  const session = {
+    provider: 'codex',
+    language: 'zh',
+    mode: 'safe',
+    model: null,
+    modelSource: 'parent channel',
+    inheritedModel: 'gpt-5.4',
+    parentChannelId: 'channel-1',
+  };
+  const panel = createPanel({ session });
+
+  const payload = panel.openSettingsPanel({
+    key: 'thread-1',
+    session,
+    userId: '12345',
+    activeSection: 'overview',
+  });
+
+  assert.match(payload.content, /model：`gpt-5.4`（父频道默认）/);
 });
 
 test('createSettingsPanel opens a model modal from the model section', async () => {

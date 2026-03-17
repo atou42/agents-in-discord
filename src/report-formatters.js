@@ -31,6 +31,8 @@ export function createReportFormatters({
   formatProviderReasoningSurface = () => '',
   getSupportedReasoningEffortLevels = () => ['xhigh', 'high', 'medium', 'low'],
   getProviderDefaults = () => ({ model: '(unknown)', effort: '(unknown)', source: 'provider' }),
+  resolveModelSetting = (session) => ({ value: session?.model || '(unknown)', source: session?.model ? 'session override' : 'provider' }),
+  resolveReasoningEffortSetting = (session) => ({ value: session?.effort || '(unknown)', source: session?.effort ? 'session override' : 'provider' }),
   getCliHealth = () => ({ ok: false, error: 'unavailable' }),
   getRuntimeSnapshot = () => ({ running: false, queued: 0 }),
   resolveSecurityContext = () => ({ mentionOnly: false, maxQueuePerChannel: 0 }),
@@ -84,9 +86,24 @@ export function createReportFormatters({
     return `${model} _(provider 默认)_`;
   }
 
+  function formatResolvedSettingLabel(setting, fallback, language = 'en') {
+    const value = String(setting?.value || '').trim() || fallback;
+    const source = setting?.source || 'unknown';
+    if (source === 'config.toml' || source === 'provider') {
+      return formatProviderDefaultLabel({ value, source }, language);
+    }
+    if (language === 'en') {
+      return `\`${value}\` (${formatSettingSourceLabel(source, language)})`;
+    }
+    return `\`${value}\`（${formatSettingSourceLabel(source, language)}）`;
+  }
+
   function formatSettingSourceLabel(source, language = 'en') {
     if (source === 'session override') {
       return language === 'en' ? 'session override' : '频道覆盖';
+    }
+    if (source === 'parent channel') {
+      return language === 'en' ? 'parent channel' : '父频道默认';
     }
     if (source === 'config.toml') {
       return 'config.toml';
@@ -113,11 +130,13 @@ export function createReportFormatters({
     const value = String(source || '').trim().toLowerCase();
     if (language === 'en') {
       if (value === 'thread override') return 'thread override';
+      if (value === 'parent channel') return 'parent channel';
       if (value === 'provider default') return 'provider default';
       if (value === 'legacy fallback') return 'legacy fallback';
       return value || 'unknown';
     }
     if (value === 'thread override') return 'thread 覆盖';
+    if (value === 'parent channel') return '父频道默认';
     if (value === 'provider default') return 'provider 默认';
     if (value === 'legacy fallback') return 'legacy 回退';
     return value || '未知';
@@ -237,6 +256,8 @@ export function createReportFormatters({
     const lang = normalizeUiLanguage(language);
     const provider = getSessionProvider(session);
     const defaults = getProviderDefaults(provider);
+    const modelSetting = resolveModelSetting(session);
+    const effortSetting = resolveReasoningEffortSetting(session);
     const cliHealth = getCliHealth(provider);
     const security = resolveSecurityContext(channel, session);
     const fastMode = resolveFastModeSetting(session);
@@ -248,8 +269,8 @@ export function createReportFormatters({
       ? (lang === 'en' ? 'dangerous (no sandbox, full access)' : 'dangerous（无沙盒，全权限）')
       : (lang === 'en' ? 'safe (sandboxed, no network)' : 'safe（沙盒隔离，无网络）');
     const workspaceLines = getWorkspaceStatusLines(key, session, lang);
-    const defaultModel = formatProviderDefaultLabel({ value: defaults.model, source: defaults.source }, lang);
-    const defaultEffort = formatProviderDefaultLabel({ value: defaults.effort, source: defaults.source }, lang);
+    const defaultModel = formatResolvedSettingLabel(modelSetting, defaults.model, lang);
+    const defaultEffort = formatResolvedSettingLabel(effortSetting, defaults.effort, lang);
     const runtimeSummary = formatProviderRuntimeSummary(provider, lang);
     const sessionFieldLabel = formatProviderSessionTerm(provider, lang);
     const nativeCompact = formatNativeCompactSetting(provider, nativeLimit, lang);
@@ -259,9 +280,9 @@ export function createReportFormatters({
         '🧭 **Current Status**',
         `• provider: \`${provider}\` (${getProviderDisplayName(provider)})`,
         runtimeSummary ? `• runtime profile: ${runtimeSummary}` : null,
-        `• model: ${session.model || defaultModel}`,
+        `• model: ${defaultModel}`,
         `• mode: ${modeDesc}`,
-        `• effort: ${session.effort || defaultEffort}`,
+        `• effort: ${defaultEffort}`,
         fastMode.supported ? `• fast mode: ${formatFastModeLabel(fastMode.enabled, lang)} (${formatSettingSourceLabel(fastMode.source, lang)})` : null,
         ...workspaceLines,
         `• compact strategy: ${describeCompactStrategy(compactSetting.strategy, lang)} (${formatSettingSourceLabel(compactSetting.source, lang)})`,
@@ -281,9 +302,9 @@ export function createReportFormatters({
       '🧭 **当前状态**',
       `• provider: \`${provider}\` (${getProviderDisplayName(provider)})`,
       runtimeSummary ? `• runtime 能力面: ${runtimeSummary}` : null,
-      `• model: ${session.model || defaultModel}`,
+      `• model: ${defaultModel}`,
       `• mode: ${modeDesc}`,
-      `• effort: ${session.effort || defaultEffort}`,
+      `• effort: ${defaultEffort}`,
       fastMode.supported ? `• fast mode: ${formatFastModeLabel(fastMode.enabled, lang)}（${formatSettingSourceLabel(fastMode.source, lang)}）` : null,
       ...workspaceLines,
       `• compact strategy: ${describeCompactStrategy(compactSetting.strategy, lang)}（${formatSettingSourceLabel(compactSetting.source, lang)}）`,

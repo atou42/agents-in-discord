@@ -668,7 +668,7 @@ export function createWorkspaceBrowser({
 
     const state = browsers.get(parsed.token);
     const key = String(interaction.channelId || '').trim();
-    const session = key ? getSession(key) : null;
+    const session = key ? getSession(key, { channel: interaction.channel || null }) : null;
     const language = normalizeLanguage(getSessionLanguage(session));
 
     if (!state || !key || state.channelId !== key) {

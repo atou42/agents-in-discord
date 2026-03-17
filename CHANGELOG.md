@@ -6,6 +6,15 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-03-17
+
+### Added
+- Thread sessions can now inherit parent-channel defaults for provider-scoped runtime knobs such as model, reasoning effort, Fast mode, and compact settings while still allowing thread-local overrides.
+
+### Changed
+- Workspace resolution for threads now prefers an explicit thread override, then the parent channel workspace, then the provider default workspace, and finally the legacy fallback.
+- Settings, status, and runtime execution now consistently surface when a thread is inheriting effective values from its parent channel instead of only from global defaults.
+
 ## [0.8.1] - 2026-03-16
 
 ### Changed

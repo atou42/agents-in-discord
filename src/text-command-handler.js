@@ -79,7 +79,7 @@ export function createTextCommandHandler({
   return async function handleCommand(message, key, content) {
     const [cmd, ...rest] = content.split(/\s+/);
     const arg = rest.join(' ').trim();
-    const session = getSession(key);
+    const session = getSession(key, { channel: message.channel || null });
     const commandName = normalizeCommandName(cmd, { allowBangPrefix: true });
 
     switch (commandName) {

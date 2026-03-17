@@ -20,6 +20,8 @@ export function createRunnerArgsBuilder({
   defaultModel = null,
   normalizeProvider = (value) => String(value || '').trim().toLowerCase(),
   getSessionId = () => null,
+  resolveModelSetting = () => ({ value: defaultModel, source: 'provider' }),
+  resolveReasoningEffortSetting = () => ({ value: null, source: 'provider' }),
   resolveFastModeSetting = () => ({ enabled: false, source: 'provider unsupported' }),
   resolveCompactStrategySetting = () => ({ strategy: 'native' }),
   resolveCompactEnabledSetting = () => ({ enabled: false }),
@@ -52,8 +54,8 @@ export function createRunnerArgsBuilder({
       ? '--dangerously-bypass-approvals-and-sandbox'
       : '--full-auto';
 
-    const model = session.model || defaultModel;
-    const effort = session.effort;
+    const model = resolveModelSetting(session).value || defaultModel;
+    const effort = resolveReasoningEffortSetting(session).value;
     const fastMode = resolveFastModeSetting(session);
     const extraConfigs = session.configOverrides || [];
     const compactSetting = resolveCompactStrategySetting(session);
@@ -63,7 +65,7 @@ export function createRunnerArgsBuilder({
     const common = [];
     if (model) common.push('-m', model);
     if (effort) common.push('-c', `model_reasoning_effort="${effort}"`);
-    if (fastMode.source === 'session override') {
+    if (fastMode.source === 'session override' || fastMode.source === 'parent channel') {
       common.push('-c', `features.fast_mode=${fastMode.enabled ? 'true' : 'false'}`);
     }
     if (compactSetting.strategy === 'native' && compactEnabled.enabled) {
@@ -89,8 +91,8 @@ export function createRunnerArgsBuilder({
     for (const dir of uniqueDirs([workspaceDir, ...additionalWorkspaceDirs])) {
       args.push('--add-dir', dir);
     }
-    const model = session.model || defaultModel;
-    const effort = session.effort;
+    const model = resolveModelSetting(session).value || defaultModel;
+    const effort = resolveReasoningEffortSetting(session).value;
     const sessionId = getSessionId(session);
 
     if (model) args.push('--model', model);
@@ -111,7 +113,7 @@ export function createRunnerArgsBuilder({
 
   function buildGeminiArgs({ session, prompt }) {
     const args = ['--output-format', 'stream-json'];
-    const model = session.model || defaultModel;
+    const model = resolveModelSetting(session).value || defaultModel;
     const sessionId = getSessionId(session);
 
     if (session.mode === 'dangerous') {

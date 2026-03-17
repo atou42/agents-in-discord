@@ -15,6 +15,7 @@ test('createRunnerArgsBuilder builds gemini args instead of codex args', () => {
     defaultModel: null,
     normalizeProvider: (value) => value,
     getSessionId: (session) => session.runnerSessionId,
+    resolveModelSetting: (session) => ({ value: session.model || null, source: session.model ? 'session override' : 'provider' }),
     resolveFastModeSetting: () => ({ enabled: false, source: 'provider unsupported' }),
     resolveCompactStrategySetting: () => ({ strategy: 'hard' }),
     resolveCompactEnabledSetting: () => ({ enabled: false }),
@@ -82,6 +83,80 @@ test('createRunnerArgsBuilder adds native compact config for codex when enabled'
     'model_auto_compact_token_limit=123456',
     '-c',
     'foo="bar"',
+    'inspect',
+  ]);
+});
+
+test('createRunnerArgsBuilder passes fast mode through when inherited from the parent channel', () => {
+  const { buildSessionRunnerArgs } = createRunnerArgsBuilder({
+    defaultModel: 'gpt-5-codex',
+    normalizeProvider: (value) => value,
+    getSessionId: () => null,
+    resolveFastModeSetting: () => ({ enabled: false, source: 'parent channel' }),
+    resolveCompactStrategySetting: () => ({ strategy: 'hard' }),
+    resolveCompactEnabledSetting: () => ({ enabled: false }),
+    resolveNativeCompactTokenLimitSetting: () => ({ tokens: 0 }),
+  });
+
+  const args = buildSessionRunnerArgs({
+    provider: 'codex',
+    session: {
+      mode: 'safe',
+      configOverrides: [],
+    },
+    workspaceDir: '/tmp/workspace',
+    prompt: 'inspect',
+  });
+
+  assert.deepEqual(args, [
+    'exec',
+    '--json',
+    '--skip-git-repo-check',
+    '--full-auto',
+    '-C',
+    '/tmp/workspace',
+    '-m',
+    'gpt-5-codex',
+    '-c',
+    'features.fast_mode=false',
+    'inspect',
+  ]);
+});
+
+test('createRunnerArgsBuilder uses inherited model and effort settings', () => {
+  const { buildSessionRunnerArgs } = createRunnerArgsBuilder({
+    defaultModel: 'gpt-5-codex',
+    normalizeProvider: (value) => value,
+    getSessionId: () => null,
+    resolveModelSetting: () => ({ value: 'gpt-5.4', source: 'parent channel' }),
+    resolveReasoningEffortSetting: () => ({ value: 'high', source: 'parent channel' }),
+    resolveFastModeSetting: () => ({ enabled: false, source: 'config.toml' }),
+    resolveCompactStrategySetting: () => ({ strategy: 'hard' }),
+    resolveCompactEnabledSetting: () => ({ enabled: false }),
+    resolveNativeCompactTokenLimitSetting: () => ({ tokens: 0 }),
+  });
+
+  const args = buildSessionRunnerArgs({
+    provider: 'codex',
+    session: {
+      mode: 'safe',
+      configOverrides: [],
+    },
+    workspaceDir: '/tmp/workspace',
+    prompt: 'inspect',
+  });
+
+  assert.deepEqual(args, [
+    'exec',
+    '--json',
+    '--skip-git-repo-check',
+    '--full-auto',
+    '-C',
+    '/tmp/workspace',
+    '-m',
+    'gpt-5.4',
+    '-c',
+    'model_reasoning_effort="high"',
     'inspect',
   ]);
 });

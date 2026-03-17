@@ -44,14 +44,17 @@ export function createAppContext({
   } = factories;
 
   const identity = createSessionIdentityHelpersFn(identityOptions);
-  const sessionSettings = createSessionSettingsFn(sessionSettingsOptions);
-  const securityPolicy = createSecurityPolicyFn({
-    ...securityPolicyOptions,
-    getEffectiveSecurityProfile: sessionSettings.getEffectiveSecurityProfile,
-  });
   const sessionStore = createSessionStoreFn({
     ...sessionStoreOptions,
     getSessionId: identity.getSessionId,
+  });
+  const sessionSettings = createSessionSettingsFn({
+    ...sessionSettingsOptions,
+    getParentSession: sessionStore.getParentSession,
+  });
+  const securityPolicy = createSecurityPolicyFn({
+    ...securityPolicyOptions,
+    getEffectiveSecurityProfile: sessionSettings.getEffectiveSecurityProfile,
   });
   const commandActions = createSessionCommandActionsFn({
     ...commandActionsOptions,
@@ -64,6 +67,8 @@ export function createAppContext({
     setSessionId: identity.setSessionId,
     getSessionProvider: identity.getSessionProvider,
     getSessionLanguage: sessionSettings.getSessionLanguage,
+    resolveModelSetting: sessionSettings.resolveModelSetting,
+    resolveReasoningEffortSetting: sessionSettings.resolveReasoningEffortSetting,
     resolveFastModeSetting: sessionSettings.resolveFastModeSetting,
     resolveTimeoutSetting: sessionSettings.resolveTimeoutSetting,
   });
@@ -105,6 +110,8 @@ export function createAppContext({
       ...runnerExecutorOptions,
       getSessionProvider: identity.getSessionProvider,
       getSessionId: identity.getSessionId,
+      resolveModelSetting: sessionSettings.resolveModelSetting,
+      resolveReasoningEffortSetting: sessionSettings.resolveReasoningEffortSetting,
       resolveFastModeSetting: sessionSettings.resolveFastModeSetting,
       resolveTimeoutSetting: sessionSettings.resolveTimeoutSetting,
       resolveCompactStrategySetting: sessionSettings.resolveCompactStrategySetting,
@@ -169,6 +176,8 @@ export function createAppContext({
       getSessionProvider: identity.getSessionProvider,
       getWorkspaceBinding: sessionStore.getWorkspaceBinding,
       getProviderDefaults: sessionSettings.getProviderDefaults,
+      resolveModelSetting: sessionSettings.resolveModelSetting,
+      resolveReasoningEffortSetting: sessionSettings.resolveReasoningEffortSetting,
       resolveFastModeSetting: sessionSettings.resolveFastModeSetting,
       resolveCompactStrategySetting: sessionSettings.resolveCompactStrategySetting,
     },
@@ -178,6 +187,8 @@ export function createAppContext({
       getSessionProvider: identity.getSessionProvider,
       getRuntimeSnapshot: promptRuntime.getRuntimeSnapshot,
       resolveSecurityContext: securityPolicy.resolveSecurityContext,
+      resolveModelSetting: sessionSettings.resolveModelSetting,
+      resolveReasoningEffortSetting: sessionSettings.resolveReasoningEffortSetting,
       resolveTimeoutSetting: sessionSettings.resolveTimeoutSetting,
       resolveFastModeSetting: sessionSettings.resolveFastModeSetting,
       getEffectiveSecurityProfile: sessionSettings.getEffectiveSecurityProfile,
@@ -220,6 +231,8 @@ export function createAppContext({
       getSessionLanguage: sessionSettings.getSessionLanguage,
       getSessionProvider: identity.getSessionProvider,
       getEffectiveSecurityProfile: sessionSettings.getEffectiveSecurityProfile,
+      resolveModelSetting: sessionSettings.resolveModelSetting,
+      resolveReasoningEffortSetting: sessionSettings.resolveReasoningEffortSetting,
       getRuntimeSnapshot: promptRuntime.getRuntimeSnapshot,
       resolveFastModeSetting: sessionSettings.resolveFastModeSetting,
       resolveSecurityContext: securityPolicy.resolveSecurityContext,
@@ -239,6 +252,8 @@ export function createAppContext({
       getSessionProvider: identity.getSessionProvider,
       getSessionLanguage: sessionSettings.getSessionLanguage,
       commandActions,
+      resolveModelSetting: sessionSettings.resolveModelSetting,
+      resolveReasoningEffortSetting: sessionSettings.resolveReasoningEffortSetting,
       getEffectiveSecurityProfile: sessionSettings.getEffectiveSecurityProfile,
       resolveFastModeSetting: sessionSettings.resolveFastModeSetting,
       resolveTimeoutSetting: sessionSettings.resolveTimeoutSetting,

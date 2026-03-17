@@ -48,6 +48,14 @@ function createFormatters(overrides = {}) {
       return ['low', 'medium', 'high', 'xhigh'];
     },
     getProviderDefaults: () => ({ model: 'gpt-5-codex', effort: 'high', source: 'config.toml' }),
+    resolveModelSetting: (session) => ({
+      value: session?.model || session?.inheritedModel || 'gpt-5-codex',
+      source: session?.modelSource || (session?.model ? 'session override' : 'config.toml'),
+    }),
+    resolveReasoningEffortSetting: (session) => ({
+      value: session?.effort || session?.inheritedEffort || 'high',
+      source: session?.effortSource || (session?.effort ? 'session override' : 'config.toml'),
+    }),
     getCliHealth: (provider) => ({ ok: true, version: '1.2.3', bin: `/usr/local/bin/${provider}` }),
     getRuntimeSnapshot: () => ({
       running: false,
@@ -139,6 +147,34 @@ test('createReportFormatters.formatStatusReport uses provider defaults for model
   assert.match(report, /runtime profile: runtime:codex/);
   assert.match(report, /rollout session: \*\*alpha\*\* \(`sess-1`\)/);
   assert.doesNotMatch(report, /\(unknown\)/);
+});
+
+test('createReportFormatters.formatStatusReport shows parent-channel inherited model effort and workspace', () => {
+  const formatters = createFormatters({
+    getWorkspaceBinding: () => ({
+      workspaceDir: '/repo/parent',
+      source: 'parent channel',
+      defaultWorkspaceDir: '/repo/default',
+      defaultSource: 'provider-scoped env',
+      defaultEnvKey: 'CODEX__DEFAULT_WORKSPACE_DIR',
+    }),
+  });
+  const session = {
+    provider: 'codex',
+    language: 'en',
+    mode: 'safe',
+    inheritedModel: 'gpt-5.4',
+    modelSource: 'parent channel',
+    inheritedEffort: 'medium',
+    effortSource: 'parent channel',
+    parentChannelId: 'channel-1',
+  };
+
+  const report = formatters.formatStatusReport('thread-1', session, { id: 'thread-1' });
+
+  assert.match(report, /model: `gpt-5\.4` \(parent channel\)/);
+  assert.match(report, /effort: `medium` \(parent channel\)/);
+  assert.match(report, /workspace: `\/repo\/parent` \(parent channel\)/);
 });
 
 test('createReportFormatters.formatProgressReport returns localized idle hint', () => {

@@ -104,6 +104,79 @@ test('session-settings resolves timeout security profile and compact values with
   });
 });
 
+test('session-settings lets thread fast mode inherit the parent channel provider-scoped override', () => {
+  const parentSession = {
+    provider: 'claude',
+    providers: {
+      claude: {
+        runnerSessionId: null,
+        codexThreadId: null,
+        lastInputTokens: null,
+        model: null,
+        effort: null,
+        fastMode: null,
+        compactStrategy: null,
+        compactEnabled: null,
+        compactThresholdTokens: null,
+        nativeCompactTokenLimit: null,
+        configOverrides: [],
+      },
+      codex: {
+        runnerSessionId: null,
+        codexThreadId: null,
+        lastInputTokens: null,
+        model: 'gpt-5.4-turbo',
+        effort: 'medium',
+        fastMode: true,
+        compactStrategy: 'native',
+        compactEnabled: null,
+        compactThresholdTokens: null,
+        nativeCompactTokenLimit: null,
+        configOverrides: [],
+      },
+    },
+  };
+  const settings = createSessionSettings({
+    getParentSession: () => parentSession,
+    readCodexDefaults: () => ({ model: 'gpt-5.4', effort: 'high', fastMode: false }),
+    normalizeProvider: (provider) => String(provider || '').trim().toLowerCase() || 'codex',
+  });
+
+  assert.deepEqual(settings.resolveFastModeSetting({
+    provider: 'codex',
+    parentChannelId: 'channel-1',
+    fastMode: null,
+  }), {
+    enabled: true,
+    supported: true,
+    source: 'parent channel',
+  });
+  assert.deepEqual(settings.resolveModelSetting({
+    provider: 'codex',
+    parentChannelId: 'channel-1',
+    model: null,
+  }), {
+    value: 'gpt-5.4-turbo',
+    source: 'parent channel',
+  });
+  assert.deepEqual(settings.resolveReasoningEffortSetting({
+    provider: 'codex',
+    parentChannelId: 'channel-1',
+    effort: null,
+  }), {
+    value: 'medium',
+    source: 'parent channel',
+  });
+  assert.deepEqual(settings.resolveCompactStrategySetting({
+    provider: 'codex',
+    parentChannelId: 'channel-1',
+    compactStrategy: null,
+  }), {
+    strategy: 'native',
+    source: 'parent channel',
+  });
+});
+
 test('session-settings parses compact, reasoning and workspace command inputs', () => {
   assert.deepEqual(parseCompactConfigAction('strategy', 'native'), {
     type: 'set_strategy',

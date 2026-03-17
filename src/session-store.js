@@ -30,6 +30,23 @@ function normalizeWorkspaceDir(value) {
   return path.resolve(raw);
 }
 
+function normalizeChannelId(value) {
+  const raw = String(value || '').trim();
+  return raw || null;
+}
+
+function resolveParentChannelId(channel, key = null) {
+  if (!channel) return null;
+  const isThread = typeof channel.isThread === 'function'
+    ? channel.isThread()
+    : Boolean(channel.parentId);
+  if (!isThread) return null;
+  const parentId = normalizeChannelId(channel.parentId || channel.parent?.id);
+  const currentKey = normalizeChannelId(key);
+  if (!parentId || parentId === currentKey) return null;
+  return parentId;
+}
+
 function normalizeSessionMode(value, fallback = 'safe') {
   const raw = String(value || '').trim().toLowerCase();
   if (raw === 'dangerous') return 'dangerous';
@@ -122,6 +139,8 @@ export function createSessionStore({
   function hydrateSession(key, {
     createIfMissing = false,
     touchUpdatedAt = false,
+    channel = null,
+    parentChannelId = undefined,
   } = {}) {
     db.threads ||= {};
     if (!db.threads[key]) {
@@ -140,6 +159,7 @@ export function createSessionStore({
         mode: defaults.mode,
         language: defaults.language,
         onboardingEnabled: defaults.onboardingEnabled,
+        parentChannelId: null,
         securityProfile: null,
         timeoutMs: null,
         compactStrategy: null,
@@ -229,6 +249,10 @@ export function createSessionStore({
       session.onboardingEnabled = defaults.onboardingEnabled;
       migrated = true;
     }
+    if (session.parentChannelId === undefined) {
+      session.parentChannelId = null;
+      migrated = true;
+    }
     if (session.securityProfile === undefined) {
       session.securityProfile = null;
       migrated = true;
@@ -261,6 +285,20 @@ export function createSessionStore({
     const normalizedWorkspaceDir = normalizeWorkspaceDir(session.workspaceDir);
     if (session.workspaceDir !== normalizedWorkspaceDir) {
       session.workspaceDir = normalizedWorkspaceDir;
+      migrated = true;
+    }
+
+    let normalizedParentChannelId = normalizeChannelId(session.parentChannelId);
+    if (normalizedParentChannelId === normalizeChannelId(key)) {
+      normalizedParentChannelId = null;
+    }
+    if (parentChannelId !== undefined) {
+      normalizedParentChannelId = normalizeChannelId(parentChannelId);
+    } else if (channel) {
+      normalizedParentChannelId = resolveParentChannelId(channel, key);
+    }
+    if (session.parentChannelId !== normalizedParentChannelId) {
+      session.parentChannelId = normalizedParentChannelId;
       migrated = true;
     }
 
@@ -338,16 +376,33 @@ export function createSessionStore({
     return { session, migrated };
   }
 
-  function getSession(key) {
+  function getSession(key, options = {}) {
     const { session, migrated } = hydrateSession(key, {
       createIfMissing: true,
       touchUpdatedAt: true,
+      ...options,
     });
     if (migrated) saveDb();
     return session;
   }
 
-  function getWorkspaceBinding(session, key) {
+  function peekSession(key, options = {}) {
+    const { session, migrated } = hydrateSession(key, {
+      createIfMissing: false,
+      touchUpdatedAt: false,
+      ...options,
+    });
+    if (migrated) saveDb();
+    return session;
+  }
+
+  function getParentSession(session) {
+    const parentChannelId = normalizeChannelId(session?.parentChannelId);
+    if (!parentChannelId) return null;
+    return peekSession(parentChannelId);
+  }
+
+  function getWorkspaceBinding(session, key, visited = new Set()) {
     const provider = normalizeProvider(session?.provider || defaults.provider);
     const defaultBinding = resolveDefaultWorkspace(provider) || {};
     const defaultWorkspaceDir = normalizeWorkspaceDir(defaultBinding.workspaceDir);
@@ -364,6 +419,41 @@ export function createSessionStore({
         defaultEnvKey: defaultBinding.envKey || null,
         legacyWorkspaceDir,
       };
+    }
+
+    const normalizedKey = normalizeChannelId(key);
+    if (normalizedKey) {
+      if (visited.has(normalizedKey)) {
+        return {
+          provider,
+          workspaceDir: defaultWorkspaceDir || legacyWorkspaceDir,
+          source: defaultWorkspaceDir ? 'provider default' : 'legacy fallback',
+          defaultWorkspaceDir,
+          defaultSource: defaultBinding.source || 'unset',
+          defaultEnvKey: defaultBinding.envKey || null,
+          legacyWorkspaceDir,
+        };
+      }
+      visited.add(normalizedKey);
+    }
+
+    const parentSession = getParentSession(session);
+    const parentChannelId = normalizeChannelId(session?.parentChannelId);
+    if (parentSession && parentChannelId) {
+      const parentBinding = getWorkspaceBinding(parentSession, parentChannelId, visited);
+      if (parentBinding?.workspaceDir) {
+        return {
+          provider,
+          workspaceDir: parentBinding.workspaceDir,
+          source: 'parent channel',
+          parentChannelId,
+          parentSource: parentBinding.source,
+          defaultWorkspaceDir,
+          defaultSource: defaultBinding.source || 'unset',
+          defaultEnvKey: defaultBinding.envKey || null,
+          legacyWorkspaceDir,
+        };
+      }
     }
 
     if (defaultWorkspaceDir) {
@@ -501,6 +591,8 @@ export function createSessionStore({
 
   return {
     getSession,
+    peekSession,
+    getParentSession,
     saveDb,
     ensureWorkspace,
     getWorkspaceBinding,

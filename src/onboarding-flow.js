@@ -444,7 +444,7 @@ export function createOnboardingFlow({
     if (!parsed) return;
 
     const key = interaction.channelId;
-    const session = key ? getSession(key) : null;
+    const session = key ? getSession(key, { channel: interaction.channel || null }) : null;
     const language = getSessionLanguage(session);
 
     if (parsed.userId !== interaction.user.id) {

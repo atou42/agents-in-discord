@@ -121,6 +121,86 @@ test('createSessionStore resolves provider default workspace without persisting 
   assert.equal(session.workspaceDir, null);
 });
 
+test('createSessionStore records the parent channel for thread sessions', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-cli-discord-session-store-'));
+  const dataFile = path.join(root, 'sessions.json');
+  const workspaceRoot = path.join(root, 'workspaces');
+
+  const store = createSessionStore({
+    dataFile,
+    workspaceRoot,
+    defaults: {
+      provider: 'codex',
+      mode: 'safe',
+      language: 'zh',
+      onboardingEnabled: true,
+    },
+    getSessionId: (session) => String(session?.runnerSessionId || session?.codexThreadId || '').trim() || null,
+    normalizeProvider,
+    normalizeUiLanguage,
+    normalizeSessionSecurityProfile,
+    normalizeSessionTimeoutMs,
+    normalizeSessionCompactStrategy,
+    normalizeSessionCompactEnabled,
+    normalizeSessionCompactTokenLimit,
+  });
+
+  const session = store.getSession('thread-1', {
+    channel: {
+      parentId: 'channel-1',
+      isThread: () => true,
+    },
+  });
+  const persisted = JSON.parse(fs.readFileSync(dataFile, 'utf8'));
+
+  assert.equal(session.parentChannelId, 'channel-1');
+  assert.equal(persisted.threads['thread-1'].parentChannelId, 'channel-1');
+  assert.equal(store.getParentSession(session), null);
+});
+
+test('createSessionStore lets a thread inherit the parent channel workspace binding', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-cli-discord-session-store-'));
+  const dataFile = path.join(root, 'sessions.json');
+  const workspaceRoot = path.join(root, 'workspaces');
+  const parentWorkspaceDir = path.join(root, 'parent-workspace');
+  fs.mkdirSync(parentWorkspaceDir, { recursive: true });
+
+  const store = createSessionStore({
+    dataFile,
+    workspaceRoot,
+    defaults: {
+      provider: 'codex',
+      mode: 'safe',
+      language: 'zh',
+      onboardingEnabled: true,
+    },
+    getSessionId: (session) => String(session?.runnerSessionId || session?.codexThreadId || '').trim() || null,
+    normalizeProvider,
+    normalizeUiLanguage,
+    normalizeSessionSecurityProfile,
+    normalizeSessionTimeoutMs,
+    normalizeSessionCompactStrategy,
+    normalizeSessionCompactEnabled,
+    normalizeSessionCompactTokenLimit,
+  });
+
+  const parentSession = store.getSession('channel-1');
+  parentSession.workspaceDir = parentWorkspaceDir;
+  store.saveDb();
+
+  const threadSession = store.getSession('thread-1', {
+    channel: {
+      parentId: 'channel-1',
+      isThread: () => true,
+    },
+  });
+  const binding = store.getWorkspaceBinding(threadSession, 'thread-1');
+
+  assert.equal(binding.workspaceDir, parentWorkspaceDir);
+  assert.equal(binding.source, 'parent channel');
+  assert.equal(binding.parentChannelId, 'channel-1');
+});
+
 test('createSessionStore migrates persisted legacy thread workspace to null so defaults can apply', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-cli-discord-session-store-'));
   const dataFile = path.join(root, 'sessions.json');
