@@ -218,6 +218,11 @@ npm run run:auto-upgrade
 CODEX_UPGRADE_DRY_RUN=1 npm run run:auto-upgrade
 ```
 
+macOS 说明：
+
+- 升级器会把 `brew update` 当作尽力步骤；第三方 tap 超时后，仍会继续检查/升级目标 cask
+- 如需完全跳过显式 `brew update`，可设置 `CODEX_UPGRADE_SKIP_BREW_UPDATE=1`
+
 ### macOS（`launchd`）
 
 默认 ID：

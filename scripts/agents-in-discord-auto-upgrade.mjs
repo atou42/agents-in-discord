@@ -21,6 +21,7 @@ function run(cmd, args, options = {}) {
   const {
     allowFailure = false,
     capture = true,
+    env = null,
     label = null,
     mutates = false,
   } = options;
@@ -32,6 +33,7 @@ function run(cmd, args, options = {}) {
 
   const result = spawnSync(cmd, args, {
     encoding: 'utf8',
+    env: env ? {...process.env, ...env} : process.env,
     stdio: capture ? ['ignore', 'pipe', 'pipe'] : 'inherit',
   });
 
@@ -81,6 +83,12 @@ function parseFirstVersionToken(line) {
   return parts[1] || parts[0] || 'unknown';
 }
 
+function describeFailure(result) {
+  const status = result?.status ?? 'unknown';
+  const detail = String(result?.stderr || result?.stdout || '').trim();
+  return detail ? `exit ${status}: ${detail}` : `exit ${status}`;
+}
+
 function installLock() {
   try {
     fs.mkdirSync(lockDir);
@@ -114,6 +122,7 @@ function runMacUpgrade() {
   const caskName = (process.env.CODEX_CASK_NAME || 'codex').trim();
   const botLabel = String(process.env.BOT_LABEL || 'com.atou.agents-in-discord').trim();
   const uid = typeof process.getuid === 'function' ? process.getuid() : null;
+  const brewNoAutoUpdateEnv = {HOMEBREW_NO_AUTO_UPDATE: '1'};
 
   if (!commandExists(brewBin)) {
     throw new Error('brew not found; cannot upgrade codex.');
@@ -127,10 +136,23 @@ function runMacUpgrade() {
 
   if (process.env.CODEX_UPGRADE_SKIP_BREW_UPDATE !== '1') {
     log('running brew update...');
-    run(brewBin, ['update', '--quiet'], {capture: false, mutates: true});
+    const brewUpdateResult = run(brewBin, ['update', '--quiet'], {
+      allowFailure: true,
+      capture: false,
+      mutates: true,
+    });
+    if (!brewUpdateResult.ok) {
+      log(`brew update failed (${describeFailure(brewUpdateResult)}); continuing with cached/API metadata.`);
+    }
   }
 
-  const outdatedResult = run(brewBin, ['outdated', '--cask', caskName], {allowFailure: true});
+  const outdatedResult = run(brewBin, ['outdated', '--cask', caskName], {
+    allowFailure: true,
+    env: brewNoAutoUpdateEnv,
+  });
+  if (!outdatedResult.ok) {
+    throw new Error(`brew outdated --cask ${caskName} ${describeFailure(outdatedResult)}`);
+  }
   const outdated = outputOrEmpty(outdatedResult);
   if (!outdated) {
     log('no codex update available.');
@@ -138,7 +160,11 @@ function runMacUpgrade() {
   }
 
   log(`upgrading ${caskName}...`);
-  run(brewBin, ['upgrade', '--cask', caskName], {capture: false, mutates: true});
+  run(brewBin, ['upgrade', '--cask', caskName], {
+    capture: false,
+    env: brewNoAutoUpdateEnv,
+    mutates: true,
+  });
 
   const versionAfterResult = run(brewBin, ['list', '--cask', '--versions', caskName], {allowFailure: true});
   const versionAfter = versionAfterResult.ok

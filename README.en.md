@@ -217,6 +217,11 @@ Manual run (dry-run; no package/service changes):
 CODEX_UPGRADE_DRY_RUN=1 npm run run:auto-upgrade
 ```
 
+macOS note:
+
+- The upgrader now treats `brew update` as best-effort; if an unrelated tap times out, it still checks/upgrades the target cask
+- Set `CODEX_UPGRADE_SKIP_BREW_UPDATE=1` to skip the explicit `brew update` step entirely
+
 ### macOS (`launchd`)
 
 Default IDs:
