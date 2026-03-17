@@ -411,11 +411,11 @@ export function createSettingsPanel({
       case 'fast':
         return snapshot.language === 'en'
           ? (snapshot.isThread
-            ? 'Fast mode only exists on Codex. "Follow parent/global" means this thread stops overriding and inherits the parent channel setting first, then `~/.codex/config.toml`.'
-            : 'Fast mode only exists on Codex. "Follow global" means this channel stops overriding and inherits `~/.codex/config.toml`.')
+            ? 'Fast mode only exists on Codex. "Follow parent/global" means this thread stops overriding and inherits the parent channel setting first, then `~/.codex/config.toml` (which stays on unless `[features].fast_mode = false` is set).'
+            : 'Fast mode only exists on Codex. "Follow global" means this channel stops overriding and inherits `~/.codex/config.toml` (which stays on unless `[features].fast_mode = false` is set).')
           : (snapshot.isThread
-            ? 'Fast mode 仅对 Codex 生效。选择“跟随父频道/全局”表示当前 thread 不再覆盖，优先继承父频道设置，其次继承 `~/.codex/config.toml`。'
-            : 'Fast mode 仅对 Codex 生效。选择“跟随全局”表示当前频道不再覆盖，改为继承 `~/.codex/config.toml`。');
+            ? 'Fast mode 仅对 Codex 生效。选择“跟随父频道/全局”表示当前 thread 不再覆盖，优先继承父频道设置，其次继承 `~/.codex/config.toml`；若未显式写 `[features].fast_mode = false`，默认保持开启。'
+            : 'Fast mode 仅对 Codex 生效。选择“跟随全局”表示当前频道不再覆盖，改为继承 `~/.codex/config.toml`；若未显式写 `[features].fast_mode = false`，默认保持开启。');
       case 'effort':
         return snapshot.language === 'en'
           ? 'Reasoning effort options are provider-specific. "default" clears this channel override.'

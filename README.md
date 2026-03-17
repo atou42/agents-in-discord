@@ -75,7 +75,7 @@ Git hooks 说明：
 - `/cx_setdir <path|default|status>` - 设置或清除当前线程的 workspace
 - `/cx_setdefaultdir <path|clear|status>` - 设置当前 provider 的默认 workspace
 - `/cx_model <name|default>` - 设置模型覆盖
-- `/cx_fast <on|off|status|default>` - 切换当前频道的 Codex Fast mode；仅 Codex 暴露，`default` 表示回退到 `~/.codex/config.toml` 里的 `[features].fast_mode`
+- `/cx_fast <on|off|status|default>` - 切换当前频道的 Codex Fast mode；仅 Codex 暴露，`default` 表示回退到 `~/.codex/config.toml` 里的 `[features].fast_mode`，未配置时默认开启
 - `/cx_effort <...>` - 设置 reasoning effort；Codex 支持 `xhigh|high|medium|low|default`，Claude 支持 `high|medium|low|default`，Gemini 不暴露该命令
 - `/cx_compact key:<...> value:<...>` - 配置当前频道 compact；三家 provider 都支持 `strategy|token_limit|enabled|reset|status`，`native_limit` 仅在 provider 暴露原生 limit 覆盖时可用（当前主要是 Codex）
 - `/cx_mode <safe|dangerous>` - 设置执行模式
@@ -155,7 +155,7 @@ npm run start:gemini
 - `CODEX_BIN`：codex 命令/路径（默认 `codex`）
 - `CLAUDE_BIN`：claude 命令/路径（默认 `claude`）
 - `GEMINI_BIN`：gemini 命令/路径（默认 `gemini`）
-- Codex 的 provider 默认 `model`、`effort`、`fast mode` 会从 `~/.codex/config.toml` 读取；频道级 `!model`、`!effort`、`!fast` 只覆盖当前线程
+- Codex 的 provider 默认 `model`、`effort`、`fast mode` 会从 `~/.codex/config.toml` 读取；如果没有显式写 `[features].fast_mode = false`，fast mode 默认开启；频道级 `!model`、`!effort`、`!fast` 只覆盖当前线程
 - `CODEX_TIMEOUT_MS`：默认 runner 硬超时（毫秒），当前三家 provider 共用这一个默认值；`0` 表示禁用超时，频道内可再用 `/cx_timeout` / `!timeout` 覆盖
 - `PROGRESS_UPDATES_ENABLED`：是否启用频道实时进度更新（默认 `true`）
 - `PROGRESS_UPDATE_INTERVAL_MS`：进度消息心跳刷新间隔

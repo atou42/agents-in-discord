@@ -62,7 +62,7 @@ test('session-settings resolves timeout security profile and compact values with
     source: 'session override',
   });
   assert.deepEqual(settings.resolveFastModeSetting({ provider: 'codex' }), {
-    enabled: false,
+    enabled: true,
     supported: true,
     source: 'config.toml',
   });

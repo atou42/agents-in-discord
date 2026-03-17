@@ -75,7 +75,7 @@ Examples below use the default Codex/shared prefix `cx_`; a dedicated Claude bot
 - `/cx_setdir <path|default|status>` — set or clear workspace for current thread
 - `/cx_setdefaultdir <path|clear|status>` — set provider default workspace
 - `/cx_model <name|default>` — set model override
-- `/cx_fast <on|off|status|default>` — toggle Codex Fast mode for the current channel; only exposed for Codex, and `default` falls back to `[features].fast_mode` in `~/.codex/config.toml`
+- `/cx_fast <on|off|status|default>` — toggle Codex Fast mode for the current channel; only exposed for Codex, and `default` falls back to `[features].fast_mode` in `~/.codex/config.toml`, which now defaults to on when unset
 - `/cx_effort <...>` — set reasoning effort; Codex supports `xhigh|high|medium|low|default`, Claude supports `high|medium|low|default`, and Gemini does not expose this command
 - `/cx_compact key:<...> value:<...>` — configure compact for the current channel; all three providers support `strategy|token_limit|enabled|reset|status`, while `native_limit` only works where the provider exposes a native limit override (currently mainly Codex)
 - `/cx_mode <safe|dangerous>` — set execution mode
@@ -154,7 +154,7 @@ Important knobs:
 - `WORKSPACE_ROOT`: legacy fallback root used only when neither thread override nor provider default is configured
 - `CODEX_BIN`: codex command/path (default `codex`)
 - `CLAUDE_BIN`: claude command/path (default `claude`)
-- Codex provider defaults for `model`, `effort`, and `fast mode` are read from `~/.codex/config.toml`; channel-level `!model`, `!effort`, and `!fast` only override the current thread
+- Codex provider defaults for `model`, `effort`, and `fast mode` are read from `~/.codex/config.toml`; unless `[features].fast_mode = false` is set explicitly, fast mode defaults to on, and channel-level `!model`, `!effort`, and `!fast` only override the current thread
 - `CODEX_TIMEOUT_MS`: default runner hard timeout (ms). Today all three providers share this default; `0` disables timeout, and `/cx_timeout` / `!timeout` can still override it per thread.
 - `PROGRESS_UPDATES_ENABLED`: enable/disable live progress updates in channel (default `true`)
 - `PROGRESS_UPDATE_INTERVAL_MS`: heartbeat refresh interval for progress message

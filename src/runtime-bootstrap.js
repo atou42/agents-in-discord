@@ -18,13 +18,13 @@ export function readCodexDefaults({ env = process.env } = {}) {
     return {
       model: modelMatch?.[1] || UNKNOWN_CODEX_DEFAULT,
       effort: effortMatch?.[1] || UNKNOWN_CODEX_DEFAULT,
-      fastMode: fastModeMatch?.[1] === 'true',
+      fastMode: fastModeMatch ? fastModeMatch[1] === 'true' : true,
     };
   } catch {
     return {
       model: UNKNOWN_CODEX_DEFAULT,
       effort: UNKNOWN_CODEX_DEFAULT,
-      fastMode: false,
+      fastMode: true,
     };
   }
 }

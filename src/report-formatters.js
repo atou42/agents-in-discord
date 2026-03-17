@@ -575,12 +575,14 @@ export function createReportFormatters({
       return [
         'Usage: `!fast <on|off|status|default>`',
         `Slash: \`${slashRef('fast')} <on|off|status|default>\``,
+        'Default: `default` follows `~/.codex/config.toml`; when `[features].fast_mode` is unset, it stays on.',
         'Note: Fast mode is a Codex feature intended for the GPT-5.4 path and may use plan quota faster.',
       ].join('\n');
     }
     return [
       '用法：`!fast <on|off|status|default>`',
       `Slash：\`${slashRef('fast')} <on|off|status|default>\``,
+      '默认：`default` 会跟随 `~/.codex/config.toml`；如果没显式写 `[features].fast_mode = false`，就保持开启。',
       '说明：Fast mode 是 Codex 的能力，主要对应 GPT-5.4 路径，可能会更快消耗套餐额度。',
     ].join('\n');
   }

@@ -227,7 +227,7 @@ export function createSessionSettings({
   compactOnThreshold = true,
   maxInputTokensBeforeCompact = 250000,
   modelAutoCompactTokenLimit = maxInputTokensBeforeCompact,
-  readCodexDefaults = () => ({ model: '(unknown)', effort: '(unknown)', fastMode: false }),
+  readCodexDefaults = () => ({ model: '(unknown)', effort: '(unknown)', fastMode: true }),
   normalizeProvider = (provider) => String(provider || '').trim().toLowerCase() || 'codex',
   getSupportedCompactStrategies = () => ['hard', 'native', 'off'],
   getParentSession = () => null,

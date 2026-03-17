@@ -6,6 +6,12 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-03-17
+
+### Changed
+- Codex Fast mode now defaults to on when `~/.codex/config.toml` is missing or does not explicitly set `[features].fast_mode = false`, while preserving thread-level and parent-channel overrides.
+- Updated help, settings, and documentation text to explain that "follow global" now inherits the config value and stays on unless explicitly disabled.
+
 ## [0.9.1] - 2026-03-17
 
 ### Fixed
