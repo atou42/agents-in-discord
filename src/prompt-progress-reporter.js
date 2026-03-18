@@ -1,3 +1,5 @@
+import { getSupportedReasoningEffortLevels } from './provider-metadata.js';
+
 function defaultNormalizeUiLanguage(value) {
   return String(value || '').trim().toLowerCase() === 'en' ? 'en' : 'zh';
 }
@@ -130,6 +132,18 @@ function formatFastModeValue(setting, language = 'en') {
     : `${enabled}（${formatFastModeSource(setting.source, language)}）`;
 }
 
+function formatEffortValue(setting, provider, language = 'en') {
+  if (!getSupportedReasoningEffortLevels(provider).length) return null;
+
+  const value = String(setting?.value || '').trim();
+  const source = String(setting?.source || '').trim().toLowerCase();
+  if (!value) return null;
+  if (source === 'provider') {
+    return language === 'en' ? 'provider default' : 'provider 默认';
+  }
+  return value;
+}
+
 export function createPromptProgressReporterFactory({
   defaultUiLanguage = 'zh',
   progressUpdatesEnabled = true,
@@ -147,6 +161,7 @@ export function createPromptProgressReporterFactory({
   safeReply = async () => null,
   normalizeUiLanguage = defaultNormalizeUiLanguage,
   slashRef = (name) => `/${name}`,
+  resolveReasoningEffortSetting = () => ({ value: '', source: 'provider' }),
   resolveFastModeSetting = () => ({ enabled: false, supported: false, source: 'provider unsupported' }),
   truncate = defaultTruncate,
   humanElapsed = (ms) => `${ms}ms`,
@@ -234,6 +249,7 @@ export function createPromptProgressReporterFactory({
     const render = (status = 'running') => {
       const elapsed = humanElapsed(Math.max(0, now() - startedAt));
       const phase = formatRuntimePhaseLabel(channelState?.activeRun?.phase || 'starting', lang);
+      const effort = formatEffortValue(resolveReasoningEffortSetting(session), session?.provider, lang);
       const fastMode = formatFastModeValue(resolveFastModeSetting(session), lang);
       const hint = status === 'running'
         ? (lang === 'en'
@@ -249,6 +265,7 @@ export function createPromptProgressReporterFactory({
         statusLine,
         `${lang === 'en' ? '• elapsed' : '• 耗时'}: ${elapsed}`,
         `${lang === 'en' ? '• phase' : '• 阶段'}: ${phase}`,
+        effort ? `${lang === 'en' ? '• effort' : '• effort'}: ${effort}` : null,
         fastMode ? `${lang === 'en' ? '• fast mode' : '• fast mode'}: ${fastMode}` : null,
         `${lang === 'en' ? '• event count' : '• 事件数'}: ${events}`,
         `${lang === 'en' ? '• latest activity' : '• 最新活动'}: ${latestStep}`,

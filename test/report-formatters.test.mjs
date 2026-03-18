@@ -217,6 +217,7 @@ test('createReportFormatters.formatProgressReport keeps running hints minimal', 
   const report = formatters.formatProgressReport('thread-1', { language: 'zh' }, { id: 'channel-1' });
 
   assert.match(report, /`!c`/);
+  assert.match(report, /effort: high/);
   assert.match(report, /fast mode: 开启（config\.toml）/);
   assert.doesNotMatch(report, /`\/bot-status`/);
   assert.doesNotMatch(report, /!cancel/);

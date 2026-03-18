@@ -98,6 +98,16 @@ export function createReportFormatters({
     return `\`${value}\`（${formatSettingSourceLabel(source, language)}）`;
   }
 
+  function formatProgressSettingValue(setting, fallback, language = 'en') {
+    const value = String(setting?.value || '').trim() || fallback;
+    const source = String(setting?.source || 'unknown').trim().toLowerCase();
+    if (!value) return null;
+    if (source === 'provider') {
+      return language === 'en' ? 'provider default' : 'provider 默认';
+    }
+    return value;
+  }
+
   function formatSettingSourceLabel(source, language = 'en') {
     if (source === 'session override') {
       return language === 'en' ? 'session override' : '频道覆盖';
@@ -350,6 +360,12 @@ export function createReportFormatters({
     const security = resolveSecurityContext(channel, session);
     const language = getSessionLanguage(session);
     const lang = normalizeUiLanguage(language);
+    const provider = getSessionProvider(session);
+    const defaults = getProviderDefaults(provider);
+    const effortSetting = resolveReasoningEffortSetting(session);
+    const effortValue = getReasoningEffortLevels(provider).length
+      ? formatProgressSettingValue(effortSetting, defaults.effort, lang)
+      : null;
     if (!runtime.running) {
       if (lang === 'en') {
         return [
@@ -377,6 +393,7 @@ export function createReportFormatters({
       return [
         '🧵 **Task Progress**',
         `• runtime: ${formatRuntimeLabel(runtime, lang)}`,
+        effortValue ? `• effort: ${effortValue}` : null,
         resolveFastModeSetting(session)?.supported
           ? `• fast mode: ${formatFastModeLabel(resolveFastModeSetting(session).enabled, lang)} (${formatSettingSourceLabel(resolveFastModeSetting(session).source, lang)})`
           : null,
@@ -396,6 +413,7 @@ export function createReportFormatters({
     return [
       '🧵 **任务进度**',
       `• 运行状态: ${formatRuntimeLabel(runtime, lang)}`,
+      effortValue ? `• effort: ${effortValue}` : null,
       resolveFastModeSetting(session)?.supported
         ? `• fast mode: ${formatFastModeLabel(resolveFastModeSetting(session).enabled, lang)}（${formatSettingSourceLabel(resolveFastModeSetting(session).source, lang)}）`
         : null,

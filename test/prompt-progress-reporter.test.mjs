@@ -59,6 +59,10 @@ function createHarness(overrides = {}) {
     },
     normalizeUiLanguage: (value) => (String(value || '').trim().toLowerCase() === 'en' ? 'en' : 'zh'),
     slashRef: (name) => `/bot-${name}`,
+    resolveReasoningEffortSetting: (session) => ({
+      value: session?.effort || 'high',
+      source: session?.effort ? 'session override' : 'config.toml',
+    }),
     resolveFastModeSetting: (session) => ({
       enabled: Boolean(session?.fastMode),
       supported: session?.provider === 'codex',
@@ -130,6 +134,7 @@ test('createPromptProgressReporterFactory seeds initial step and updates final p
   await harness.reporter.start();
   assert.match(harness.sent[0].content, /Waiting for workspace lock: \/repo\/demo/);
   assert.deepEqual(harness.sent[0].components, []);
+  assert.match(harness.sent[0].content, /effort: high/);
   assert.match(harness.sent[0].content, /fast mode: on \(this channel\)/);
   assert.match(harness.sent[0].content, /!c/);
   assert.doesNotMatch(harness.sent[0].content, /\/bot-status/);
