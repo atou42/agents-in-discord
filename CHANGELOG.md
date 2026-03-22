@@ -6,6 +6,12 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+## [0.9.3] - 2026-03-22
+
+### Fixed
+- Auto retry now keeps the current Codex rollout session instead of silently resetting it before the next attempt, so drawing and other session-sensitive work can continue in the same context.
+- Resuming a Codex or Gemini session now reattaches the thread to the session's original workspace and clears duplicate cross-thread bindings, preventing stale session IDs from reviving in the wrong thread.
+
 ## [0.9.2] - 2026-03-17
 
 ### Changed

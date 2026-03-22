@@ -368,8 +368,22 @@ export function createSlashCommandRouter({
 
   registerSlashHandlers(handlers, ['resume'], async ({ interaction, session, respond }) => {
     const sid = interaction.options.getString('session_id');
-    const binding = commandActions.bindSession(session, sid);
-    await respond(`✅ 已绑定 ${formatProviderSessionLabel(binding.provider, 'zh')}: \`${binding.sessionId}\``);
+    const binding = commandActions.bindSession(session, interaction.channelId, sid);
+    if (!binding.sessionId && binding.missingWorkspaceDir) {
+      await respond(`❌ 这个 ${formatProviderSessionLabel(binding.provider, 'zh')} 对应的 workspace 不存在：\`${binding.missingWorkspaceDir}\``);
+      return;
+    }
+    const notes = [];
+    if (binding.adoptedWorkspaceDir) {
+      notes.push(`已切到 session 对应 workspace：\`${binding.adoptedWorkspaceDir}\``);
+    }
+    if (binding.displacedKeys?.length) {
+      notes.push('已清掉其他线程里重复绑定的同一 session。');
+    }
+    await respond([
+      `✅ 已绑定 ${formatProviderSessionLabel(binding.provider, 'zh')}: \`${binding.sessionId}\``,
+      ...notes,
+    ].join('\n'));
   });
 
   registerSlashHandlers(handlers, ['name'], async ({ interaction, session, respond }) => {

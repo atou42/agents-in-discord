@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+
 import { providerRequiresWorkspaceBoundSession } from './provider-metadata.js';
 import { switchSessionProviderState } from './session-provider-state.js';
 
@@ -9,11 +11,33 @@ function shouldResetSessionForWorkspaceChange(provider, previousDir, nextDir) {
   return providerRequiresWorkspaceBoundSession(provider) && hasWorkspaceChanged(previousDir, nextDir);
 }
 
+function normalizeSessionKey(value) {
+  const text = String(value || '').trim();
+  return text || null;
+}
+
+function normalizeWorkspacePath(value) {
+  const text = String(value || '').trim();
+  return text || null;
+}
+
+function isExistingDirectory(dir) {
+  const candidate = normalizeWorkspacePath(dir);
+  if (!candidate) return false;
+  try {
+    return fs.statSync(candidate).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 export function createSessionCommandActions({
   saveDb,
   ensureWorkspace,
   getWorkspaceBinding = () => ({ workspaceDir: null, source: 'legacy fallback' }),
   listStoredSessions = () => [],
+  readCodexSessionMetaBySessionId = () => null,
+  resolveGeminiProjectRootBySessionId = () => null,
   resolveProviderDefaultWorkspace = () => ({ workspaceDir: null, source: 'unset', envKey: null }),
   setProviderDefaultWorkspace = () => ({ workspaceDir: null, source: 'unset', envKey: null }),
   normalizeProvider = (provider) => String(provider || '').trim().toLowerCase() || 'codex',
@@ -38,6 +62,19 @@ export function createSessionCommandActions({
   listRecentSessions,
   humanAge,
 } = {}) {
+  function resolveStrictProviderSessionWorkspace(provider, sessionId) {
+    if (!providerRequiresWorkspaceBoundSession(provider)) return null;
+    const normalizedSessionId = normalizeSessionKey(sessionId);
+    if (!normalizedSessionId) return null;
+    if (provider === 'codex') {
+      return normalizeWorkspacePath(readCodexSessionMetaBySessionId(normalizedSessionId)?.cwd);
+    }
+    if (provider === 'gemini') {
+      return normalizeWorkspacePath(resolveGeminiProjectRootBySessionId(normalizedSessionId));
+    }
+    return null;
+  }
+
   function setOnboardingEnabled(session, enabled) {
     session.onboardingEnabled = enabled;
     saveDb();
@@ -132,14 +169,48 @@ export function createSessionCommandActions({
     };
   }
 
-  function bindSession(session, sessionId) {
+  function bindSession(session, keyOrSessionId, maybeSessionId) {
+    const key = maybeSessionId === undefined ? null : normalizeSessionKey(keyOrSessionId);
+    const requestedSessionId = maybeSessionId === undefined ? keyOrSessionId : maybeSessionId;
     const provider = getSessionProvider(session);
-    setSessionId(session, sessionId);
+    setSessionId(session, requestedSessionId);
+    const normalizedSessionId = getSessionId(session);
+    const displacedKeys = [];
+    const sessionWorkspaceDir = resolveStrictProviderSessionWorkspace(provider, normalizedSessionId);
+    let adoptedWorkspaceDir = null;
+    let missingWorkspaceDir = null;
+
+    if (providerRequiresWorkspaceBoundSession(provider) && normalizedSessionId) {
+      if (sessionWorkspaceDir) {
+        if (isExistingDirectory(sessionWorkspaceDir)) {
+          session.workspaceDir = sessionWorkspaceDir;
+          adoptedWorkspaceDir = sessionWorkspaceDir;
+        } else {
+          missingWorkspaceDir = sessionWorkspaceDir;
+          clearSessionId(session);
+        }
+      }
+      if (!missingWorkspaceDir) {
+        for (const { key: storedKey, session: storedSession } of listStoredSessions({ provider })) {
+          const normalizedStoredKey = normalizeSessionKey(storedKey);
+          if (!storedSession || storedSession === session) continue;
+          if (key && normalizedStoredKey === key) continue;
+          if (getSessionId(storedSession) !== normalizedSessionId) continue;
+          clearSessionId(storedSession);
+          displacedKeys.push(normalizedStoredKey || storedKey);
+        }
+      }
+    }
+
     saveDb();
     return {
       provider,
       providerLabel: getProviderShortName(provider),
       sessionId: getSessionId(session),
+      displacedKeys,
+      sessionWorkspaceDir,
+      adoptedWorkspaceDir,
+      missingWorkspaceDir,
     };
   }
 

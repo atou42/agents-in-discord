@@ -52,7 +52,9 @@ import {
   findLatestClaudeSessionFileBySessionId,
   findLatestRolloutFileBySessionId,
   listRecentSessions as listRecentProviderSessions,
+  readCodexSessionMetaBySessionId,
   readGeminiSessionState,
+  resolveGeminiProjectRootBySessionId,
 } from './provider-sessions.js';
 import { stopChildProcess } from './channel-runtime.js';
 import { loadRuntimeEnv } from './env-loader.js';
@@ -359,6 +361,8 @@ const appContext = createAppContext({
   commandActionsOptions: {
     normalizeProvider,
     normalizeUiLanguage,
+    readCodexSessionMetaBySessionId,
+    resolveGeminiProjectRootBySessionId,
     formatProviderSessionLabel,
     formatRecentSessionsTitle,
     formatRecentSessionsLookup,

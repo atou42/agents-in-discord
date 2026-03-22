@@ -313,10 +313,28 @@ export function createTextCommandHandler({
           );
           return;
         }
-        const binding = commandActions.bindSession(session, arg);
+        const binding = commandActions.bindSession(session, key, arg);
+        if (!binding.sessionId && binding.missingWorkspaceDir) {
+          await safeReply(
+            message,
+            `❌ 这个 ${formatProviderSessionLabel(binding.provider, 'zh')} 对应的 workspace 不存在：\`${binding.missingWorkspaceDir}\``,
+          );
+          return;
+        }
+        const notes = [];
+        if (binding.adoptedWorkspaceDir) {
+          notes.push(`已切到 session 对应 workspace：\`${binding.adoptedWorkspaceDir}\``);
+        }
+        if (binding.displacedKeys?.length) {
+          notes.push('已清掉其他线程里重复绑定的同一 session。');
+        }
         await safeReply(
           message,
-          `✅ 已绑定 ${formatProviderSessionLabel(binding.provider, 'zh')}: \`${binding.sessionId}\`\n下条消息会 resume 这个上下文。`,
+          [
+            `✅ 已绑定 ${formatProviderSessionLabel(binding.provider, 'zh')}: \`${binding.sessionId}\``,
+            '下条消息会 resume 这个上下文。',
+            ...notes,
+          ].join('\n'),
         );
         break;
       }

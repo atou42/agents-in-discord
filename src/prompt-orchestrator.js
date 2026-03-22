@@ -169,21 +169,18 @@ export function createPromptOrchestrator({
     nextAttempt,
     maxAttempts,
     delayMs,
-    resetSessionId = null,
   }) {
     const delayLabel = formatRetryDelay(delayMs, language);
     if (language === 'en') {
       return [
         `Attempt ${failedAttempt}/${maxAttempts} failed.`,
         `Retry ${nextAttempt}/${maxAttempts} starts ${delayMs > 0 ? `in ${delayLabel}` : delayLabel}.`,
-        resetSessionId ? `Session reset: ${resetSessionId}.` : null,
       ].filter(Boolean).join(' ');
     }
 
     return [
       `第 ${failedAttempt}/${maxAttempts} 次尝试失败。`,
       `将在 ${delayLabel} 后开始第 ${nextAttempt}/${maxAttempts} 次重试。`,
-      resetSessionId ? `已重置旧 session：${resetSessionId}。` : null,
     ].filter(Boolean).join('');
   }
 
@@ -331,7 +328,6 @@ export function createPromptOrchestrator({
       });
 
       const retryEvents = [];
-      const retryNotes = [];
       let attemptNumber = 1;
       let result = await runPromptAttempt({
         promptText: promptToRun,
@@ -340,19 +336,11 @@ export function createPromptOrchestrator({
 
       while (shouldAutoRetryResult(result) && attemptNumber < taskRetryPolicy.maxAttempts) {
         const nextAttempt = attemptNumber + 1;
-        const previousSessionId = getSessionId(session);
-        if (previousSessionId) {
-          clearSessionId(session);
-          saveDb();
-          retryNotes.push(`已在第 ${nextAttempt}/${taskRetryPolicy.maxAttempts} 次尝试前自动重置旧会话：${previousSessionId}`);
-        }
-
         const delayMs = computeRetryDelayMs(nextAttempt, taskRetryPolicy);
         retryEvents.push({
           failedAttempt: attemptNumber,
           nextAttempt,
           delayMs,
-          resetSessionId: previousSessionId || null,
         });
 
         setActiveRun(channelState, message, prompt, null, 'retry');
@@ -362,7 +350,6 @@ export function createPromptOrchestrator({
           nextAttempt,
           maxAttempts: taskRetryPolicy.maxAttempts,
           delayMs,
-          resetSessionId: previousSessionId || null,
         }));
         if (delayMs > 0) {
           await sleep(delayMs);
@@ -379,7 +366,7 @@ export function createPromptOrchestrator({
         attemptNumber = nextAttempt;
       }
 
-      appendNotes(result, [...preNotes, ...retryNotes]);
+      appendNotes(result, preNotes);
 
       const inputTokens = extractInputTokensFromUsage(result.usage);
       let sessionDirty = false;

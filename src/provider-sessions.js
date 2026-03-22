@@ -131,6 +131,44 @@ export function findLatestRolloutFileBySessionId(sessionId, notOlderThanMs = 0) 
   return latest;
 }
 
+function readFirstJsonLine(filePath, maxBytes = 128 * 1024) {
+  try {
+    const fd = fs.openSync(filePath, 'r');
+    try {
+      const stat = fs.fstatSync(fd);
+      if (!stat?.isFile?.()) return null;
+      const bytesToRead = Math.max(0, Math.min(stat.size, maxBytes));
+      if (bytesToRead <= 0) return null;
+      const buf = Buffer.allocUnsafe(bytesToRead);
+      const readBytes = fs.readSync(fd, buf, 0, bytesToRead, 0);
+      const chunk = buf.toString('utf8', 0, readBytes);
+      const line = chunk.split('\n')[0] || '';
+      if (!line.trim()) return null;
+      return JSON.parse(line);
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return null;
+  }
+}
+
+export function readCodexSessionMetaBySessionId(sessionId, notOlderThanMs = 0) {
+  const match = findLatestRolloutFileBySessionId(sessionId, notOlderThanMs);
+  if (!match?.file) return null;
+
+  const first = readFirstJsonLine(match.file);
+  const payload = first && typeof first === 'object' ? first.payload : null;
+  const cwd = String(payload?.cwd || '').trim();
+  if (!cwd) return null;
+
+  return {
+    cwd: path.resolve(cwd),
+    file: match.file,
+    mtimeMs: Number(match.mtimeMs) || 0,
+  };
+}
+
 export function findLatestClaudeSessionFileBySessionId(sessionId, workspaceDir = '', notOlderThanMs = 0) {
   const targetId = String(sessionId || '').trim().toLowerCase();
   if (!targetId) return null;
@@ -195,6 +233,15 @@ function findLatestGeminiSessionFileBySessionId(sessionId, workspaceDir = '', no
   }
 
   return latest;
+}
+
+export function resolveGeminiProjectRootBySessionId(sessionId, workspaceDir = '', notOlderThanMs = 0) {
+  const match = findLatestGeminiSessionFileBySessionId(sessionId, workspaceDir, notOlderThanMs);
+  if (!match?.file) return null;
+  const projectDir = path.dirname(path.dirname(match.file));
+  const projectRoot = safeReadText(path.join(projectDir, '.project_root'));
+  if (!projectRoot) return null;
+  return path.resolve(projectRoot);
 }
 
 function getCodexSessionsDir() {

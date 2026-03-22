@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -294,6 +297,91 @@ test('createSessionCommandActions.startNewSession clears bound session and token
   assert.equal(session.runnerSessionId, null);
   assert.equal(session.codexThreadId, null);
   assert.equal(session.lastInputTokens, null);
+  assert.equal(saveCount, 1);
+});
+
+test('createSessionCommandActions.bindSession adopts strict-provider workspace and clears duplicate bindings', () => {
+  let saveCount = 0;
+  const adoptedWorkspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agents-in-discord-bind-session-'));
+  const currentSession = { provider: 'codex', workspaceDir: null, runnerSessionId: null, codexThreadId: null };
+  const otherSession = { provider: 'codex', workspaceDir: '/legacy/thread-b', runnerSessionId: 'sess-42', codexThreadId: 'sess-42' };
+  const actions = createSessionCommandActions({
+    saveDb: () => {
+      saveCount += 1;
+    },
+    ensureWorkspace: () => '/legacy/thread-a',
+    listStoredSessions: () => [
+      { key: 'thread-a', session: currentSession },
+      { key: 'thread-b', session: otherSession },
+    ],
+    readCodexSessionMetaBySessionId: (sessionId) => (
+      sessionId === 'sess-42'
+        ? { cwd: adoptedWorkspaceDir }
+        : null
+    ),
+    clearSessionId: (session) => {
+      session.runnerSessionId = null;
+      session.codexThreadId = null;
+    },
+    getSessionId: (session) => session.runnerSessionId,
+    setSessionId: (session, value) => {
+      session.runnerSessionId = value;
+      session.codexThreadId = value;
+    },
+    getSessionProvider: (session) => session.provider || 'codex',
+    getProviderShortName: () => 'Codex',
+    resolveTimeoutSetting: () => ({ timeoutMs: 60000, source: 'session override' }),
+    listRecentSessions: () => [],
+    humanAge: () => '0s',
+  });
+
+  const result = actions.bindSession(currentSession, 'thread-a', 'sess-42');
+
+  assert.equal(result.sessionId, 'sess-42');
+  assert.equal(result.adoptedWorkspaceDir, adoptedWorkspaceDir);
+  assert.deepEqual(result.displacedKeys, ['thread-b']);
+  assert.equal(currentSession.workspaceDir, adoptedWorkspaceDir);
+  assert.equal(otherSession.runnerSessionId, null);
+  assert.equal(saveCount, 1);
+});
+
+test('createSessionCommandActions.bindSession rejects strict-provider sessions whose workspace no longer exists', () => {
+  let saveCount = 0;
+  const currentSession = { provider: 'codex', workspaceDir: null, runnerSessionId: null, codexThreadId: null };
+  const actions = createSessionCommandActions({
+    saveDb: () => {
+      saveCount += 1;
+    },
+    ensureWorkspace: () => '/legacy/thread-a',
+    listStoredSessions: () => [
+      { key: 'thread-a', session: currentSession },
+    ],
+    readCodexSessionMetaBySessionId: (sessionId) => (
+      sessionId === 'sess-missing'
+        ? { cwd: '/path/that/does/not/exist' }
+        : null
+    ),
+    clearSessionId: (session) => {
+      session.runnerSessionId = null;
+      session.codexThreadId = null;
+    },
+    getSessionId: (session) => session.runnerSessionId,
+    setSessionId: (session, value) => {
+      session.runnerSessionId = value;
+      session.codexThreadId = value;
+    },
+    getSessionProvider: (session) => session.provider || 'codex',
+    getProviderShortName: () => 'Codex',
+    resolveTimeoutSetting: () => ({ timeoutMs: 60000, source: 'session override' }),
+    listRecentSessions: () => [],
+    humanAge: () => '0s',
+  });
+
+  const result = actions.bindSession(currentSession, 'thread-a', 'sess-missing');
+
+  assert.equal(result.sessionId, null);
+  assert.equal(result.missingWorkspaceDir, '/path/that/does/not/exist');
+  assert.equal(currentSession.runnerSessionId, null);
   assert.equal(saveCount, 1);
 });
 

@@ -228,6 +228,8 @@ test('createPromptOrchestrator.handlePrompt adds retry button after final failur
 
   assert.deepEqual(outcome, { ok: false, cancelled: false });
   assert.equal(runCount, 3);
+  assert.equal(harness.session.runnerSessionId, 'sess-1');
+  assert.equal(harness.session.codexThreadId, 'sess-1');
   assert.deepEqual(delays, [1000, 2000]);
   assert.equal(typeof replyLog[0], 'object');
   assert.match(replyLog[0].content, /Codex 执行失败/);
@@ -252,4 +254,97 @@ test('createPromptOrchestrator.handlePrompt adds retry button after final failur
     type: 'finish',
     outcome: { ok: false, cancelled: false, timedOut: false, error: 'runner exploded' },
   });
+});
+
+test('createPromptOrchestrator.handlePrompt preserves the current session across auto retries', async () => {
+  let runCount = 0;
+  const harness = createOrchestrator({
+    runTask: async (options) => {
+      runCount += 1;
+      options.onSpawn?.({ pid: 654 });
+      if (runCount === 1) {
+        return {
+          ok: false,
+          cancelled: false,
+          timedOut: false,
+          error: 'runner exploded',
+          logs: ['trace line'],
+          notes: [],
+          reasonings: [],
+          messages: [],
+          finalAnswerMessages: [],
+          threadId: 'sess-1',
+          usage: null,
+        };
+      }
+      return {
+        ok: true,
+        cancelled: false,
+        timedOut: false,
+        error: '',
+        logs: [],
+        notes: [],
+        reasonings: [],
+        messages: ['done'],
+        finalAnswerMessages: ['final answer'],
+        threadId: 'sess-1',
+        usage: { input_tokens: 222 },
+      };
+    },
+    resolveTaskRetrySetting: () => ({ maxAttempts: 2, baseDelayMs: 0, maxDelayMs: 0, source: 'test' }),
+  });
+  const { session, orchestrator } = harness;
+  const message = {
+    id: 'msg-2b',
+    channel: {
+      async sendTyping() {},
+      async send() {},
+    },
+  };
+  const channelState = { queue: [], cancelRequested: false, activeRun: null };
+
+  const outcome = await orchestrator.handlePrompt(message, 'thread-1', 'retry once', channelState);
+
+  assert.deepEqual(outcome, { ok: true, cancelled: false });
+  assert.equal(session.runnerSessionId, 'sess-1');
+  assert.equal(session.codexThreadId, 'sess-1');
+  assert.equal(runCount, 2);
+});
+
+test('createPromptOrchestrator.handlePrompt keeps the returned session after a failed run', async () => {
+  const harness = createOrchestrator({
+    runTask: async (options) => {
+      options.onSpawn?.({ pid: 789 });
+      return {
+        ok: false,
+        cancelled: false,
+        timedOut: false,
+        error: 'runner exploded',
+        logs: ['trace line'],
+        notes: [],
+        reasonings: [],
+        messages: [],
+        finalAnswerMessages: [],
+        threadId: 'sess-failed',
+        usage: { input_tokens: 999 },
+      };
+    },
+    resolveTaskRetrySetting: () => ({ maxAttempts: 1, baseDelayMs: 0, maxDelayMs: 0, source: 'test' }),
+  });
+  const { session, orchestrator } = harness;
+  const message = {
+    id: 'msg-3',
+    author: { id: 'user-10' },
+    channel: {
+      async sendTyping() {},
+      async send() {},
+    },
+  };
+  const channelState = { queue: [], cancelRequested: false, activeRun: null };
+
+  const outcome = await orchestrator.handlePrompt(message, 'thread-1', 'fail once', channelState);
+
+  assert.deepEqual(outcome, { ok: false, cancelled: false });
+  assert.equal(session.runnerSessionId, 'sess-failed');
+  assert.equal(session.codexThreadId, 'sess-failed');
 });
