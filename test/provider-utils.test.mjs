@@ -75,10 +75,45 @@ test('buildRunnerArgs keeps codex resume behavior', () => {
     '-c',
     'features.fast_mode=true',
     '-c',
+    'personality="concise"',
+    'abc-123',
+    'fix it',
+  ]);
+});
+
+test('buildRunnerArgs still forwards native compact config for a fresh codex session', () => {
+  const args = buildRunnerArgs({
+    provider: 'codex',
+    sessionId: null,
+    workspaceDir: '/tmp/work',
+    prompt: 'fix it',
+    mode: 'dangerous',
+    model: 'o3',
+    effort: 'high',
+    fastMode: true,
+    extraConfigs: ['personality="concise"'],
+    compactStrategy: 'native',
+    compactOnThreshold: true,
+    modelAutoCompactTokenLimit: 1234,
+  });
+
+  assert.deepEqual(args, [
+    'exec',
+    '--json',
+    '--skip-git-repo-check',
+    '--dangerously-bypass-approvals-and-sandbox',
+    '-C',
+    '/tmp/work',
+    '-m',
+    'o3',
+    '-c',
+    'model_reasoning_effort="high"',
+    '-c',
+    'features.fast_mode=true',
+    '-c',
     'model_auto_compact_token_limit=1234',
     '-c',
     'personality="concise"',
-    'abc-123',
     'fix it',
   ]);
 });

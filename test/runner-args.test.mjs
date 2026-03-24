@@ -47,7 +47,7 @@ test('createRunnerArgsBuilder builds gemini args instead of codex args', () => {
   ]);
 });
 
-test('createRunnerArgsBuilder adds native compact config for codex when enabled', () => {
+test('createRunnerArgsBuilder adds native compact config for fresh codex sessions when enabled', () => {
   const { buildSessionRunnerArgs } = createRunnerArgsBuilder({
     defaultModel: 'gpt-5-codex',
     normalizeProvider: (value) => value,
@@ -83,6 +83,43 @@ test('createRunnerArgsBuilder adds native compact config for codex when enabled'
     'model_auto_compact_token_limit=123456',
     '-c',
     'foo="bar"',
+    'inspect',
+  ]);
+});
+
+test('createRunnerArgsBuilder omits native compact config for resumed codex sessions', () => {
+  const { buildSessionRunnerArgs } = createRunnerArgsBuilder({
+    defaultModel: 'gpt-5-codex',
+    normalizeProvider: (value) => value,
+    getSessionId: () => 'sess-1',
+    resolveFastModeSetting: () => ({ enabled: true, source: 'session override' }),
+    resolveCompactStrategySetting: () => ({ strategy: 'native' }),
+    resolveCompactEnabledSetting: () => ({ enabled: true }),
+    resolveNativeCompactTokenLimitSetting: () => ({ tokens: 123456 }),
+  });
+
+  const args = buildSessionRunnerArgs({
+    provider: 'codex',
+    session: {
+      mode: 'safe',
+      configOverrides: ['foo="bar"'],
+    },
+    workspaceDir: '/tmp/workspace',
+    prompt: 'inspect',
+  });
+
+  assert.deepEqual(args, [
+    'exec',
+    'resume',
+    '--json',
+    '--full-auto',
+    '-m',
+    'gpt-5-codex',
+    '-c',
+    'features.fast_mode=true',
+    '-c',
+    'foo="bar"',
+    'sess-1',
     'inspect',
   ]);
 });

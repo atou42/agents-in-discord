@@ -75,6 +75,36 @@ export function createPromptOrchestrator({
     return last >= thresholdSetting.tokens;
   }
 
+  function buildPinnedSessionCompactNote(session, language) {
+    const provider = String(getSessionProvider(session) || '').trim().toLowerCase();
+    const currentSessionId = getSessionId(session);
+    const compactSetting = resolveCompactStrategySetting(session);
+    const enabledSetting = resolveCompactEnabledSetting(session);
+    const thresholdSetting = resolveCompactThresholdSetting(session);
+    if (!enabledSetting.enabled) return null;
+    if (!currentSessionId) return null;
+
+    const last = toOptionalInt(session.lastInputTokens);
+    if (!Number.isFinite(last) || last < thresholdSetting.tokens) return null;
+
+    const sessionTerm = formatProviderSessionTerm(provider, language);
+    if (compactSetting.strategy === 'hard') {
+      if (language === 'en') {
+        return `Input tokens=${last} exceeded the auto-compact threshold. The current pinned ${sessionTerm} stays on ${currentSessionId}; no automatic switch will happen.`;
+      }
+      return `上下文输入 token=${last}，已超过自动压缩阈值；当前按固定 ${sessionTerm} 策略继续沿用 ${currentSessionId}，不会自动切换新 session。`;
+    }
+
+    if (compactSetting.strategy === 'native' && provider === 'codex') {
+      if (language === 'en') {
+        return `Input tokens=${last} exceeded the native compact threshold. The current pinned ${sessionTerm} stays on ${currentSessionId}; Codex CLI native compact is suppressed for this run, so no implicit session switch will happen.`;
+      }
+      return `上下文输入 token=${last}，已超过 native 压缩阈值；当前按固定 ${sessionTerm} 策略继续沿用 ${currentSessionId}，本轮不会向 Codex CLI 下发自动 compact，因此不会隐式切换新 session。`;
+    }
+
+    return null;
+  }
+
   async function compactSessionContext({ session, workspaceDir, onSpawn, wasCancelled, onEvent, onLog }) {
     if (!getSessionId(session)) {
       return { ok: false, summary: '', error: 'missing session id' };
@@ -210,6 +240,8 @@ export function createPromptOrchestrator({
     }
 
     const session = getSession(key, { channel: message.channel || null });
+    const startingSessionId = getSessionId(session);
+    const startingLastInputTokens = session.lastInputTokens;
     const workspaceDir = ensureWorkspace(session, key);
     const language = normalizeUiLanguage(getSessionLanguage(session));
     const taskRetryPolicy = normalizeTaskRetryPolicy(resolveTaskRetrySetting(session));
@@ -280,33 +312,8 @@ export function createPromptOrchestrator({
 
       let promptToRun = prompt;
       const preNotes = [];
-      if (shouldCompactSession(session)) {
-        const previousThreadId = getSessionId(session);
-        const sessionTerm = formatProviderSessionTerm(getSessionProvider(session), language);
-        const compacted = await compactSessionContext({
-          session,
-          workspaceDir,
-          onSpawn: (child) => {
-            setActiveRun(channelState, message, 'auto-compact summary request', child, 'compact');
-            progress.sync({ forceEmit: true });
-            if (channelState.cancelRequested) stopChildProcess(child);
-          },
-          wasCancelled: () => Boolean(channelState.cancelRequested || channelState.activeRun?.cancelRequested),
-          onEvent: progress.onEvent,
-          onLog: progress.onLog,
-        });
-        if (compacted.ok && compacted.summary) {
-          clearSessionId(session);
-          saveDb();
-          promptToRun = buildPromptFromCompactedContext(compacted.summary, prompt);
-          preNotes.push(`上下文输入 token=${session.lastInputTokens}，已自动压缩并切换新会话（旧 ${sessionTerm}: ${previousThreadId}）。`);
-        } else {
-          clearSessionId(session);
-          saveDb();
-          preNotes.push(`上下文输入 token=${session.lastInputTokens}，自动压缩失败，已回退 reset（旧 ${sessionTerm}: ${previousThreadId}）。`);
-          if (compacted.error) preNotes.push(`压缩失败原因：${compacted.error}`);
-        }
-      }
+      const pinnedSessionCompactNote = buildPinnedSessionCompactNote(session, language);
+      if (pinnedSessionCompactNote) preNotes.push(pinnedSessionCompactNote);
 
       if (channelState.cancelRequested) {
         progressOutcome = { ok: false, cancelled: true, timedOut: false, error: 'cancelled by user' };
@@ -369,14 +376,63 @@ export function createPromptOrchestrator({
       appendNotes(result, preNotes);
 
       const inputTokens = extractInputTokensFromUsage(result.usage);
+      const resultSessionId = String(result.threadId || '').trim() || null;
+      const sessionSwitchedUnexpectedly = Boolean(
+        startingSessionId
+          && resultSessionId
+          && resultSessionId !== startingSessionId,
+      );
       let sessionDirty = false;
-      if (result.threadId) {
-        setSessionId(session, result.threadId);
-        sessionDirty = true;
-      }
-      if (inputTokens !== null) {
-        session.lastInputTokens = inputTokens;
-        sessionDirty = true;
+      if (result.ok && !sessionSwitchedUnexpectedly) {
+        if (resultSessionId) {
+          setSessionId(session, resultSessionId);
+          sessionDirty = true;
+        }
+        if (inputTokens !== null) {
+          session.lastInputTokens = inputTokens;
+          sessionDirty = true;
+        }
+      } else if (result.ok && sessionSwitchedUnexpectedly) {
+        result.threadId = null;
+        appendNotes(result, [
+          `本轮运行意外切到了新的 ${formatProviderSessionTerm(getSessionProvider(session), language)}：${resultSessionId}，当前仍保留原 ${formatProviderSessionTerm(getSessionProvider(session), language)}：${startingSessionId}。如需继续新 session，请显式执行 ${slashRef('resume')} ${resultSessionId}。`,
+        ]);
+        if (getSessionId(session) !== startingSessionId) {
+          setSessionId(session, startingSessionId);
+          sessionDirty = true;
+        }
+        if (session.lastInputTokens !== startingLastInputTokens) {
+          session.lastInputTokens = startingLastInputTokens;
+          sessionDirty = true;
+        }
+      } else if (startingSessionId) {
+        const currentSessionId = getSessionId(session);
+        if (currentSessionId !== startingSessionId) {
+          setSessionId(session, startingSessionId);
+          sessionDirty = true;
+        }
+        if (session.lastInputTokens !== startingLastInputTokens) {
+          session.lastInputTokens = startingLastInputTokens;
+          sessionDirty = true;
+        }
+        if (resultSessionId && resultSessionId !== startingSessionId) {
+          result.threadId = null;
+          appendNotes(result, [
+            `失败期间新建了新的 ${formatProviderSessionTerm(getSessionProvider(session), language)}：${resultSessionId}，当前仍保留原 ${formatProviderSessionTerm(getSessionProvider(session), language)}：${startingSessionId}。如需继续新 session，请显式执行 ${slashRef('resume')} ${resultSessionId}。`,
+          ]);
+        }
+      } else {
+        if (resultSessionId) {
+          setSessionId(session, resultSessionId);
+          sessionDirty = true;
+          appendNotes(result, [
+            `本次失败已保留当前 ${formatProviderSessionTerm(getSessionProvider(session), language)}：${resultSessionId}。`,
+          ]);
+        }
+        if (inputTokens !== null) {
+          session.lastInputTokens = inputTokens;
+          sessionDirty = true;
+        }
       }
       if (sessionDirty) {
         saveDb();
@@ -399,9 +455,15 @@ export function createPromptOrchestrator({
           maxAttempts: taskRetryPolicy.maxAttempts,
           retryEvents,
         });
+        const noteLines = Array.isArray(result.notes)
+          ? result.notes.map((note) => String(note || '').trim()).filter(Boolean).map((note) => `• ${note}`)
+          : [];
+        const activeSessionId = getSessionId(session);
         const failText = [
           result.timedOut ? `❌ ${getProviderShortName(provider)} 执行超时` : `❌ ${getProviderShortName(provider)} 执行失败`,
           retrySummaryLine,
+          ...noteLines,
+          activeSessionId ? `• ${formatProviderSessionTerm(provider, language)}: \`${activeSessionId}\`` : null,
           result.error ? `• error: ${result.error}` : null,
           result.logs.length ? `• logs: ${truncate(result.logs.join('\n'), 1200)}` : null,
           result.timedOut

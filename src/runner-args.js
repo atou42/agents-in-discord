@@ -54,6 +54,7 @@ export function createRunnerArgsBuilder({
       ? '--dangerously-bypass-approvals-and-sandbox'
       : '--full-auto';
 
+    const sessionId = getSessionId(session);
     const model = resolveModelSetting(session).value || defaultModel;
     const effort = resolveReasoningEffortSetting(session).value;
     const fastMode = resolveFastModeSetting(session);
@@ -68,12 +69,11 @@ export function createRunnerArgsBuilder({
     if (fastMode.source === 'session override' || fastMode.source === 'parent channel') {
       common.push('-c', `features.fast_mode=${fastMode.enabled ? 'true' : 'false'}`);
     }
-    if (compactSetting.strategy === 'native' && compactEnabled.enabled) {
+    if (compactSetting.strategy === 'native' && compactEnabled.enabled && !sessionId) {
       common.push('-c', `model_auto_compact_token_limit=${nativeLimit.tokens}`);
     }
     for (const cfg of extraConfigs) common.push('-c', cfg);
 
-    const sessionId = getSessionId(session);
     if (sessionId) {
       return ['exec', 'resume', '--json', modeFlag, ...common, sessionId, prompt];
     }

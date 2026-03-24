@@ -6,6 +6,13 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+## [0.9.4] - 2026-03-24
+
+### Fixed
+- Stopped failed and successful Codex runs from silently taking over a new rollout session; the pinned session now stays unchanged unless users explicitly resume another session.
+- Suppressed Codex native compact handoff for already-bound sessions so crossing the compact threshold no longer triggers an implicit session switch behind the scenes.
+- Replies now explicitly disclose any unexpected new session ID instead of hiding it.
+
 ## [0.9.3] - 2026-03-22
 
 ### Fixed

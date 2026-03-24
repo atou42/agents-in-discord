@@ -104,7 +104,7 @@ function createOrchestrator(overrides = {}) {
         reasonings: ['thinking'],
         messages: ['done'],
         finalAnswerMessages: ['final answer'],
-        threadId: 'sess-2',
+        threadId: 'sess-1',
         usage: { input_tokens: 321 },
       };
     },
@@ -160,13 +160,13 @@ test('createPromptOrchestrator.handlePrompt runs task updates session and replie
   const outcome = await orchestrator.handlePrompt(message, 'thread-1', 'do work', channelState);
 
   assert.deepEqual(outcome, { ok: true, cancelled: false });
-  assert.equal(session.runnerSessionId, 'sess-2');
-  assert.equal(session.codexThreadId, 'sess-2');
+  assert.equal(session.runnerSessionId, 'sess-1');
+  assert.equal(session.codexThreadId, 'sess-1');
   assert.equal(session.lastInputTokens, 321);
   assert.equal(harness.saveCount > 0, true);
   assert.equal(replyLog.length, 1);
   assert.match(replyLog[0], /final answer/);
-  assert.match(replyLog[0], /• rollout session: \*\*demo\*\* \(`sess-2`\)/);
+  assert.match(replyLog[0], /• rollout session: \*\*demo\*\* \(`sess-1`\)/);
   assert.deepEqual(progressCalls[0], {
     type: 'start',
     initialLatestStep: '等待 workspace 锁：/repo/demo',
@@ -311,7 +311,51 @@ test('createPromptOrchestrator.handlePrompt preserves the current session across
   assert.equal(runCount, 2);
 });
 
-test('createPromptOrchestrator.handlePrompt keeps the returned session after a failed run', async () => {
+test('createPromptOrchestrator.handlePrompt exposes and rejects implicit session switch on success', async () => {
+  const harness = createOrchestrator({
+    runTask: async (options) => {
+      options.onSpawn?.({ pid: 655 });
+      return {
+        ok: true,
+        cancelled: false,
+        timedOut: false,
+        error: '',
+        logs: [],
+        notes: [],
+        reasonings: [],
+        messages: ['done'],
+        finalAnswerMessages: ['final answer'],
+        threadId: 'sess-unexpected',
+        usage: { input_tokens: 222 },
+      };
+    },
+  });
+  const { session, replyLog, orchestrator } = harness;
+  const message = {
+    id: 'msg-2c',
+    channel: {
+      async sendTyping() {},
+      async send(payload) {
+        replyLog.push(payload);
+      },
+    },
+  };
+  const channelState = { queue: [], cancelRequested: false, activeRun: null };
+
+  const outcome = await orchestrator.handlePrompt(message, 'thread-1', 'work but drift', channelState);
+
+  assert.deepEqual(outcome, { ok: true, cancelled: false });
+  assert.equal(session.runnerSessionId, 'sess-1');
+  assert.equal(session.codexThreadId, 'sess-1');
+  assert.equal(session.lastInputTokens, 0);
+  assert.equal(replyLog.length, 1);
+  assert.match(replyLog[0], /本轮运行意外切到了新的 rollout session：sess-unexpected/);
+  assert.match(replyLog[0], /当前仍保留原 rollout session：sess-1/);
+  assert.match(replyLog[0], /显式执行 \/bot-resume sess-unexpected/);
+  assert.match(replyLog[0], /• rollout session: \*\*demo\*\* \(`sess-1`\)/);
+});
+
+test('createPromptOrchestrator.handlePrompt keeps the original session after a failed run switches thread ids', async () => {
   const harness = createOrchestrator({
     runTask: async (options) => {
       options.onSpawn?.({ pid: 789 });
@@ -331,13 +375,15 @@ test('createPromptOrchestrator.handlePrompt keeps the returned session after a f
     },
     resolveTaskRetrySetting: () => ({ maxAttempts: 1, baseDelayMs: 0, maxDelayMs: 0, source: 'test' }),
   });
-  const { session, orchestrator } = harness;
+  const { session, replyLog, orchestrator } = harness;
   const message = {
     id: 'msg-3',
     author: { id: 'user-10' },
     channel: {
       async sendTyping() {},
-      async send() {},
+      async send(payload) {
+        replyLog.push(payload);
+      },
     },
   };
   const channelState = { queue: [], cancelRequested: false, activeRun: null };
@@ -345,6 +391,150 @@ test('createPromptOrchestrator.handlePrompt keeps the returned session after a f
   const outcome = await orchestrator.handlePrompt(message, 'thread-1', 'fail once', channelState);
 
   assert.deepEqual(outcome, { ok: false, cancelled: false });
+  assert.equal(session.runnerSessionId, 'sess-1');
+  assert.equal(session.codexThreadId, 'sess-1');
+  assert.equal(typeof replyLog[0], 'object');
+  assert.match(replyLog[0].content, /失败期间新建了新的 rollout session：sess-failed/);
+  assert.match(replyLog[0].content, /当前仍保留原 rollout session：sess-1/);
+  assert.match(replyLog[0].content, /显式执行 \/bot-resume sess-failed/);
+  assert.match(replyLog[0].content, /• rollout session: `sess-1`/);
+});
+
+test('createPromptOrchestrator.handlePrompt keeps a failed session when there was no previous binding', async () => {
+  const harness = createOrchestrator({
+    runTask: async (options) => {
+      options.onSpawn?.({ pid: 790 });
+      return {
+        ok: false,
+        cancelled: false,
+        timedOut: false,
+        error: 'runner exploded',
+        logs: ['trace line'],
+        notes: [],
+        reasonings: [],
+        messages: [],
+        finalAnswerMessages: [],
+        threadId: 'sess-failed',
+        usage: { input_tokens: 999 },
+      };
+    },
+    resolveTaskRetrySetting: () => ({ maxAttempts: 1, baseDelayMs: 0, maxDelayMs: 0, source: 'test' }),
+  });
+  harness.session.runnerSessionId = null;
+  harness.session.codexThreadId = null;
+  const { session, replyLog, orchestrator } = harness;
+  const message = {
+    id: 'msg-4',
+    author: { id: 'user-11' },
+    channel: {
+      async sendTyping() {},
+      async send(payload) {
+        replyLog.push(payload);
+      },
+    },
+  };
+  const channelState = { queue: [], cancelRequested: false, activeRun: null };
+
+  const outcome = await orchestrator.handlePrompt(message, 'thread-1', 'fail fresh', channelState);
+
+  assert.deepEqual(outcome, { ok: false, cancelled: false });
   assert.equal(session.runnerSessionId, 'sess-failed');
   assert.equal(session.codexThreadId, 'sess-failed');
+  assert.equal(typeof replyLog[0], 'object');
+  assert.match(replyLog[0].content, /本次失败已保留当前 rollout session：sess-failed/);
+  assert.match(replyLog[0].content, /• rollout session: `sess-failed`/);
+});
+
+test('createPromptOrchestrator.handlePrompt does not auto-compact into a new session', async () => {
+  const prompts = [];
+  const harness = createOrchestrator({
+    runTask: async (options) => {
+      prompts.push(options.prompt);
+      options.onSpawn?.({ pid: 791 });
+      return {
+        ok: true,
+        cancelled: false,
+        timedOut: false,
+        error: '',
+        logs: [],
+        notes: [],
+        reasonings: [],
+        messages: ['done'],
+        finalAnswerMessages: ['final answer'],
+        threadId: 'sess-1',
+        usage: { input_tokens: 333 },
+      };
+    },
+    resolveCompactStrategySetting: () => ({ strategy: 'hard', source: 'env default' }),
+    resolveCompactEnabledSetting: () => ({ enabled: true, source: 'env default' }),
+    resolveCompactThresholdSetting: () => ({ tokens: 200_000, source: 'env default' }),
+  });
+  harness.session.lastInputTokens = 250_000;
+  const { session, replyLog, orchestrator } = harness;
+  const message = {
+    id: 'msg-5',
+    channel: {
+      async sendTyping() {},
+      async send(payload) {
+        replyLog.push(payload);
+      },
+    },
+  };
+  const channelState = { queue: [], cancelRequested: false, activeRun: null };
+
+  const outcome = await orchestrator.handlePrompt(message, 'thread-1', 'keep same session', channelState);
+
+  assert.deepEqual(outcome, { ok: true, cancelled: false });
+  assert.deepEqual(prompts, ['keep same session']);
+  assert.equal(session.runnerSessionId, 'sess-1');
+  assert.equal(session.codexThreadId, 'sess-1');
+  assert.match(replyLog[0], /已超过自动压缩阈值；当前按固定 rollout session 策略继续沿用 sess-1/);
+  assert.doesNotMatch(replyLog[0], /自动压缩并切换新会话/);
+});
+
+test('createPromptOrchestrator.handlePrompt exposes suppressed native compact on a pinned codex session', async () => {
+  const prompts = [];
+  const harness = createOrchestrator({
+    runTask: async (options) => {
+      prompts.push(options.prompt);
+      options.onSpawn?.({ pid: 792 });
+      return {
+        ok: true,
+        cancelled: false,
+        timedOut: false,
+        error: '',
+        logs: [],
+        notes: [],
+        reasonings: [],
+        messages: ['done'],
+        finalAnswerMessages: ['final answer'],
+        threadId: 'sess-1',
+        usage: { input_tokens: 444 },
+      };
+    },
+    resolveCompactStrategySetting: () => ({ strategy: 'native', source: 'env default' }),
+    resolveCompactEnabledSetting: () => ({ enabled: true, source: 'env default' }),
+    resolveCompactThresholdSetting: () => ({ tokens: 200_000, source: 'env default' }),
+  });
+  harness.session.lastInputTokens = 250_000;
+  const { session, replyLog, orchestrator } = harness;
+  const message = {
+    id: 'msg-6',
+    channel: {
+      async sendTyping() {},
+      async send(payload) {
+        replyLog.push(payload);
+      },
+    },
+  };
+  const channelState = { queue: [], cancelRequested: false, activeRun: null };
+
+  const outcome = await orchestrator.handlePrompt(message, 'thread-1', 'keep native pinned', channelState);
+
+  assert.deepEqual(outcome, { ok: true, cancelled: false });
+  assert.deepEqual(prompts, ['keep native pinned']);
+  assert.equal(session.runnerSessionId, 'sess-1');
+  assert.equal(session.codexThreadId, 'sess-1');
+  assert.match(replyLog[0], /已超过 native 压缩阈值；当前按固定 rollout session 策略继续沿用 sess-1/);
+  assert.match(replyLog[0], /不会向 Codex CLI 下发自动 compact/);
 });
