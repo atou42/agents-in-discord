@@ -492,7 +492,7 @@ test('createPromptOrchestrator.handlePrompt does not auto-compact into a new ses
   assert.doesNotMatch(replyLog[0], /自动压缩并切换新会话/);
 });
 
-test('createPromptOrchestrator.handlePrompt exposes suppressed native compact on a pinned codex session', async () => {
+test('createPromptOrchestrator.handlePrompt auto-continues a pinned native compact run', async () => {
   const prompts = [];
   const harness = createOrchestrator({
     runTask: async (options) => {
@@ -535,6 +535,119 @@ test('createPromptOrchestrator.handlePrompt exposes suppressed native compact on
   assert.deepEqual(prompts, ['keep native pinned']);
   assert.equal(session.runnerSessionId, 'sess-1');
   assert.equal(session.codexThreadId, 'sess-1');
-  assert.match(replyLog[0], /已超过 native 压缩阈值；当前按固定 rollout session 策略继续沿用 sess-1/);
-  assert.match(replyLog[0], /不会向 Codex CLI 下发自动 compact/);
+  assert.match(replyLog[0], /已达到 native 压缩阈值；本轮继续按 Codex CLI 原生 compact 执行/);
+});
+
+test('createPromptOrchestrator.handlePrompt adopts the new session after native compact switches it', async () => {
+  const prompts = [];
+  const harness = createOrchestrator({
+    runTask: async (options) => {
+      prompts.push(options.prompt);
+      options.onSpawn?.({ pid: 793 });
+      return {
+        ok: true,
+        cancelled: false,
+        timedOut: false,
+        error: '',
+        logs: [],
+        notes: [],
+        reasonings: [],
+        messages: ['done'],
+        finalAnswerMessages: ['final answer'],
+        threadId: 'sess-2',
+        usage: { input_tokens: 555 },
+      };
+    },
+    resolveCompactStrategySetting: () => ({ strategy: 'native', source: 'env default' }),
+    resolveCompactEnabledSetting: () => ({ enabled: true, source: 'env default' }),
+    resolveCompactThresholdSetting: () => ({ tokens: 200_000, source: 'env default' }),
+  });
+  harness.session.lastInputTokens = 250_000;
+  const { session, replyLog, orchestrator } = harness;
+  const message = {
+    id: 'msg-7',
+    channel: {
+      async sendTyping() {},
+      async send(payload) {
+        replyLog.push(payload);
+      },
+    },
+  };
+  const channelState = { queue: [], cancelRequested: false, activeRun: null };
+
+  const outcome = await orchestrator.handlePrompt(message, 'thread-1', 'continue native compact', channelState);
+
+  assert.deepEqual(outcome, { ok: true, cancelled: false });
+  assert.deepEqual(prompts, ['continue native compact']);
+  assert.equal(session.runnerSessionId, 'sess-2');
+  assert.equal(session.codexThreadId, 'sess-2');
+  assert.equal(session.lastInputTokens, 555);
+  assert.match(replyLog[0], /已达到 native 压缩阈值；本轮继续按 Codex CLI 原生 compact 执行/);
+  assert.match(replyLog[0], /native 压缩已将 rollout session 从 sess-1 切换到 sess-2/);
+  assert.match(replyLog[0], /• rollout session: \*\*demo\*\* \(`sess-2`\)/);
+});
+
+test('createPromptOrchestrator.handlePrompt keeps the switched native compact session across auto retries', async () => {
+  let runCount = 0;
+  const harness = createOrchestrator({
+    runTask: async (options) => {
+      runCount += 1;
+      options.onSpawn?.({ pid: 794 });
+      if (runCount === 1) {
+        return {
+          ok: false,
+          cancelled: false,
+          timedOut: false,
+          error: 'runner exploded',
+          logs: ['trace line'],
+          notes: [],
+          reasonings: [],
+          messages: [],
+          finalAnswerMessages: [],
+          threadId: 'sess-2',
+          usage: null,
+        };
+      }
+      return {
+        ok: true,
+        cancelled: false,
+        timedOut: false,
+        error: '',
+        logs: [],
+        notes: [],
+        reasonings: [],
+        messages: ['done'],
+        finalAnswerMessages: ['final answer'],
+        threadId: 'sess-2',
+        usage: { input_tokens: 666 },
+      };
+    },
+    resolveCompactStrategySetting: () => ({ strategy: 'native', source: 'env default' }),
+    resolveCompactEnabledSetting: () => ({ enabled: true, source: 'env default' }),
+    resolveCompactThresholdSetting: () => ({ tokens: 200_000, source: 'env default' }),
+    resolveTaskRetrySetting: () => ({ maxAttempts: 2, baseDelayMs: 0, maxDelayMs: 0, source: 'test' }),
+  });
+  harness.session.lastInputTokens = 250_000;
+  const { session, replyLog, orchestrator } = harness;
+  const message = {
+    id: 'msg-8',
+    author: { id: 'user-12' },
+    channel: {
+      async sendTyping() {},
+      async send(payload) {
+        replyLog.push(payload);
+      },
+    },
+  };
+  const channelState = { queue: [], cancelRequested: false, activeRun: null };
+
+  const outcome = await orchestrator.handlePrompt(message, 'thread-1', 'retry native compact', channelState);
+
+  assert.deepEqual(outcome, { ok: true, cancelled: false });
+  assert.equal(runCount, 2);
+  assert.equal(session.runnerSessionId, 'sess-2');
+  assert.equal(session.codexThreadId, 'sess-2');
+  assert.equal(session.lastInputTokens, 666);
+  assert.match(replyLog[0], /第 1\/2 次尝试期间 native 压缩已将 rollout session 从 sess-1 切换到 sess-2/);
+  assert.match(replyLog[0], /• rollout session: \*\*demo\*\* \(`sess-2`\)/);
 });

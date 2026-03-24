@@ -6,6 +6,13 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+## [0.9.5] - 2026-03-24
+
+### Fixed
+- Restored Codex native compact to keep working as a provider-native compact plus automatic continue flow instead of stopping for a manual follow-up command.
+- Native compact replies and compact help text now explicitly disclose that the run keeps going automatically and that any rollout session switch will be shown in the bot reply.
+- When a native compact retry rolls to a new rollout session, later retries now stay on that new session instead of silently drifting again.
+
 ## [0.9.4] - 2026-03-24
 
 ### Fixed

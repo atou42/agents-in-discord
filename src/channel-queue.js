@@ -55,13 +55,14 @@ export function createChannelQueue({
     return { ok: true, enqueued: true, queuedAhead };
   }
 
-  function createFailedPromptRecord(job, err = null) {
+  function createFailedPromptRecord(job, err = null, reason = null) {
     return {
       message: job.message,
       key: job.key,
       content: job.content,
       authorId: String(job?.message?.author?.id || '').trim() || null,
       failedAt: Date.now(),
+      reason: reason || null,
       error: err ? safeError(err) : null,
     };
   }
@@ -77,7 +78,7 @@ export function createChannelQueue({
 
     clearLastFailedPrompt(key);
     try {
-      const result = await enqueuePrompt(failedPrompt.message, failedPrompt.key, failedPrompt.content);
+      const result = await enqueuePrompt(failedPrompt.message, failedPrompt.key, failedPrompt.content, null);
       if (!result?.enqueued) {
         rememberFailedPrompt(key, failedPrompt);
         return {
@@ -129,7 +130,7 @@ export function createChannelQueue({
       } else if (outcome.cancelled) {
         await message.react('🛑').catch(() => {});
       } else {
-        rememberFailedPrompt(channelState, createFailedPromptRecord(job));
+        rememberFailedPrompt(channelState, createFailedPromptRecord(job, null, outcome?.reason || null));
         await message.react('❌').catch(() => {});
       }
     } catch (err) {

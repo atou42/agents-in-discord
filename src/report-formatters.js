@@ -515,9 +515,9 @@ export function createReportFormatters({
         `Slash: \`${slashRef('compact')} key:<...> value:<...>\``,
         `Examples: ${examples.join(', ')}`,
         compact.supportsNativeLimit
-          ? 'Note: this provider supports provider-native compaction. `hard` stays bot-managed, and `native_limit` overrides the native token limit.'
+          ? 'Note: this provider supports provider-native compaction. `hard` stays bot-managed, `native_limit` overrides the native token limit, and native runs continue automatically.'
           : compact.supportsNativeStrategy
-            ? 'Note: this provider supports provider-native compaction. `hard` stays bot-managed, but `native_limit` is not exposed; native compaction uses the provider default behavior.'
+            ? 'Note: this provider supports provider-native compaction. `hard` stays bot-managed, `native_limit` is not exposed, and native runs continue automatically.'
             : 'Note: this provider only supports bot-managed hard compaction.',
       ].join('\n');
     }
@@ -526,9 +526,9 @@ export function createReportFormatters({
       `Slash：\`${slashRef('compact')} key:<...> value:<...>\``,
       `示例：${examples.join('、')}`,
       compact.supportsNativeLimit
-        ? '说明：当前 provider 支持原生 native 压缩；`hard` 仍由 bot 统一管理，`native_limit` 用来覆盖原生 token limit。'
+        ? '说明：当前 provider 支持原生 native 压缩；`hard` 仍由 bot 统一管理，`native_limit` 用来覆盖原生 token limit，native 任务会自动续跑。'
         : compact.supportsNativeStrategy
-          ? '说明：当前 provider 支持原生 native 压缩；`hard` 仍由 bot 统一管理，但不暴露 `native_limit`，native 压缩按 provider 默认行为运行。'
+          ? '说明：当前 provider 支持原生 native 压缩；`hard` 仍由 bot 统一管理，但不暴露 `native_limit`，native 任务会自动续跑。'
           : '说明：当前 provider 仅支持 bot 侧的 hard 压缩。',
     ].join('\n');
   }
@@ -550,9 +550,9 @@ export function createReportFormatters({
         `• token limit: ${threshold.tokens} (${formatSettingSourceLabel(threshold.source, language)})`,
         `• ${nativeCompact.label}: ${nativeCompact.value}`,
         compact.supportsNativeLimit
-          ? '• note: native compaction is handled inside the provider CLI; the bot does not currently emit a guaranteed per-compact notification.'
+          ? '• note: native compaction is handled inside the provider CLI and continues automatically; if it rolls to a new session, the bot will disclose the new session id.'
           : compact.supportsNativeStrategy
-            ? '• note: native compaction is still handled inside the provider CLI, but this provider keeps the provider-default native limit.'
+            ? '• note: native compaction is still handled inside the provider CLI and continues automatically; if it rolls to a new session, the bot will disclose the new session id.'
             : '• note: this provider only uses bot-managed hard compaction; native compaction is unavailable.',
       ].join('\n');
     }
@@ -563,9 +563,9 @@ export function createReportFormatters({
       `• token limit: ${threshold.tokens}（${formatSettingSourceLabel(threshold.source, language)}）`,
       `• ${nativeCompact.label}: ${nativeCompact.value}`,
       compact.supportsNativeLimit
-        ? '• 说明：native 压缩发生在 provider CLI 内部，bot 目前拿不到稳定的“本次刚压缩完成”通知。'
+        ? '• 说明：native 压缩发生在 provider CLI 内部并自动续跑；如果切到新的 session，bot 会明确显示新的 session id。'
         : compact.supportsNativeStrategy
-          ? '• 说明：native 压缩仍发生在 provider CLI 内部，但当前 provider 使用 provider 默认 native limit。'
+          ? '• 说明：native 压缩仍发生在 provider CLI 内部并自动续跑；如果切到新的 session，bot 会明确显示新的 session id。'
           : '• 说明：当前 provider 只使用 bot 侧的 hard 压缩，不支持 native 压缩。',
     ].join('\n');
   }

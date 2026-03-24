@@ -298,9 +298,13 @@ test('createReportFormatters config helpers and reports remain available from on
 
   assert.match(compactHelp, /\/bot-compact key:<\.\.\.> value:<\.\.\.>/);
   assert.match(compactHelp, /native_limit/);
+  assert.doesNotMatch(compactHelp, /compact continue/);
+  assert.match(compactHelp, /continue automatically/);
   assert.match(geminiCompactHelp, /!compact <status\|strategy\|token_limit\|enabled\|reset>/);
   assert.match(compactReport, /compact 配置已更新/);
   assert.match(compactReport, /策略:native（频道覆盖）/);
+  assert.doesNotMatch(compactReport, /!compact continue/);
+  assert.match(compactReport, /bot 会明确显示新的 session id/);
   assert.match(geminiCompactReport, /native compact: provider default behavior/);
   assert.doesNotMatch(geminiCompactReport, /native compact limit:/);
   assert.match(timeoutHelp, /\/bot-timeout <ms\|off\|status>/);

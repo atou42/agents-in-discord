@@ -75,6 +75,20 @@ export function createPromptOrchestrator({
     return last >= thresholdSetting.tokens;
   }
 
+  function shouldAutoContinueNativeCompact(session) {
+    const provider = String(getSessionProvider(session) || '').trim().toLowerCase();
+    if (provider !== 'codex') return false;
+    const compactSetting = resolveCompactStrategySetting(session);
+    const enabledSetting = resolveCompactEnabledSetting(session);
+    const thresholdSetting = resolveCompactThresholdSetting(session);
+    if (!enabledSetting.enabled) return false;
+    if (compactSetting.strategy !== 'native') return false;
+    if (!getSessionId(session)) return false;
+    const last = toOptionalInt(session.lastInputTokens);
+    if (!Number.isFinite(last)) return false;
+    return last >= thresholdSetting.tokens;
+  }
+
   function buildPinnedSessionCompactNote(session, language) {
     const provider = String(getSessionProvider(session) || '').trim().toLowerCase();
     const currentSessionId = getSessionId(session);
@@ -97,9 +111,9 @@ export function createPromptOrchestrator({
 
     if (compactSetting.strategy === 'native' && provider === 'codex') {
       if (language === 'en') {
-        return `Input tokens=${last} exceeded the native compact threshold. The current pinned ${sessionTerm} stays on ${currentSessionId}; Codex CLI native compact is suppressed for this run, so no implicit session switch will happen.`;
+        return `Input tokens=${last} reached the native compact threshold. This run continues with Codex CLI native compact; if the provider rolls to a new ${sessionTerm}, the reply will disclose it.`;
       }
-      return `上下文输入 token=${last}，已超过 native 压缩阈值；当前按固定 ${sessionTerm} 策略继续沿用 ${currentSessionId}，本轮不会向 Codex CLI 下发自动 compact，因此不会隐式切换新 session。`;
+      return `上下文输入 token=${last}，已达到 native 压缩阈值；本轮继续按 Codex CLI 原生 compact 执行，如切到新的 ${sessionTerm}，会在回复里明确显示。`;
     }
 
     return null;
@@ -314,6 +328,7 @@ export function createPromptOrchestrator({
       const preNotes = [];
       const pinnedSessionCompactNote = buildPinnedSessionCompactNote(session, language);
       if (pinnedSessionCompactNote) preNotes.push(pinnedSessionCompactNote);
+      const nativeCompactAutoContinueActive = shouldAutoContinueNativeCompact(session);
 
       if (channelState.cancelRequested) {
         progressOutcome = { ok: false, cancelled: true, timedOut: false, error: 'cancelled by user' };
@@ -335,6 +350,8 @@ export function createPromptOrchestrator({
       });
 
       const retryEvents = [];
+      const runtimeNotes = [];
+      let nativeCompactSwitchedDuringRetry = false;
       let attemptNumber = 1;
       let result = await runPromptAttempt({
         promptText: promptToRun,
@@ -342,6 +359,18 @@ export function createPromptOrchestrator({
       });
 
       while (shouldAutoRetryResult(result) && attemptNumber < taskRetryPolicy.maxAttempts) {
+        if (nativeCompactAutoContinueActive) {
+          const currentSessionId = getSessionId(session);
+          const retrySessionId = String(result.threadId || '').trim() || null;
+          if (currentSessionId && retrySessionId && retrySessionId !== currentSessionId) {
+            setSessionId(session, retrySessionId);
+            saveDb();
+            nativeCompactSwitchedDuringRetry = true;
+            runtimeNotes.push(
+              `第 ${attemptNumber}/${taskRetryPolicy.maxAttempts} 次尝试期间 native 压缩已将 ${formatProviderSessionTerm(getSessionProvider(session), language)} 从 ${currentSessionId} 切换到 ${retrySessionId}；后续重试继续沿用新 session。`,
+            );
+          }
+        }
         const nextAttempt = attemptNumber + 1;
         const delayMs = computeRetryDelayMs(nextAttempt, taskRetryPolicy);
         retryEvents.push({
@@ -373,17 +402,36 @@ export function createPromptOrchestrator({
         attemptNumber = nextAttempt;
       }
 
-      appendNotes(result, preNotes);
+      appendNotes(result, [...preNotes, ...runtimeNotes]);
 
       const inputTokens = extractInputTokensFromUsage(result.usage);
       const resultSessionId = String(result.threadId || '').trim() || null;
       const sessionSwitchedUnexpectedly = Boolean(
         startingSessionId
           && resultSessionId
-          && resultSessionId !== startingSessionId,
+          && resultSessionId !== startingSessionId
+          && !nativeCompactAutoContinueActive,
       );
       let sessionDirty = false;
-      if (result.ok && !sessionSwitchedUnexpectedly) {
+      if (nativeCompactAutoContinueActive) {
+        const boundSessionId = getSessionId(session);
+        const nextSessionId = resultSessionId || boundSessionId || startingSessionId || null;
+        if (nextSessionId && boundSessionId !== nextSessionId) {
+          setSessionId(session, nextSessionId);
+          sessionDirty = true;
+        }
+        if (inputTokens !== null) {
+          session.lastInputTokens = inputTokens;
+          sessionDirty = true;
+        }
+        if (startingSessionId && resultSessionId && resultSessionId !== startingSessionId && !nativeCompactSwitchedDuringRetry) {
+          appendNotes(result, [
+            result.ok
+              ? `本轮执行期间 native 压缩已将 ${formatProviderSessionTerm(getSessionProvider(session), language)} 从 ${startingSessionId} 切换到 ${resultSessionId}。`
+              : `本轮执行失败，但 native 压缩已将 ${formatProviderSessionTerm(getSessionProvider(session), language)} 从 ${startingSessionId} 切换到 ${resultSessionId}。`,
+          ]);
+        }
+      } else if (result.ok && !sessionSwitchedUnexpectedly) {
         if (resultSessionId) {
           setSessionId(session, resultSessionId);
           sessionDirty = true;
