@@ -62,6 +62,37 @@ export function createDiscordEntryHandlers({
     return `interaction:${interaction.type || 'unknown'}`;
   }
 
+  function isUnknownInteractionError(err) {
+    const code = Number(err?.code ?? err?.rawError?.code);
+    if (code === 10062) return true;
+    const text = [
+      String(err?.message || ''),
+      String(err?.rawError?.message || ''),
+    ].join(' ').toLowerCase();
+    return text.includes('unknown interaction');
+  }
+
+  async function sendInteractionTimeoutNotice(interaction) {
+    const channel = interaction?.channel;
+    if (!channel || typeof channel.send !== 'function') return false;
+
+    const commandLabel = String(interaction?.commandName || '').trim();
+    const content = commandLabel
+      ? `⚠️ \`/${commandLabel}\` 已收到，但 Discord 网络或代理抖动，没能在时限内确认这次 slash 交互。请重试一次。`
+      : '⚠️ 这次交互已收到，但 Discord 网络或代理抖动，没能在时限内确认。请重试一次。';
+
+    await withDiscordNetworkRetry(
+      () => channel.send({ content }),
+      {
+        logger,
+        label: `${describeInteraction(interaction)} channel.send (interaction-timeout)`,
+        maxAttempts: 2,
+        baseDelayMs: 200,
+      },
+    );
+    return true;
+  }
+
   async function handleMessageCreate(message, bot) {
     try {
       if (message.author.bot) return;
@@ -144,6 +175,17 @@ export function createDiscordEntryHandlers({
 
   async function safeInteractionFailureReply(interaction, err) {
     if (isIgnorableDiscordRuntimeError(err)) {
+      if (isUnknownInteractionError(err) && interaction?.isChatInputCommand?.() && !interaction.deferred && !interaction.replied) {
+        try {
+          const sent = await sendInteractionTimeoutNotice(interaction);
+          if (sent) {
+            logger.warn(`Interaction timed out before acknowledgement; posted channel fallback notice (${describeInteraction(interaction)}).`);
+            return;
+          }
+        } catch (fallbackErr) {
+          logger.warn(`Failed to post interaction timeout fallback (${describeInteraction(interaction)}): ${safeError(fallbackErr)}`);
+        }
+      }
       logger.warn(`Ignoring non-fatal interaction error: ${safeError(err)}`);
       return;
     }
@@ -242,7 +284,7 @@ export function createDiscordEntryHandlers({
           logger,
           label: `${describeInteraction(interaction)} deferReply`,
           maxAttempts: 3,
-          baseDelayMs: 250,
+          baseDelayMs: 75,
         },
       );
       const respond = (payload) => sendInteractionResponse(interaction, payload);

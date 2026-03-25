@@ -230,6 +230,41 @@ test('handleInteractionCreate retries deferReply before routing slash command', 
   assert.equal(attempts, 1);
   assert.equal(calls.routeSlashCommand.length, 1);
   assert.equal(calls.logs[0][1], '[interaction] kind=chat-input cmd=status user=demo#0001 channel=unknown');
+  assert.equal(calls.retries[0].baseDelayMs, 75);
+});
+
+test('handleInteractionCreate posts a channel fallback notice when slash acknowledgement expires', async () => {
+  const { handlers, calls } = createHarness();
+  const channelSends = [];
+  const interaction = {
+    commandName: 'resume',
+    user: { id: 'user-1', tag: 'demo#0001' },
+    channel: {
+      async send(payload) {
+        channelSends.push(payload);
+      },
+    },
+    deferred: false,
+    replied: false,
+    isButton: () => false,
+    isStringSelectMenu: () => false,
+    isChatInputCommand: () => true,
+    async deferReply() {
+      const err = new Error('Unknown interaction');
+      err.code = 10062;
+      throw err;
+    },
+    async editReply() {},
+    async reply() {},
+    async followUp() {},
+  };
+
+  await handlers.handleInteractionCreate(interaction);
+
+  assert.equal(calls.routeSlashCommand.length, 0);
+  assert.deepEqual(channelSends, [
+    { content: '⚠️ `/resume` 已收到，但 Discord 网络或代理抖动，没能在时限内确认这次 slash 交互。请重试一次。' },
+  ]);
 });
 
 test('handleMessageCreate strips bot mention and enqueues prompt', async () => {
