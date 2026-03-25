@@ -103,6 +103,26 @@ test('createTextCommandHandler rejects only unsupported compact actions for non-
   assert.deepEqual(replies, ['⚠️ 当前 provider Gemini CLI 不支持 `native` 压缩。']);
 });
 
+test('createTextCommandHandler shows compact help for removed manual continue subcommand', async () => {
+  const replies = [];
+  const session = { provider: 'codex', language: 'zh' };
+
+  const handleCommand = createTextCommandHandler({
+    getSession: () => session,
+    getSessionProvider: (currentSession) => currentSession.provider,
+    getSessionLanguage: () => 'zh',
+    parseCompactConfigFromText: () => ({ type: 'invalid' }),
+    formatCompactStrategyConfigHelp: () => 'compact-help',
+    safeReply: async (_message, payload) => {
+      replies.push(payload);
+    },
+  });
+
+  await handleCommand({ channel: { id: 'channel-1' }, author: { id: 'user-1' } }, 'thread-1', '!compact continue');
+
+  assert.deepEqual(replies, ['compact-help']);
+});
+
 test('createTextCommandHandler explains provider-specific raw config surface when !config is unavailable', async () => {
   const replies = [];
   const session = { provider: 'claude', language: 'en' };

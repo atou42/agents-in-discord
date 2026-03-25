@@ -4,6 +4,7 @@ const MODEL_INPUT_ID = 'model_name';
 
 const ALL_SECTIONS = Object.freeze([
   'overview',
+  'defaults',
   'provider',
   'model',
   'fast',
@@ -29,6 +30,7 @@ function formatSettingSourceLabel(source, language) {
     if (value === 'session override') return 'this channel';
     if (value === 'parent channel') return 'parent channel';
     if (value === 'config.toml') return 'global config';
+    if (value === 'built-in default') return 'built-in default';
     if (value === 'env default') return 'env default';
     if (value === 'provider') return 'provider default';
     if (value === 'provider unsupported') return 'not supported';
@@ -42,6 +44,7 @@ function formatSettingSourceLabel(source, language) {
   if (value === 'session override') return '当前频道';
   if (value === 'parent channel') return '父频道默认';
   if (value === 'config.toml') return '全局配置';
+  if (value === 'built-in default') return '内建默认';
   if (value === 'env default') return '环境默认';
   if (value === 'provider') return 'provider 默认';
   if (value === 'provider unsupported') return '当前 provider 不支持';
@@ -78,9 +81,21 @@ function formatValueLabel(value, fallback, language) {
   return `\`${text}\``;
 }
 
+function hasConfiguredCodexDefault(value, configured) {
+  const text = String(value || '').trim();
+  return Boolean(configured && text && text !== '(unknown)');
+}
+
+function formatCodexGlobalStringDefault(value, configured, language) {
+  return hasConfiguredCodexDefault(value, configured)
+    ? formatValueLabel(value, '', language)
+    : (language === 'en' ? '(provider default)' : '（provider 默认）');
+}
+
 function formatSectionButtonLabel(section, language) {
   const labels = {
     overview: { en: 'overview', zh: '总览' },
+    defaults: { en: 'defaults', zh: '默认' },
     provider: { en: 'provider', zh: 'provider' },
     model: { en: 'model', zh: 'model' },
     fast: { en: 'fast', zh: 'fast' },
@@ -167,6 +182,7 @@ export function createSettingsPanel({
   function getAvailableSections(session) {
     const provider = getSessionProvider(session);
     const sections = ['overview'];
+    if (provider === 'codex') sections.push('defaults');
     if (!botProvider) sections.push('provider');
     sections.push('model');
     if (provider === 'codex') sections.push('fast');
@@ -180,10 +196,17 @@ export function createSettingsPanel({
     return getAvailableSections(session).includes(normalized) ? normalized : 'overview';
   }
 
+  function resolveDefaultSection(session) {
+    return getSessionProvider(session) === 'codex' ? 'defaults' : 'overview';
+  }
+
   function buildSnapshot(key, session) {
     const language = normalizeUiLanguage(getSessionLanguage(session) || defaultUiLanguage);
     const provider = getSessionProvider(session);
     const defaults = getProviderDefaults(provider);
+    const codexDefaults = provider === 'codex'
+      ? (getProviderDefaults('codex') || {})
+      : null;
     const modelSetting = resolveModelSetting(session);
     const effortSetting = resolveReasoningEffortSetting(session);
     const fastMode = resolveFastModeSetting(session);
@@ -197,6 +220,7 @@ export function createSettingsPanel({
       provider,
       providerLabel: getProviderDisplayName(provider),
       defaults,
+      codexDefaults,
       fastMode,
       compact,
       workspace,
@@ -211,12 +235,11 @@ export function createSettingsPanel({
   function buildSectionButtons(session, userId, activeSection) {
     const language = normalizeUiLanguage(getSessionLanguage(session) || defaultUiLanguage);
     const available = getAvailableSections(session);
-    const primaryRow = [];
-    const secondaryRow = [];
+    const buttons = [];
 
-    for (const section of ['provider', 'model', 'fast', 'effort', 'compact']) {
+    for (const section of ['overview', 'defaults', 'provider', 'model', 'fast', 'effort', 'compact', 'language', 'mode', 'workspace']) {
       if (!available.includes(section)) continue;
-      primaryRow.push(
+      buttons.push(
         new ButtonBuilder()
           .setCustomId(buildSettingsComponentId('nav', section, '_', userId))
           .setLabel(formatSectionButtonLabel(section, language))
@@ -224,27 +247,14 @@ export function createSettingsPanel({
       );
     }
 
-    for (const section of ['overview', 'language', 'mode', 'workspace']) {
-      if (!available.includes(section)) continue;
-      secondaryRow.push(
-        new ButtonBuilder()
-          .setCustomId(buildSettingsComponentId('nav', section, '_', userId))
-          .setLabel(formatSectionButtonLabel(section, language))
-          .setStyle(activeSection === section ? ButtonStyle.Primary : ButtonStyle.Secondary),
-      );
-    }
-
-    secondaryRow.push(
+    buttons.push(
       new ButtonBuilder()
         .setCustomId(buildSettingsComponentId('act', 'panel', 'close', userId))
         .setLabel(formatSectionButtonLabel('close', language))
         .setStyle(ButtonStyle.Danger),
     );
 
-    return [
-      primaryRow.length ? new ActionRowBuilder().addComponents(...primaryRow) : null,
-      secondaryRow.length ? new ActionRowBuilder().addComponents(...secondaryRow) : null,
-    ].filter(Boolean);
+    return chunk(buttons, 5).map((rowButtons) => new ActionRowBuilder().addComponents(...rowButtons));
   }
 
   function buildSectionControls(key, session, userId, activeSection, snapshot) {
@@ -257,6 +267,53 @@ export function createSettingsPanel({
               .setCustomId(buildSettingsComponentId('set', 'provider', provider, userId))
               .setLabel(provider)
               .setStyle(snapshot.provider === provider ? ButtonStyle.Primary : ButtonStyle.Secondary)),
+          ),
+        ];
+      }
+
+      case 'defaults': {
+        if (snapshot.provider !== 'codex' || !snapshot.codexDefaults) return [];
+
+        const modelUsesProviderDefault = !snapshot.codexDefaults.modelConfigured;
+        const defaultFastSelected = !snapshot.codexDefaults.fastModeConfigured
+          ? 'default'
+          : (snapshot.codexDefaults.fastMode ? 'on' : 'off');
+
+        return [
+          new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId(buildSettingsComponentId('act', 'default_model', 'custom', userId))
+              .setLabel(snapshot.language === 'en' ? 'Set default model' : '设置默认 model')
+              .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+              .setCustomId(buildSettingsComponentId('act', 'default_model', 'default', userId))
+              .setLabel(snapshot.language === 'en' ? 'Use provider default' : '使用 provider 默认')
+              .setStyle(modelUsesProviderDefault ? ButtonStyle.Primary : ButtonStyle.Secondary),
+          ),
+          ...chunk([...snapshot.effortLevels, 'default'], 5).map((rowValues) => new ActionRowBuilder().addComponents(
+            ...rowValues.map((value) => {
+              const selected = value === 'default'
+                ? !snapshot.codexDefaults.effortConfigured
+                : snapshot.codexDefaults.effortConfigured && snapshot.codexDefaults.effort === value;
+              return new ButtonBuilder()
+                .setCustomId(buildSettingsComponentId('set', 'default_effort', value, userId))
+                .setLabel(value)
+                .setStyle(selected ? ButtonStyle.Primary : ButtonStyle.Secondary);
+            }),
+          )),
+          new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId(buildSettingsComponentId('set', 'default_fast', 'default', userId))
+              .setLabel(snapshot.language === 'en' ? 'Default on' : '默认开启')
+              .setStyle(defaultFastSelected === 'default' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+            new ButtonBuilder()
+              .setCustomId(buildSettingsComponentId('set', 'default_fast', 'on', userId))
+              .setLabel(snapshot.language === 'en' ? 'On' : '开启')
+              .setStyle(defaultFastSelected === 'on' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+            new ButtonBuilder()
+              .setCustomId(buildSettingsComponentId('set', 'default_fast', 'off', userId))
+              .setLabel(snapshot.language === 'en' ? 'Off' : '关闭')
+              .setStyle(defaultFastSelected === 'off' ? ButtonStyle.Primary : ButtonStyle.Secondary),
           ),
         ];
       }
@@ -388,11 +445,13 @@ export function createSettingsPanel({
     if (snapshot.language === 'en') {
       return [
         'Choose a setting section below.',
+        snapshot.provider === 'codex' ? 'The defaults section edits global Codex defaults in `~/.codex/config.toml`.' : null,
         !botProvider ? 'Switching provider restores the saved per-provider channel settings.' : null,
       ].filter(Boolean).join('\n');
     }
     return [
       '请选择下方的设置项。',
+      snapshot.provider === 'codex' ? '“默认”分区会直接修改 `~/.codex/config.toml` 里的全局 Codex 默认值。' : null,
       !botProvider ? '切换 provider 会恢复这个频道里该 provider 自己保存的那组设置。' : null,
     ].filter(Boolean).join('\n');
   }
@@ -400,6 +459,10 @@ export function createSettingsPanel({
   function formatActiveSection(activeSection, snapshot) {
     const compactSurface = `${slashRef('compact')} key:<...> value:<...>`;
     switch (activeSection) {
+      case 'defaults':
+        return snapshot.language === 'en'
+          ? 'This section edits global Codex defaults in `~/.codex/config.toml`. Channel and thread overrides still win; these defaults apply only when a channel follows defaults.'
+          : '这个分区会直接修改 `~/.codex/config.toml` 里的全局 Codex 默认值。频道或 thread 的显式覆盖仍然优先，只有在“跟随默认”时才会吃到这里。';
       case 'provider':
         return snapshot.language === 'en'
           ? 'Provider switches the active runtime for this channel. Each provider keeps its own saved session/model/runtime overrides.'
@@ -443,41 +506,64 @@ export function createSettingsPanel({
 
   function formatSettingsContent(key, session, activeSection, notice = '') {
     const snapshot = buildSnapshot(key, session);
+    const isDefaultsSection = activeSection === 'defaults' && snapshot.provider === 'codex';
     const lines = [
-      snapshot.language === 'en' ? '⚙️ **Channel Settings**' : '⚙️ **频道设置**',
+      isDefaultsSection
+        ? (snapshot.language === 'en' ? '⚙️ **Global Codex Defaults**' : '⚙️ **Codex 默认设置**')
+        : (snapshot.language === 'en' ? '⚙️ **Channel Settings**' : '⚙️ **频道设置**'),
       notice || null,
-      snapshot.language === 'en'
-        ? `• provider: \`${snapshot.provider}\` (${snapshot.providerLabel})`
-        : `• provider：\`${snapshot.provider}\`（${snapshot.providerLabel}）`,
-      snapshot.language === 'en'
-        ? `• model: ${formatValueLabel(snapshot.modelValue, '(provider default)', snapshot.language)} (${formatSettingSourceLabel(snapshot.modelSource, snapshot.language)})`
-        : `• model：${formatValueLabel(snapshot.modelValue, '（provider 默认）', snapshot.language)}（${formatSettingSourceLabel(snapshot.modelSource, snapshot.language)}）`,
-      snapshot.fastMode.supported
-        ? (snapshot.language === 'en'
-          ? `• fast mode: ${formatFastModeLabel(snapshot.fastMode.enabled, snapshot.language)} (${formatSettingSourceLabel(snapshot.fastMode.source, snapshot.language)})`
-          : `• fast mode：${formatFastModeLabel(snapshot.fastMode.enabled, snapshot.language)}（${formatSettingSourceLabel(snapshot.fastMode.source, snapshot.language)}）`)
-        : (snapshot.language === 'en'
-          ? '• fast mode: n/a (Codex only)'
-          : '• fast mode：不适用（仅 Codex）'),
-      snapshot.effortLevels.length
-        ? (snapshot.language === 'en'
-          ? `• effort: ${formatValueLabel(snapshot.effortValue, '(provider default)', snapshot.language)} (${formatSettingSourceLabel(snapshot.effortSource, snapshot.language)})`
-          : `• effort：${formatValueLabel(snapshot.effortValue, '（provider 默认）', snapshot.language)}（${formatSettingSourceLabel(snapshot.effortSource, snapshot.language)}）`)
-        : (snapshot.language === 'en'
-          ? `• effort: not exposed on ${snapshot.providerLabel}`
-          : `• effort：${snapshot.providerLabel} 当前未暴露`),
-      snapshot.language === 'en'
-        ? `• compact: \`${snapshot.compact.strategy}\` (${formatSettingSourceLabel(snapshot.compact.source, snapshot.language)})`
-        : `• compact：\`${snapshot.compact.strategy}\`（${formatSettingSourceLabel(snapshot.compact.source, snapshot.language)}）`,
-      snapshot.language === 'en'
-        ? `• mode: \`${session?.mode || 'safe'}\``
-        : `• mode：\`${session?.mode || 'safe'}\``,
-      snapshot.language === 'en'
-        ? `• language: ${snapshot.language === 'en' ? 'English' : '中文'}`
-        : `• language：${snapshot.language === 'en' ? 'English' : '中文'}`,
-      snapshot.language === 'en'
-        ? `• workspace: ${formatWorkspaceLabel(snapshot.workspace, snapshot.language)}`
-        : `• workspace：${formatWorkspaceLabel(snapshot.workspace, snapshot.language)}`,
+      ...(isDefaultsSection
+        ? [
+          snapshot.language === 'en'
+            ? '• scope: `~/.codex/config.toml`'
+            : '• 作用域：`~/.codex/config.toml`',
+          snapshot.language === 'en'
+            ? `• model default: ${formatCodexGlobalStringDefault(snapshot.codexDefaults.model, snapshot.codexDefaults.modelConfigured, snapshot.language)} (${formatSettingSourceLabel(snapshot.codexDefaults.modelConfigured ? 'config.toml' : 'provider default', snapshot.language)})`
+            : `• model 默认：${formatCodexGlobalStringDefault(snapshot.codexDefaults.model, snapshot.codexDefaults.modelConfigured, snapshot.language)}（${formatSettingSourceLabel(snapshot.codexDefaults.modelConfigured ? 'config.toml' : 'provider default', snapshot.language)}）`,
+          snapshot.language === 'en'
+            ? `• effort default: ${formatCodexGlobalStringDefault(snapshot.codexDefaults.effort, snapshot.codexDefaults.effortConfigured, snapshot.language)} (${formatSettingSourceLabel(snapshot.codexDefaults.effortConfigured ? 'config.toml' : 'provider default', snapshot.language)})`
+            : `• effort 默认：${formatCodexGlobalStringDefault(snapshot.codexDefaults.effort, snapshot.codexDefaults.effortConfigured, snapshot.language)}（${formatSettingSourceLabel(snapshot.codexDefaults.effortConfigured ? 'config.toml' : 'provider default', snapshot.language)}）`,
+          snapshot.language === 'en'
+            ? `• fast default: ${formatFastModeLabel(snapshot.codexDefaults.fastMode, snapshot.language)} (${formatSettingSourceLabel(snapshot.codexDefaults.fastModeConfigured ? 'config.toml' : 'built-in default', snapshot.language)})`
+            : `• fast 默认：${formatFastModeLabel(snapshot.codexDefaults.fastMode, snapshot.language)}（${formatSettingSourceLabel(snapshot.codexDefaults.fastModeConfigured ? 'config.toml' : 'built-in default', snapshot.language)}）`,
+          snapshot.language === 'en'
+            ? `• effective in this channel: model ${formatValueLabel(snapshot.modelValue, '(provider default)', snapshot.language)}, fast ${formatFastModeLabel(snapshot.fastMode.enabled, snapshot.language)}, effort ${formatValueLabel(snapshot.effortValue, '(provider default)', snapshot.language)}`
+            : `• 当前频道生效值：model ${formatValueLabel(snapshot.modelValue, '（provider 默认）', snapshot.language)}，fast ${formatFastModeLabel(snapshot.fastMode.enabled, snapshot.language)}，effort ${formatValueLabel(snapshot.effortValue, '（provider 默认）', snapshot.language)}`,
+        ]
+        : [
+          snapshot.language === 'en'
+            ? `• provider: \`${snapshot.provider}\` (${snapshot.providerLabel})`
+            : `• provider：\`${snapshot.provider}\`（${snapshot.providerLabel}）`,
+          snapshot.language === 'en'
+            ? `• model: ${formatValueLabel(snapshot.modelValue, '(provider default)', snapshot.language)} (${formatSettingSourceLabel(snapshot.modelSource, snapshot.language)})`
+            : `• model：${formatValueLabel(snapshot.modelValue, '（provider 默认）', snapshot.language)}（${formatSettingSourceLabel(snapshot.modelSource, snapshot.language)}）`,
+          snapshot.fastMode.supported
+            ? (snapshot.language === 'en'
+              ? `• fast mode: ${formatFastModeLabel(snapshot.fastMode.enabled, snapshot.language)} (${formatSettingSourceLabel(snapshot.fastMode.source, snapshot.language)})`
+              : `• fast mode：${formatFastModeLabel(snapshot.fastMode.enabled, snapshot.language)}（${formatSettingSourceLabel(snapshot.fastMode.source, snapshot.language)}）`)
+            : (snapshot.language === 'en'
+              ? '• fast mode: n/a (Codex only)'
+              : '• fast mode：不适用（仅 Codex）'),
+          snapshot.effortLevels.length
+            ? (snapshot.language === 'en'
+              ? `• effort: ${formatValueLabel(snapshot.effortValue, '(provider default)', snapshot.language)} (${formatSettingSourceLabel(snapshot.effortSource, snapshot.language)})`
+              : `• effort：${formatValueLabel(snapshot.effortValue, '（provider 默认）', snapshot.language)}（${formatSettingSourceLabel(snapshot.effortSource, snapshot.language)}）`)
+            : (snapshot.language === 'en'
+              ? `• effort: not exposed on ${snapshot.providerLabel}`
+              : `• effort：${snapshot.providerLabel} 当前未暴露`),
+          snapshot.language === 'en'
+            ? `• compact: \`${snapshot.compact.strategy}\` (${formatSettingSourceLabel(snapshot.compact.source, snapshot.language)})`
+            : `• compact：\`${snapshot.compact.strategy}\`（${formatSettingSourceLabel(snapshot.compact.source, snapshot.language)}）`,
+          snapshot.language === 'en'
+            ? `• mode: \`${session?.mode || 'safe'}\``
+            : `• mode：\`${session?.mode || 'safe'}\``,
+          snapshot.language === 'en'
+            ? `• language: ${snapshot.language === 'en' ? 'English' : '中文'}`
+            : `• language：${snapshot.language === 'en' ? 'English' : '中文'}`,
+          snapshot.language === 'en'
+            ? `• workspace: ${formatWorkspaceLabel(snapshot.workspace, snapshot.language)}`
+            : `• workspace：${formatWorkspaceLabel(snapshot.workspace, snapshot.language)}`,
+        ]),
       '',
       snapshot.language === 'en'
         ? `**Active: ${activeSection}**`
@@ -487,8 +573,8 @@ export function createSettingsPanel({
     return lines.filter(Boolean).join('\n');
   }
 
-  function buildSettingsPayload({ key, session, userId, flags = undefined, activeSection = 'overview', notice = '' } = {}) {
-    const section = resolveActiveSection(session, activeSection);
+  function buildSettingsPayload({ key, session, userId, flags = undefined, activeSection = '', notice = '' } = {}) {
+    const section = resolveActiveSection(session, activeSection || resolveDefaultSection(session));
     const snapshot = buildSnapshot(key, session);
     const components = [
       ...buildSectionButtons(session, userId, section),
@@ -502,20 +588,33 @@ export function createSettingsPanel({
     return payload;
   }
 
-  function buildModelModal(session, userId) {
+  function buildModelModal(session, userId, { useGlobalDefault = false } = {}) {
     const language = normalizeUiLanguage(getSessionLanguage(session) || defaultUiLanguage);
+    const defaults = useGlobalDefault ? (getProviderDefaults('codex') || {}) : null;
     const input = new TextInputBuilder()
       .setCustomId(MODEL_INPUT_ID)
-      .setLabel(language === 'en' ? 'Model name or default' : '模型名或 default')
+      .setLabel(useGlobalDefault
+        ? (language === 'en' ? 'Global model name or default' : '全局模型名或 default')
+        : (language === 'en' ? 'Model name or default' : '模型名或 default'))
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder(language === 'en' ? 'e.g. o3, gpt-5.4, default' : '例如 o3、gpt-5.4、default')
+      .setPlaceholder(useGlobalDefault
+        ? (language === 'en' ? 'e.g. gpt-5.4, o3, default' : '例如 gpt-5.4、o3、default')
+        : (language === 'en' ? 'e.g. o3, gpt-5.4, default' : '例如 o3、gpt-5.4、default'))
       .setRequired(true)
       .setMaxLength(120);
-    if (session?.model) input.setValue(session.model);
+    if (useGlobalDefault) {
+      if (hasConfiguredCodexDefault(defaults?.model, defaults?.modelConfigured)) {
+        input.setValue(defaults.model);
+      }
+    } else if (session?.model) {
+      input.setValue(session.model);
+    }
 
     return new ModalBuilder()
-      .setCustomId(buildSettingsModalId('model', userId))
-      .setTitle(language === 'en' ? 'Set custom model' : '设置自定义模型')
+      .setCustomId(buildSettingsModalId(useGlobalDefault ? 'default_model' : 'model', userId))
+      .setTitle(useGlobalDefault
+        ? (language === 'en' ? 'Set global default model' : '设置全局默认 model')
+        : (language === 'en' ? 'Set custom model' : '设置自定义模型'))
       .addComponents(
         new ActionRowBuilder().addComponents(input),
       );
@@ -569,6 +668,11 @@ export function createSettingsPanel({
         return true;
       }
 
+      if (parsed.target === 'default_model' && parsed.value === 'custom') {
+        await interaction.showModal(buildModelModal(session, interaction.user.id, { useGlobalDefault: true }));
+        return true;
+      }
+
       if (parsed.target === 'model' && parsed.value === 'default') {
         commandActions.setModel?.(session, 'default');
         await interaction.update(buildSettingsPayload({
@@ -577,6 +681,20 @@ export function createSettingsPanel({
           userId: interaction.user.id,
           activeSection: 'model',
           notice: language === 'en' ? '✅ Model now follows the provider default.' : '✅ 当前 model 已改为跟随 provider 默认。',
+        }));
+        return true;
+      }
+
+      if (parsed.target === 'default_model' && parsed.value === 'default') {
+        commandActions.setGlobalModelDefault?.(session, 'default');
+        await interaction.update(buildSettingsPayload({
+          key,
+          session,
+          userId: interaction.user.id,
+          activeSection: 'defaults',
+          notice: language === 'en'
+            ? '✅ Global default model cleared. Codex now follows the provider default.'
+            : '✅ 已清除全局默认 model。Codex 现已回退到 provider 默认模型。',
         }));
         return true;
       }
@@ -621,9 +739,14 @@ export function createSettingsPanel({
         commandActions.setLanguage?.(session, parsed.value);
       } else if (parsed.target === 'mode') {
         commandActions.setMode?.(session, parsed.value);
+      } else if (parsed.target === 'default_fast') {
+        const next = parsed.value === 'default' ? null : parsed.value === 'on';
+        commandActions.setGlobalFastModeDefault?.(session, next);
       } else if (parsed.target === 'fast') {
         const next = parsed.value === 'follow' ? null : parsed.value === 'on';
         commandActions.setFastMode?.(session, next);
+      } else if (parsed.target === 'default_effort') {
+        commandActions.setGlobalReasoningEffortDefault?.(session, parsed.value);
       } else if (parsed.target === 'effort') {
         commandActions.setReasoningEffort?.(session, parsed.value);
       } else if (parsed.target === 'compact') {
@@ -634,7 +757,7 @@ export function createSettingsPanel({
         key,
         session,
         userId: interaction.user.id,
-        activeSection: parsed.target,
+        activeSection: parsed.target.startsWith('default_') ? 'defaults' : parsed.target,
       }));
       return true;
     }
@@ -680,6 +803,22 @@ export function createSettingsPanel({
         activeSection: 'model',
         flags: 64,
         notice: language === 'en' ? '✅ Model updated. This is the latest settings panel.' : '✅ model 已更新。这是最新的设置面板。',
+      }));
+      return true;
+    }
+
+    if (parsed.target === 'default_model') {
+      const rawValue = String(interaction.fields.getTextInputValue(MODEL_INPUT_ID) || '').trim();
+      commandActions.setGlobalModelDefault?.(session, rawValue);
+      await interaction.reply(buildSettingsPayload({
+        key,
+        session,
+        userId: interaction.user.id,
+        activeSection: 'defaults',
+        flags: 64,
+        notice: language === 'en'
+          ? '✅ Global default model updated in `~/.codex/config.toml`.'
+          : '✅ 已更新 `~/.codex/config.toml` 里的全局默认 model。',
       }));
       return true;
     }

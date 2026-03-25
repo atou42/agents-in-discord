@@ -151,7 +151,24 @@ test('createReportFormatters.formatStatusReport uses provider defaults for model
   assert.match(report, /workspace: `\/repo\/thread-1` \(provider default\)/);
   assert.match(report, /runtime profile: runtime:codex/);
   assert.match(report, /rollout session: \*\*alpha\*\* \(`sess-1`\)/);
+  assert.match(report, /last run input tokens: 321/);
   assert.doesNotMatch(report, /\(unknown\)/);
+});
+
+test('createReportFormatters.formatStatusReport labels lastInputTokens as previous run usage', () => {
+  const formatters = createFormatters();
+  const session = {
+    provider: 'codex',
+    language: 'zh',
+    mode: 'safe',
+    lastInputTokens: 654321,
+    name: 'alpha',
+  };
+
+  const report = formatters.formatStatusReport('thread-1', session, { id: 'channel-1' });
+
+  assert.match(report, /上一轮输入 tokens: 654321/);
+  assert.doesNotMatch(report, /最近输入 tokens/);
 });
 
 test('createReportFormatters.formatStatusReport shows parent-channel inherited model effort and workspace', () => {

@@ -5,28 +5,198 @@ import { SocksProxyAgent } from 'socks-proxy-agent';
 
 import { autoRepairProxyEnv } from './proxy-env.js';
 
-const UNKNOWN_CODEX_DEFAULT = '(unknown)';
+const FEATURES_SECTION = 'features';
+
+function escapeRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function resolveCodexHome(env = process.env) {
+  return env.HOME || env.USERPROFILE || '';
+}
+
+export function resolveCodexConfigPath({ env = process.env } = {}) {
+  return path.join(resolveCodexHome(env), '.codex', 'config.toml');
+}
+
+function quoteTomlString(value) {
+  return `"${String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+function normalizeOptionalTomlString(value) {
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  return text || null;
+}
+
+function normalizeTomlLines(lines) {
+  const normalized = [];
+  let previousBlank = true;
+  for (const line of lines) {
+    const current = String(line ?? '');
+    const isBlank = current.trim() === '';
+    if (isBlank && previousBlank) continue;
+    normalized.push(isBlank ? '' : current);
+    previousBlank = isBlank;
+  }
+  while (normalized.length > 0 && normalized[0] === '') normalized.shift();
+  while (normalized.length > 0 && normalized[normalized.length - 1] === '') normalized.pop();
+  return normalized;
+}
+
+function setTopLevelTomlKey(raw, key, renderedLine) {
+  const lines = String(raw || '').split(/\r?\n/);
+  const keyPattern = new RegExp(`^${escapeRegExp(key)}\\s*=`);
+  const firstSectionIndex = lines.findIndex((line) => /^\s*\[[^\]]+\]\s*$/.test(line));
+  const searchEnd = firstSectionIndex === -1 ? lines.length : firstSectionIndex;
+  const matchedIndexes = [];
+
+  for (let index = 0; index < searchEnd; index += 1) {
+    if (keyPattern.test(lines[index].trim())) {
+      matchedIndexes.push(index);
+    }
+  }
+
+  if (!renderedLine) {
+    for (let index = matchedIndexes.length - 1; index >= 0; index -= 1) {
+      lines.splice(matchedIndexes[index], 1);
+    }
+    return normalizeTomlLines(lines).join('\n');
+  }
+
+  if (matchedIndexes.length > 0) {
+    lines[matchedIndexes[0]] = renderedLine;
+    for (let index = matchedIndexes.length - 1; index >= 1; index -= 1) {
+      lines.splice(matchedIndexes[index], 1);
+    }
+    return normalizeTomlLines(lines).join('\n');
+  }
+
+  const insertAt = firstSectionIndex === -1 ? lines.length : firstSectionIndex;
+  lines.splice(insertAt, 0, renderedLine);
+  return normalizeTomlLines(lines).join('\n');
+}
+
+function setSectionTomlKey(raw, section, key, renderedLine) {
+  const lines = String(raw || '').split(/\r?\n/);
+  const sectionHeader = `[${section}]`;
+  const sectionIndex = lines.findIndex((line) => line.trim() === sectionHeader);
+
+  if (sectionIndex === -1) {
+    if (!renderedLine) return normalizeTomlLines(lines).join('\n');
+    if (lines.length > 0 && lines.at(-1).trim() !== '') lines.push('');
+    lines.push(sectionHeader, renderedLine);
+    return normalizeTomlLines(lines).join('\n');
+  }
+
+  let sectionEnd = lines.length;
+  for (let index = sectionIndex + 1; index < lines.length; index += 1) {
+    if (/^\s*\[[^\]]+\]\s*$/.test(lines[index])) {
+      sectionEnd = index;
+      break;
+    }
+  }
+
+  const keyPattern = new RegExp(`^${escapeRegExp(key)}\\s*=`);
+  const matchedIndexes = [];
+  for (let index = sectionIndex + 1; index < sectionEnd; index += 1) {
+    if (keyPattern.test(lines[index].trim())) {
+      matchedIndexes.push(index);
+    }
+  }
+
+  if (!renderedLine) {
+    for (let index = matchedIndexes.length - 1; index >= 0; index -= 1) {
+      lines.splice(matchedIndexes[index], 1);
+    }
+    return normalizeTomlLines(lines).join('\n');
+  }
+
+  if (matchedIndexes.length > 0) {
+    lines[matchedIndexes[0]] = renderedLine;
+    for (let index = matchedIndexes.length - 1; index >= 1; index -= 1) {
+      lines.splice(matchedIndexes[index], 1);
+    }
+    return normalizeTomlLines(lines).join('\n');
+  }
+
+  lines.splice(sectionEnd, 0, renderedLine);
+  return normalizeTomlLines(lines).join('\n');
+}
 
 export function readCodexDefaults({ env = process.env } = {}) {
   try {
-    const home = env.HOME || env.USERPROFILE || '';
-    const configPath = path.join(home, '.codex', 'config.toml');
+    const configPath = resolveCodexConfigPath({ env });
     const raw = fs.readFileSync(configPath, 'utf-8');
     const modelMatch = raw.match(/^model\s*=\s*"([^"]+)"/m);
     const effortMatch = raw.match(/^model_reasoning_effort\s*=\s*"([^"]+)"/m);
     const fastModeMatch = raw.match(/^\s*fast_mode\s*=\s*(true|false)\s*$/m);
     return {
-      model: modelMatch?.[1] || UNKNOWN_CODEX_DEFAULT,
-      effort: effortMatch?.[1] || UNKNOWN_CODEX_DEFAULT,
+      model: modelMatch?.[1] || null,
+      modelConfigured: Boolean(modelMatch),
+      effort: effortMatch?.[1] || null,
+      effortConfigured: Boolean(effortMatch),
       fastMode: fastModeMatch ? fastModeMatch[1] === 'true' : true,
+      fastModeConfigured: Boolean(fastModeMatch),
     };
   } catch {
     return {
-      model: UNKNOWN_CODEX_DEFAULT,
-      effort: UNKNOWN_CODEX_DEFAULT,
+      model: null,
+      modelConfigured: false,
+      effort: null,
+      effortConfigured: false,
       fastMode: true,
+      fastModeConfigured: false,
     };
   }
+}
+
+export function writeCodexDefaults({
+  env = process.env,
+  model = undefined,
+  effort = undefined,
+  fastMode = undefined,
+} = {}) {
+  const configPath = resolveCodexConfigPath({ env });
+  const configDir = path.dirname(configPath);
+  let raw = '';
+
+  try {
+    raw = fs.readFileSync(configPath, 'utf-8');
+  } catch {
+    raw = '';
+  }
+
+  if (model !== undefined) {
+    const normalizedModel = normalizeOptionalTomlString(model);
+    raw = setTopLevelTomlKey(
+      raw,
+      'model',
+      normalizedModel === null ? null : `model = ${quoteTomlString(normalizedModel)}`,
+    );
+  }
+
+  if (effort !== undefined) {
+    const normalizedEffort = normalizeOptionalTomlString(effort);
+    raw = setTopLevelTomlKey(
+      raw,
+      'model_reasoning_effort',
+      normalizedEffort === null ? null : `model_reasoning_effort = ${quoteTomlString(normalizedEffort)}`,
+    );
+  }
+
+  if (fastMode !== undefined) {
+    raw = setSectionTomlKey(
+      raw,
+      FEATURES_SECTION,
+      'fast_mode',
+      fastMode === null ? null : `fast_mode = ${fastMode ? 'true' : 'false'}`,
+    );
+  }
+
+  fs.mkdirSync(configDir, { recursive: true });
+  fs.writeFileSync(configPath, raw ? `${raw}\n` : '', 'utf-8');
+  return readCodexDefaults({ env });
 }
 
 export function normalizeSlashPrefix(value) {

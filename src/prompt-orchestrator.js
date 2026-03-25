@@ -89,36 +89,6 @@ export function createPromptOrchestrator({
     return last >= thresholdSetting.tokens;
   }
 
-  function buildPinnedSessionCompactNote(session, language) {
-    const provider = String(getSessionProvider(session) || '').trim().toLowerCase();
-    const currentSessionId = getSessionId(session);
-    const compactSetting = resolveCompactStrategySetting(session);
-    const enabledSetting = resolveCompactEnabledSetting(session);
-    const thresholdSetting = resolveCompactThresholdSetting(session);
-    if (!enabledSetting.enabled) return null;
-    if (!currentSessionId) return null;
-
-    const last = toOptionalInt(session.lastInputTokens);
-    if (!Number.isFinite(last) || last < thresholdSetting.tokens) return null;
-
-    const sessionTerm = formatProviderSessionTerm(provider, language);
-    if (compactSetting.strategy === 'hard') {
-      if (language === 'en') {
-        return `Input tokens=${last} exceeded the auto-compact threshold. The current pinned ${sessionTerm} stays on ${currentSessionId}; no automatic switch will happen.`;
-      }
-      return `上下文输入 token=${last}，已超过自动压缩阈值；当前按固定 ${sessionTerm} 策略继续沿用 ${currentSessionId}，不会自动切换新 session。`;
-    }
-
-    if (compactSetting.strategy === 'native' && provider === 'codex') {
-      if (language === 'en') {
-        return `Input tokens=${last} reached the native compact threshold. This run continues with Codex CLI native compact; if the provider rolls to a new ${sessionTerm}, the reply will disclose it.`;
-      }
-      return `上下文输入 token=${last}，已达到 native 压缩阈值；本轮继续按 Codex CLI 原生 compact 执行，如切到新的 ${sessionTerm}，会在回复里明确显示。`;
-    }
-
-    return null;
-  }
-
   async function compactSessionContext({ session, workspaceDir, onSpawn, wasCancelled, onEvent, onLog }) {
     if (!getSessionId(session)) {
       return { ok: false, summary: '', error: 'missing session id' };
@@ -325,9 +295,6 @@ export function createPromptOrchestrator({
       );
 
       let promptToRun = prompt;
-      const preNotes = [];
-      const pinnedSessionCompactNote = buildPinnedSessionCompactNote(session, language);
-      if (pinnedSessionCompactNote) preNotes.push(pinnedSessionCompactNote);
       const nativeCompactAutoContinueActive = shouldAutoContinueNativeCompact(session);
 
       if (channelState.cancelRequested) {
@@ -402,7 +369,7 @@ export function createPromptOrchestrator({
         attemptNumber = nextAttempt;
       }
 
-      appendNotes(result, [...preNotes, ...runtimeNotes]);
+      appendNotes(result, runtimeNotes);
 
       const inputTokens = extractInputTokensFromUsage(result.usage);
       const resultSessionId = String(result.threadId || '').trim() || null;

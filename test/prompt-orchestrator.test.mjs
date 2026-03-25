@@ -488,7 +488,7 @@ test('createPromptOrchestrator.handlePrompt does not auto-compact into a new ses
   assert.deepEqual(prompts, ['keep same session']);
   assert.equal(session.runnerSessionId, 'sess-1');
   assert.equal(session.codexThreadId, 'sess-1');
-  assert.match(replyLog[0], /已超过自动压缩阈值；当前按固定 rollout session 策略继续沿用 sess-1/);
+  assert.doesNotMatch(replyLog[0], /已超过自动压缩阈值/);
   assert.doesNotMatch(replyLog[0], /自动压缩并切换新会话/);
 });
 
@@ -535,7 +535,8 @@ test('createPromptOrchestrator.handlePrompt auto-continues a pinned native compa
   assert.deepEqual(prompts, ['keep native pinned']);
   assert.equal(session.runnerSessionId, 'sess-1');
   assert.equal(session.codexThreadId, 'sess-1');
-  assert.match(replyLog[0], /已达到 native 压缩阈值；本轮继续按 Codex CLI 原生 compact 执行/);
+  assert.doesNotMatch(replyLog[0], /已达到 native 压缩阈值/);
+  assert.doesNotMatch(replyLog[0], /native 压缩已将 rollout session 从 sess-1 切换到/);
 });
 
 test('createPromptOrchestrator.handlePrompt adopts the new session after native compact switches it', async () => {
@@ -582,7 +583,7 @@ test('createPromptOrchestrator.handlePrompt adopts the new session after native 
   assert.equal(session.runnerSessionId, 'sess-2');
   assert.equal(session.codexThreadId, 'sess-2');
   assert.equal(session.lastInputTokens, 555);
-  assert.match(replyLog[0], /已达到 native 压缩阈值；本轮继续按 Codex CLI 原生 compact 执行/);
+  assert.doesNotMatch(replyLog[0], /已达到 native 压缩阈值/);
   assert.match(replyLog[0], /native 压缩已将 rollout session 从 sess-1 切换到 sess-2/);
   assert.match(replyLog[0], /• rollout session: \*\*demo\*\* \(`sess-2`\)/);
 });

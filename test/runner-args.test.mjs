@@ -87,7 +87,7 @@ test('createRunnerArgsBuilder adds native compact config for fresh codex session
   ]);
 });
 
-test('createRunnerArgsBuilder omits native compact config for resumed codex sessions', () => {
+test('createRunnerArgsBuilder keeps native compact config for resumed codex sessions', () => {
   const { buildSessionRunnerArgs } = createRunnerArgsBuilder({
     defaultModel: 'gpt-5-codex',
     normalizeProvider: (value) => value,
@@ -117,6 +117,8 @@ test('createRunnerArgsBuilder omits native compact config for resumed codex sess
     'gpt-5-codex',
     '-c',
     'features.fast_mode=true',
+    '-c',
+    'model_auto_compact_token_limit=123456',
     '-c',
     'foo="bar"',
     'sess-1',

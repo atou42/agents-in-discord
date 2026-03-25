@@ -4,6 +4,7 @@ node_modules/
 .env.save
 logs/
 workspaces/
+worktrees/
 data/
 .DS_Store
 .bot.log

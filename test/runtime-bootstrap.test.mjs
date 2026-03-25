@@ -10,6 +10,7 @@ import {
   normalizeSlashPrefix,
   readCodexDefaults,
   renderMissingDiscordTokenHint,
+  writeCodexDefaults,
 } from '../src/runtime-bootstrap.js';
 
 function makeTempRoot() {
@@ -29,8 +30,11 @@ test('readCodexDefaults reads model reasoning effort and keeps fast mode on by d
 
   assert.deepEqual(readCodexDefaults({ env: { HOME: homeDir } }), {
     model: 'o3',
+    modelConfigured: true,
     effort: 'high',
+    effortConfigured: true,
     fastMode: true,
+    fastModeConfigured: true,
   });
 
   fs.writeFileSync(
@@ -39,8 +43,11 @@ test('readCodexDefaults reads model reasoning effort and keeps fast mode on by d
   );
   assert.deepEqual(readCodexDefaults({ env: { HOME: homeDir } }), {
     model: 'o3',
+    modelConfigured: true,
     effort: 'high',
+    effortConfigured: true,
     fastMode: true,
+    fastModeConfigured: false,
   });
 
   fs.writeFileSync(
@@ -49,15 +56,107 @@ test('readCodexDefaults reads model reasoning effort and keeps fast mode on by d
   );
   assert.deepEqual(readCodexDefaults({ env: { HOME: homeDir } }), {
     model: 'o3',
+    modelConfigured: true,
     effort: 'high',
+    effortConfigured: true,
     fastMode: false,
+    fastModeConfigured: true,
   });
 
   assert.deepEqual(readCodexDefaults({ env: { HOME: path.join(rootDir, 'missing') } }), {
-    model: '(unknown)',
-    effort: '(unknown)',
+    model: null,
+    modelConfigured: false,
+    effort: null,
+    effortConfigured: false,
+    fastMode: true,
+    fastModeConfigured: false,
+  });
+});
+
+test('writeCodexDefaults updates codex config defaults and can clear back to built-in/provider defaults', () => {
+  const rootDir = makeTempRoot();
+  const homeDir = path.join(rootDir, 'home');
+  const configDir = path.join(homeDir, '.codex');
+  fs.mkdirSync(configDir, { recursive: true });
+  const configPath = path.join(configDir, 'config.toml');
+
+  fs.writeFileSync(
+    configPath,
+    [
+      'model_provider = "tabcode"',
+      '[features]',
+      'unified_exec = true',
+      'fast_mode = false',
+    ].join('\n'),
+  );
+
+  let defaults = writeCodexDefaults({
+    env: { HOME: homeDir },
+    model: 'gpt-5.4',
+    effort: 'xhigh',
     fastMode: true,
   });
+
+  assert.deepEqual(defaults, {
+    model: 'gpt-5.4',
+    modelConfigured: true,
+    effort: 'xhigh',
+    effortConfigured: true,
+    fastMode: true,
+    fastModeConfigured: true,
+  });
+  assert.match(fs.readFileSync(configPath, 'utf-8'), /^model = "gpt-5\.4"$/m);
+  assert.match(fs.readFileSync(configPath, 'utf-8'), /^model_reasoning_effort = "xhigh"$/m);
+  assert.match(fs.readFileSync(configPath, 'utf-8'), /^\[features\]$/m);
+  assert.match(fs.readFileSync(configPath, 'utf-8'), /^fast_mode = true$/m);
+
+  defaults = writeCodexDefaults({
+    env: { HOME: homeDir },
+    model: null,
+    effort: null,
+    fastMode: null,
+  });
+
+  assert.deepEqual(defaults, {
+    model: null,
+    modelConfigured: false,
+    effort: null,
+    effortConfigured: false,
+    fastMode: true,
+    fastModeConfigured: false,
+  });
+  const raw = fs.readFileSync(configPath, 'utf-8');
+  assert.doesNotMatch(raw, /^model = /m);
+  assert.doesNotMatch(raw, /^model_reasoning_effort = /m);
+  assert.doesNotMatch(raw, /^fast_mode = /m);
+  assert.match(raw, /^\[features\]$/m);
+});
+
+test('writeCodexDefaults trims string inputs and clears blank string values', () => {
+  const rootDir = makeTempRoot();
+  const homeDir = path.join(rootDir, 'home');
+  const configDir = path.join(homeDir, '.codex');
+  fs.mkdirSync(configDir, { recursive: true });
+  const configPath = path.join(configDir, 'config.toml');
+
+  const defaults = writeCodexDefaults({
+    env: { HOME: homeDir },
+    model: '  gpt-5.4  ',
+    effort: '   ',
+  });
+
+  assert.deepEqual(defaults, {
+    model: 'gpt-5.4',
+    modelConfigured: true,
+    effort: null,
+    effortConfigured: false,
+    fastMode: true,
+    fastModeConfigured: false,
+  });
+
+  const raw = fs.readFileSync(configPath, 'utf-8');
+  assert.match(raw, /^model = "gpt-5\.4"$/m);
+  assert.doesNotMatch(raw, /^model_reasoning_effort = /m);
 });
 
 test('normalizeSlashPrefix trims strips and truncates invalid input', () => {

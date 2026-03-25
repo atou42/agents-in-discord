@@ -124,7 +124,7 @@ export function createSlashCommandRouter({
       key,
       session,
       userId: interaction.user.id,
-      activeSection: 'overview',
+      activeSection: getSessionProvider(session) === 'codex' ? 'defaults' : 'overview',
       flags: 64,
     }));
   });
@@ -324,7 +324,7 @@ export function createSlashCommandRouter({
     await respond(`✅ effort = ${effort || '(provider default)'}`);
   });
 
-  registerSlashHandlers(handlers, ['compact'], async ({ interaction, session, respond }) => {
+  registerSlashHandlers(handlers, ['compact'], async ({ interaction, key, session, respond }) => {
     const provider = getSessionProvider(session);
     const language = getSessionLanguage(session);
     const parsed = parseCompactConfigAction(
@@ -352,7 +352,6 @@ export function createSlashCommandRouter({
       });
       return;
     }
-
     commandActions.applyCompactConfig(session, parsed);
     await respond({
       content: formatCompactConfigReport(language, session, true),

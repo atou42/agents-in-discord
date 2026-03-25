@@ -226,12 +226,12 @@ test('createSlashCommandRouter opens the interactive settings panel', async () =
 
   assert.equal(handled, true);
   assert.deepEqual(state.getSettingsCalls(), [{
-    content: 'settings:channel-1:user-1:overview',
+    content: 'settings:channel-1:user-1:defaults',
     components: [],
     flags: 64,
   }]);
   assert.deepEqual(state.replies, [{
-    content: 'settings:channel-1:user-1:overview',
+    content: 'settings:channel-1:user-1:defaults',
     components: [],
     flags: 64,
   }]);
@@ -289,6 +289,29 @@ test('createSlashCommandRouter rejects only unsupported compact actions for non-
   assert.equal(handled, true);
   assert.deepEqual(state.replies, [{
     content: '⚠️ 当前 provider Gemini CLI 不支持 `native` 压缩。',
+    flags: 64,
+  }]);
+});
+
+test('createSlashCommandRouter shows compact help for removed manual continue subcommand', async () => {
+  const state = createRouterState({
+    parseCompactConfigAction: () => ({ type: 'invalid' }),
+    formatCompactStrategyConfigHelp: () => 'compact-help',
+  });
+  const interaction = createInteraction('cx_compact');
+  interaction.options.getString = (name) => (name === 'key' ? 'continue' : '');
+
+  const handled = await state.router({
+    interaction,
+    commandName: 'compact',
+    respond: async (payload) => {
+      state.replies.push(payload);
+    },
+  });
+
+  assert.equal(handled, true);
+  assert.deepEqual(state.replies, [{
+    content: 'compact-help',
     flags: 64,
   }]);
 });

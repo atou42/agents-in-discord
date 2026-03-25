@@ -117,6 +117,7 @@ import {
   normalizeSlashPrefix,
   readCodexDefaults,
   renderMissingDiscordTokenHint,
+  writeCodexDefaults,
 } from './runtime-bootstrap.js';
 import {
   extractInputTokensFromUsage,
@@ -361,6 +362,8 @@ const appContext = createAppContext({
   commandActionsOptions: {
     normalizeProvider,
     normalizeUiLanguage,
+    readCodexDefaults,
+    writeCodexDefaults,
     readCodexSessionMetaBySessionId,
     resolveGeminiProjectRootBySessionId,
     formatProviderSessionLabel,

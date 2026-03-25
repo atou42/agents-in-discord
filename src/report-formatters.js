@@ -76,18 +76,24 @@ export function createReportFormatters({
 } = {}) {
   function formatProviderDefaultLabel(value, language = 'en') {
     const source = value?.source || 'provider';
-    const model = value?.value || '(unknown)';
+    const model = String(value?.value || '').trim();
+
+    if (!model) {
+      return language === 'en' ? '_(provider default)_' : '_(provider 默认)_';
+    }
+
     if (source === 'config.toml') {
       return `${model} _(config.toml)_`;
     }
-    if (language === 'en') {
-      return `${model} _(provider default)_`;
-    }
-    return `${model} _(provider 默认)_`;
+
+    return language === 'en'
+      ? `${model} _(provider default)_`
+      : `${model} _(provider 默认)_`;
   }
 
   function formatResolvedSettingLabel(setting, fallback, language = 'en') {
-    const value = String(setting?.value || '').trim() || fallback;
+    const fallbackText = String(fallback ?? '').trim();
+    const value = String(setting?.value || '').trim() || fallbackText;
     const source = setting?.source || 'unknown';
     if (source === 'config.toml' || source === 'provider') {
       return formatProviderDefaultLabel({ value, source }, language);
@@ -303,7 +309,7 @@ export function createReportFormatters({
         `• permissions: ${formatPermissionsLabel(session, lang)}`,
         `• cli: ${formatCliHealth(cliHealth, lang)}`,
         `• ${sessionFieldLabel}: ${formatSessionStatusLabel(session)}`,
-        `• last input tokens: ${formatTokenValue(session?.lastInputTokens)}`,
+        `• last run input tokens: ${formatTokenValue(session?.lastInputTokens)}`,
         `• security profile: ${formatSecurityProfileDisplay(security, lang)}`,
       ].filter(Boolean).join('\n');
     }
@@ -325,7 +331,7 @@ export function createReportFormatters({
       `• 权限: ${formatPermissionsLabel(session, lang)}`,
       `• CLI: ${formatCliHealth(cliHealth, lang)}`,
       `• ${sessionFieldLabel}: ${formatSessionStatusLabel(session)}`,
-      `• 最近输入 tokens: ${formatTokenValue(session?.lastInputTokens)}`,
+      `• 上一轮输入 tokens: ${formatTokenValue(session?.lastInputTokens)}`,
       `• security profile: ${formatSecurityProfileDisplay(security, lang)}`,
     ].filter(Boolean).join('\n');
   }

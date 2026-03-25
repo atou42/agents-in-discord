@@ -11,6 +11,16 @@ function shouldResetSessionForWorkspaceChange(provider, previousDir, nextDir) {
   return providerRequiresWorkspaceBoundSession(provider) && hasWorkspaceChanged(previousDir, nextDir);
 }
 
+function normalizeOptionalOverride(value) {
+  const text = String(value ?? '').trim();
+  if (!text) return null;
+  return text.toLowerCase() === 'default' ? null : text;
+}
+
+function normalizeOptionalEffortOverride(value) {
+  const text = normalizeOptionalOverride(value);
+  return text === null ? null : text.toLowerCase();
+}
 function normalizeSessionKey(value) {
   const text = String(value || '').trim();
   return text || null;
@@ -40,6 +50,15 @@ export function createSessionCommandActions({
   resolveGeminiProjectRootBySessionId = () => null,
   resolveProviderDefaultWorkspace = () => ({ workspaceDir: null, source: 'unset', envKey: null }),
   setProviderDefaultWorkspace = () => ({ workspaceDir: null, source: 'unset', envKey: null }),
+  readCodexDefaults = () => ({
+    model: null,
+    modelConfigured: false,
+    effort: null,
+    effortConfigured: false,
+    fastMode: true,
+    fastModeConfigured: false,
+  }),
+  writeCodexDefaults = () => readCodexDefaults(),
   normalizeProvider = (provider) => String(provider || '').trim().toLowerCase() || 'codex',
   clearSessionId,
   getSessionId,
@@ -106,13 +125,13 @@ export function createSessionCommandActions({
   }
 
   function setModel(session, name) {
-    session.model = String(name || '').toLowerCase() === 'default' ? null : name;
+    session.model = normalizeOptionalOverride(name);
     saveDb();
     return { model: session.model };
   }
 
   function setReasoningEffort(session, effort) {
-    session.effort = effort === 'default' ? null : effort;
+    session.effort = normalizeOptionalEffortOverride(effort);
     saveDb();
     return { effort: session.effort };
   }
@@ -121,6 +140,27 @@ export function createSessionCommandActions({
     session.fastMode = enabled;
     saveDb();
     return { fastModeSetting: resolveFastModeSetting(session) };
+  }
+
+  function setGlobalModelDefault(_session, value) {
+    const defaults = writeCodexDefaults({
+      model: normalizeOptionalOverride(value),
+    });
+    return { defaults };
+  }
+
+  function setGlobalReasoningEffortDefault(_session, effort) {
+    const defaults = writeCodexDefaults({
+      effort: normalizeOptionalEffortOverride(effort),
+    });
+    return { defaults };
+  }
+
+  function setGlobalFastModeDefault(_session, enabled) {
+    const defaults = writeCodexDefaults({
+      fastMode: enabled,
+    });
+    return { defaults };
   }
 
   function setCompactStrategy(session, strategy) {
@@ -360,6 +400,9 @@ export function createSessionCommandActions({
     setModel,
     setReasoningEffort,
     setFastMode,
+    setGlobalModelDefault,
+    setGlobalReasoningEffortDefault,
+    setGlobalFastModeDefault,
     setCompactStrategy,
     applyCompactConfig,
     setMode,

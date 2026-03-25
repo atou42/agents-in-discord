@@ -265,6 +265,80 @@ test('createSessionCommandActions.setDefaultWorkspaceDir clears affected codex s
   assert.equal(saveCount, 1);
 });
 
+test('createSessionCommandActions updates global codex defaults without mutating session state', () => {
+  let writes = [];
+  const session = { provider: 'codex', model: null, effort: null, fastMode: null };
+  const actions = createSessionCommandActions({
+    saveDb: () => {
+      throw new Error('should not persist session db');
+    },
+    ensureWorkspace: () => '/tmp/workspace',
+    clearSessionId: () => {},
+    getSessionId: () => null,
+    setSessionId: () => {},
+    getSessionProvider: (currentSession) => currentSession.provider || 'codex',
+    getProviderShortName: () => 'Codex',
+    writeCodexDefaults: (updates) => {
+      writes.push(updates);
+      return {
+        model: updates.model ?? '(unknown)',
+        modelConfigured: updates.model !== null && updates.model !== undefined,
+        effort: updates.effort ?? '(unknown)',
+        effortConfigured: updates.effort !== null && updates.effort !== undefined,
+        fastMode: updates.fastMode ?? true,
+        fastModeConfigured: updates.fastMode !== null && updates.fastMode !== undefined,
+      };
+    },
+    resolveTimeoutSetting: () => ({ timeoutMs: 60000, source: 'session override' }),
+    listRecentSessions: () => [],
+    humanAge: () => '0s',
+  });
+
+  const modelResult = actions.setGlobalModelDefault(session, 'gpt-5.4');
+  const effortResult = actions.setGlobalReasoningEffortDefault(session, 'high');
+  const fastResult = actions.setGlobalFastModeDefault(session, null);
+
+  assert.deepEqual(writes, [
+    { model: 'gpt-5.4' },
+    { effort: 'high' },
+    { fastMode: null },
+  ]);
+  assert.equal(modelResult.defaults.model, 'gpt-5.4');
+  assert.equal(effortResult.defaults.effort, 'high');
+  assert.equal(fastResult.defaults.fastMode, true);
+  assert.deepEqual(session, { provider: 'codex', model: null, effort: null, fastMode: null });
+});
+
+test('createSessionCommandActions normalizes blank and spaced model/effort overrides', () => {
+  let saveCount = 0;
+  const session = { provider: 'codex', model: 'gpt-5.4', effort: 'high' };
+  const actions = createSessionCommandActions({
+    saveDb: () => {
+      saveCount += 1;
+    },
+    ensureWorkspace: () => '/tmp/workspace',
+    clearSessionId: () => {},
+    getSessionId: () => null,
+    setSessionId: () => {},
+    getSessionProvider: (currentSession) => currentSession.provider || 'codex',
+    getProviderShortName: () => 'Codex',
+    resolveTimeoutSetting: () => ({ timeoutMs: 60000, source: 'session override' }),
+    listRecentSessions: () => [],
+    humanAge: () => '0s',
+  });
+
+  const trimmedModel = actions.setModel(session, '  o3  ');
+  const clearedModel = actions.setModel(session, '   ');
+  const trimmedEffort = actions.setReasoningEffort(session, '  HIGH  ');
+  const clearedEffort = actions.setReasoningEffort(session, 'default');
+
+  assert.equal(trimmedModel.model, 'o3');
+  assert.equal(clearedModel.model, null);
+  assert.equal(trimmedEffort.effort, 'high');
+  assert.equal(clearedEffort.effort, null);
+  assert.equal(saveCount, 4);
+});
+
 test('createSessionCommandActions.startNewSession clears bound session and token snapshot', () => {
   let saveCount = 0;
   const actions = createSessionCommandActions({

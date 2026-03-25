@@ -6,6 +6,19 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-03-25
+
+### Added
+- Added a dedicated Codex defaults section in `/settings` so global model, reasoning effort, and Fast mode can be edited directly in `~/.codex/config.toml`.
+- Resume/bind flows for workspace-bound providers now resolve the session's real workspace from provider state, switch the channel to that workspace, and clear duplicate bindings in other threads.
+
+### Changed
+- Codex status, settings, and runtime surfaces now distinguish true `config.toml` overrides from provider defaults, and the status report labels token usage as the previous run's input instead of the current live context size.
+- Native compact messaging is now fact-based: the bot only discloses compact-related notices when a session id actually switches, including retry paths that continue on the new session automatically.
+
+### Fixed
+- Binding a Codex or Gemini session whose workspace no longer exists now fails explicitly instead of silently keeping a broken session binding.
+
 ## [0.9.5] - 2026-03-24
 
 ### Fixed

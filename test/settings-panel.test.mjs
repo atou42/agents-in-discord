@@ -131,8 +131,12 @@ function createPanel({ session, botProvider = null, openWorkspaceBrowser, comman
       source: currentSession?.workspaceDir ? 'thread override' : 'provider default',
     }),
     getProviderDefaults: (provider) => ({
-      model: provider === 'codex' ? 'gpt-5.4' : '(provider default)',
-      effort: provider === 'codex' ? 'high' : '(provider default)',
+      model: provider === 'codex' ? (session?.globalDefaultModel ?? 'gpt-5.4') : '(provider default)',
+      modelConfigured: provider === 'codex' ? (session?.globalDefaultModelConfigured ?? true) : false,
+      effort: provider === 'codex' ? (session?.globalDefaultEffort ?? 'high') : '(provider default)',
+      effortConfigured: provider === 'codex' ? (session?.globalDefaultEffortConfigured ?? true) : false,
+      fastMode: provider === 'codex' ? (session?.globalDefaultFastMode ?? true) : false,
+      fastModeConfigured: provider === 'codex' ? (session?.globalDefaultFastModeConfigured ?? true) : false,
       source: provider === 'codex' ? 'config.toml' : 'provider',
     }),
     getProviderDisplayName: (provider) => ({
@@ -153,7 +157,7 @@ function createPanel({ session, botProvider = null, openWorkspaceBrowser, comman
     }),
     resolveFastModeSetting: (currentSession) => currentSession?.provider === 'codex'
       ? {
-        enabled: currentSession?.fastMode ?? currentSession?.inheritedFastMode ?? false,
+        enabled: currentSession?.fastMode ?? currentSession?.inheritedFastMode ?? true,
         supported: true,
         source: currentSession?.fastModeSource
           || (currentSession?.fastMode === null || currentSession?.fastMode === undefined ? 'config.toml' : 'session override'),
@@ -191,9 +195,29 @@ test('createSettingsPanel opens an overview payload with key channel settings', 
   assert.match(payload.content, /频道设置/);
   assert.match(payload.content, /provider：`codex`/);
   assert.match(payload.content, /model：`gpt-5.4`/);
-  assert.equal(payload.components.length, 2);
-  assert.equal(payload.components[0].components[0].data.label, 'provider');
-  assert.equal(payload.components[1].components.at(-1).data.label, '关闭');
+  assert.equal(payload.components.length, 3);
+  const labels = payload.components.flatMap((row) => row.components.map((button) => button.data.label));
+  assert.ok(labels.includes('默认'));
+  assert.equal(labels.at(-1), '关闭');
+});
+
+test('createSettingsPanel defaults to the global codex defaults section', () => {
+  const session = {
+    provider: 'codex',
+    language: 'zh',
+    mode: 'safe',
+  };
+  const panel = createPanel({ session });
+
+  const payload = panel.openSettingsPanel({
+    key: 'thread-1',
+    session,
+    userId: '12345',
+  });
+
+  assert.match(payload.content, /Codex 默认设置/);
+  assert.match(payload.content, /作用域：`~\/.codex\/config\.toml`/);
+  assert.match(payload.content, /当前项：defaults/);
 });
 
 test('createSettingsPanel updates fast mode through button interaction', async () => {
@@ -255,7 +279,8 @@ test('createSettingsPanel shows parent channel as the inherited fast mode source
   });
 
   assert.match(payload.content, /fast mode：开启（父频道默认）/);
-  assert.equal(payload.components[2].components[0].data.label, '跟随父频道/全局');
+  const labels = payload.components.flatMap((row) => row.components.map((button) => button.data.label));
+  assert.ok(labels.includes('跟随父频道/全局'));
 });
 
 test('createSettingsPanel shows parent channel as the inherited model source for threads', () => {
@@ -311,6 +336,37 @@ test('createSettingsPanel opens a model modal from the model section', async () 
   assert.equal(modals[0].data.components[0].components[0].data.value, 'gpt-5.4');
 });
 
+test('createSettingsPanel opens a global default model modal from the defaults section', async () => {
+  const session = {
+    provider: 'codex',
+    language: 'zh',
+    mode: 'safe',
+    globalDefaultModel: 'gpt-5.4',
+    globalDefaultModelConfigured: true,
+  };
+  const modals = [];
+  const panel = createPanel({ session });
+
+  await panel.handleSettingsPanelInteraction({
+    customId: 'stg:act:default_model:custom:12345',
+    channelId: 'thread-1',
+    user: { id: '12345' },
+    async update() {
+      throw new Error('should not update');
+    },
+    async reply() {
+      throw new Error('should not reply');
+    },
+    async showModal(modal) {
+      modals.push(modal);
+    },
+  });
+
+  assert.equal(modals.length, 1);
+  assert.equal(modals[0].data.customId, 'stgm:default_model:12345');
+  assert.equal(modals[0].data.components[0].components[0].data.value, 'gpt-5.4');
+});
+
 test('createSettingsPanel applies model modal submit and replies with a refreshed panel', async () => {
   const session = {
     provider: 'codex',
@@ -348,6 +404,47 @@ test('createSettingsPanel applies model modal submit and replies with a refreshe
   assert.equal(replies[0].flags, 64);
   assert.match(replies[0].content, /Model updated/);
   assert.match(replies[0].content, /model: `o3` \(this channel\)/);
+});
+
+test('createSettingsPanel updates global effort defaults through button interaction', async () => {
+  const session = {
+    provider: 'codex',
+    language: 'zh',
+    mode: 'safe',
+    globalDefaultEffort: 'high',
+    globalDefaultEffortConfigured: true,
+  };
+  const updates = [];
+  const panel = createPanel({
+    session,
+    commandActions: {
+      setGlobalReasoningEffortDefault(_session, value) {
+        session.globalDefaultEffort = value === 'default' ? 'high' : value;
+        session.globalDefaultEffortConfigured = value !== 'default';
+        return { defaults: { effort: session.globalDefaultEffort, effortConfigured: session.globalDefaultEffortConfigured } };
+      },
+    },
+  });
+
+  await panel.handleSettingsPanelInteraction({
+    customId: 'stg:set:default_effort:xhigh:12345',
+    channelId: 'thread-1',
+    user: { id: '12345' },
+    async update(payload) {
+      updates.push(payload);
+    },
+    async reply() {
+      throw new Error('should not reply');
+    },
+    async showModal() {
+      throw new Error('should not show modal');
+    },
+  });
+
+  assert.equal(session.globalDefaultEffort, 'xhigh');
+  assert.equal(updates.length, 1);
+  assert.match(updates[0].content, /当前项：defaults/);
+  assert.match(updates[0].content, /effort 默认：`xhigh`（全局配置）/);
 });
 
 test('createSettingsPanel opens the existing workspace browser in a separate reply', async () => {

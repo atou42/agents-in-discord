@@ -227,7 +227,14 @@ export function createSessionSettings({
   compactOnThreshold = true,
   maxInputTokensBeforeCompact = 250000,
   modelAutoCompactTokenLimit = maxInputTokensBeforeCompact,
-  readCodexDefaults = () => ({ model: '(unknown)', effort: '(unknown)', fastMode: true }),
+  readCodexDefaults = () => ({
+    model: null,
+    modelConfigured: false,
+    effort: null,
+    effortConfigured: false,
+    fastMode: true,
+    fastModeConfigured: false,
+  }),
   normalizeProvider = (provider) => String(provider || '').trim().toLowerCase() || 'codex',
   getSupportedCompactStrategies = () => ['hard', 'native', 'off'],
   getParentSession = () => null,
@@ -340,10 +347,19 @@ export function createSessionSettings({
       return { value: parentValue, source: 'parent channel' };
     }
 
-    const defaults = getProviderDefaults(provider);
+    if (provider === 'codex') {
+      const codexDefaults = readCodexDefaults() || {};
+      const value = String(codexDefaults.model ?? '').trim();
+      const configured = codexDefaults.modelConfigured ?? Boolean(value);
+      if (configured && value) {
+        return { value, source: 'config.toml' };
+      }
+      return { value: null, source: 'provider' };
+    }
+
     return {
-      value: defaults.model,
-      source: defaults.source,
+      value: null,
+      source: 'provider',
     };
   }
 
@@ -360,10 +376,19 @@ export function createSessionSettings({
       return { value: parentValue, source: 'parent channel' };
     }
 
-    const defaults = getProviderDefaults(provider);
+    if (provider === 'codex') {
+      const codexDefaults = readCodexDefaults() || {};
+      const value = String(codexDefaults.effort ?? '').trim();
+      const configured = codexDefaults.effortConfigured ?? Boolean(value);
+      if (configured && value) {
+        return { value, source: 'config.toml' };
+      }
+      return { value: null, source: 'provider' };
+    }
+
     return {
-      value: defaults.effort,
-      source: defaults.source,
+      value: null,
+      source: 'provider',
     };
   }
 
@@ -454,8 +479,8 @@ export function createSessionSettings({
   function getProviderDefaults(provider) {
     if (normalizeProvider(provider) !== 'codex') {
       return {
-        model: '(provider default)',
-        effort: '(provider default)',
+        model: null,
+        effort: null,
         fastMode: false,
         source: 'provider',
       };
