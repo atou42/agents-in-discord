@@ -6,6 +6,20 @@ export function createSessionProgressBridgeFactory({
   findLatestRolloutFileBySessionId,
   findLatestClaudeSessionFileBySessionId,
 } = {}) {
+  function resolveInitialOffset({ match, bridgeStartedAtMs, baselineMatch }) {
+    const currentSize = Math.max(0, Number(match?.sizeBytes) || 0);
+    const currentPath = String(match?.file || '');
+    const baselinePath = String(baselineMatch?.file || '');
+
+    if (baselinePath && currentPath && baselinePath === currentPath) {
+      const baselineSize = Math.max(0, Number(baselineMatch?.sizeBytes) || 0);
+      return Math.min(currentSize, baselineSize);
+    }
+
+    const currentMtimeMs = Number(match?.mtimeMs) || 0;
+    return currentMtimeMs < bridgeStartedAtMs ? currentSize : 0;
+  }
+
   function startSessionProgressBridge({ provider, threadId, workspaceDir, onEvent }) {
     const normalizedProvider = normalizeProvider(provider);
     if (normalizedProvider === 'claude') {
@@ -23,12 +37,12 @@ export function createSessionProgressBridgeFactory({
 
     const bridgeStartedAtMs = Date.now();
     const minMtimeMs = bridgeStartedAtMs - 2 * 60 * 1000;
+    const baselineMatch = findLatestRolloutFileBySessionId(sessionId, 0);
     const dedupeKeys = [];
     const dedupeSet = new Set();
 
     let stopped = false;
     let rolloutFile = null;
-    let rolloutFileMtimeMs = 0;
     let offset = 0;
     let remainder = '';
     let pollTimer = null;
@@ -123,10 +137,11 @@ export function createSessionProgressBridgeFactory({
       if (nextPath === rolloutFile) return true;
 
       rolloutFile = match.file;
-      rolloutFileMtimeMs = Number(match.mtimeMs) || 0;
-      offset = rolloutFileMtimeMs < bridgeStartedAtMs
-        ? Math.max(0, Number(match.sizeBytes) || 0)
-        : 0;
+      offset = resolveInitialOffset({
+        match,
+        bridgeStartedAtMs,
+        baselineMatch,
+      });
       remainder = '';
       readNewTail();
       return true;
@@ -155,12 +170,12 @@ export function createSessionProgressBridgeFactory({
 
     const bridgeStartedAtMs = Date.now();
     const minMtimeMs = bridgeStartedAtMs - 2 * 60 * 1000;
+    const baselineMatch = findLatestClaudeSessionFileBySessionId(sessionId, workspaceDir, 0);
     const dedupeKeys = [];
     const dedupeSet = new Set();
 
     let stopped = false;
     let sessionFile = null;
-    let sessionFileMtimeMs = 0;
     let offset = 0;
     let remainder = '';
     let pollTimer = null;
@@ -250,10 +265,11 @@ export function createSessionProgressBridgeFactory({
       if (nextPath === sessionFile) return true;
 
       sessionFile = match.file;
-      sessionFileMtimeMs = Number(match.mtimeMs) || 0;
-      offset = sessionFileMtimeMs < bridgeStartedAtMs
-        ? Math.max(0, Number(match.sizeBytes) || 0)
-        : 0;
+      offset = resolveInitialOffset({
+        match,
+        bridgeStartedAtMs,
+        baselineMatch,
+      });
       remainder = '';
       readNewTail();
       return true;
