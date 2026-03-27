@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AutoSprite Studio</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="theme-dusk">
+    <div class="app-shell">
+      <header class="navbar navbar-static workspace-navbar">
+        <div class="nav-inner">
+          <div class="nav-left-cluster">
+            <a class="logo" aria-label="AutoSprite" href="/">
+              <img src="/favicon.svg" alt="AutoSprite" class="logo-img" />
+              <span class="brand-text">
+                <span class="brand-auto">uto</span>
+                <span class="brand-sprite">Sprite</span>
+              </span>
+            </a>
+
+            <nav class="nav-links nav-links-desktop">
+              <a href="#stage-character">Character</a>
+              <a href="#stage-animate">Animate</a>
+              <a href="#stage-preview">Preview</a>
+              <a href="#stage-spritesheets">Spritesheets</a>
+            </nav>
+          </div>
+
+          <div class="nav-right-cluster">
+            <span id="backend-badge" class="backend-pill">Checking backend</span>
+            <a class="btn btn-secondary compact-link" href="https://www.autosprite.io/pricing" target="_blank" rel="noreferrer">
+              Pricing
+            </a>
+          </div>
+        </div>
+      </header>
+
+      <main id="workspace-shell" class="workbench">
+        <aside class="sidebar sidebar--staged">
+          <section class="surface rail-card rail-card--switches">
+            <div class="rail-switches">
+              <button class="rail-chip rail-chip--active" type="button">Characters</button>
+              <button class="rail-chip" type="button" disabled>Assets</button>
+            </div>
+
+            <button id="new-character-button" class="button button--primary button--full" type="button">
+              New character
+            </button>
+
+            <div class="rail-mini-stats">
+              <article class="metric-chip">
+                <span>Mode</span>
+                <strong>Sprite MVP</strong>
+              </article>
+              <article class="metric-chip">
+                <span>Queue</span>
+                <strong>1 at a time</strong>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel surface">
+            <div class="panel__header panel__header--tight">
+              <p class="eyebrow">Characters</p>
+              <h2>Library</h2>
+            </div>
+            <div id="character-list" class="character-list"></div>
+          </section>
+
+          <section class="panel surface">
+            <div class="panel__header">
+              <p class="eyebrow">Generation</p>
+              <h2>Neta token</h2>
+            </div>
+
+            <form id="auth-form" class="stack">
+              <label class="field">
+                <span>Token</span>
+                <input id="auth-token" name="token" type="password" placeholder="Paste your Neta token" autocomplete="off" />
+              </label>
+              <button class="button button--primary" type="submit">Connect token</button>
+            </form>
+
+            <div id="auth-summary" class="auth-summary"></div>
+            <p id="auth-message" class="message" role="status"></p>
+          </section>
+        </aside>
+
+        <section class="workspace workspace--staged">
+          <section class="project-header surface">
+            <div class="project-copy">
+              <p class="eyebrow">Active Project</p>
+              <h1 id="workspace-title">Create a character to begin.</h1>
+              <p id="workspace-subtitle" class="muted">
+                Upload one character, choose the motions, preview the result, and export production-ready sheets.
+              </p>
+
+              <div class="hero-stats hero-stats--compact">
+                <article class="stat-pill">
+                  <span>Poses</span>
+                  <strong id="stat-poses">0</strong>
+                </article>
+                <article class="stat-pill">
+                  <span>Custom</span>
+                  <strong id="stat-custom">0</strong>
+                </article>
+                <article class="stat-pill">
+                  <span>Exports</span>
+                  <strong id="stat-exports">0</strong>
+                </article>
+              </div>
+            </div>
+
+            <div class="project-visual">
+              <div class="character-stage">
+                <div class="character-stage__frame">
+                  <img id="character-thumbnail" class="character-stage__image hidden" alt="" />
+                  <div id="character-placeholder" class="character-stage__placeholder">
+                    <span>Selected art appears here</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="stage-summary-card">
+                <div class="summary-row">
+                  <span>Current stage</span>
+                  <strong id="current-stage-label">Character</strong>
+                </div>
+                <div class="summary-row">
+                  <span>Queue</span>
+                  <strong id="current-queue-label">Idle</strong>
+                </div>
+                <div class="summary-row">
+                  <span>Next</span>
+                  <strong id="next-step-label">Upload a base character</strong>
+                </div>
+              </div>
+
+              <div id="analysis-card" class="analysis-card hidden"></div>
+            </div>
+          </section>
+
+          <nav id="stage-tabs" class="stage-tabs surface" aria-label="Workspace stages">
+            <button class="stage-tab" type="button" data-stage="character">
+              <span>Character</span>
+              <small>Base art and setup</small>
+            </button>
+            <button class="stage-tab" type="button" data-stage="animate">
+              <span>Animate</span>
+              <small>Select motions</small>
+            </button>
+            <button class="stage-tab" type="button" data-stage="preview">
+              <span>Preview</span>
+              <small>Inspect result</small>
+            </button>
+            <button class="stage-tab" type="button" data-stage="spritesheets">
+              <span>Spritesheets</span>
+              <small>Download exports</small>
+            </button>
+          </nav>
+
+          <section class="stage-shell">
+            <section id="stage-character" class="stage-panel" data-stage-panel="character">
+              <div class="stage-heading">
+                <p class="eyebrow">Character</p>
+                <h2>Create your playable source character</h2>
+                <p class="muted">Start with one clean full-body sprite. The app turns it into the motion source for everything downstream.</p>
+              </div>
+
+              <div class="character-stage-grid">
+                <section class="panel panel--wide surface">
+                  <div class="panel__header">
+                    <p class="eyebrow">Guidelines</p>
+                    <h2>Best input wins</h2>
+                  </div>
+
+                  <div class="guidelines-grid">
+                    <article class="guideline-card">
+                      <strong>Facing forward</strong>
+                      <p class="muted">Idle stance works best for the base image and the default motion set.</p>
+                    </article>
+                    <article class="guideline-card">
+                      <strong>Full body visible</strong>
+                      <p class="muted">Keep head, hands, and feet in frame so pose matching stays stable.</p>
+                    </article>
+                    <article class="guideline-card">
+                      <strong>Simple background</strong>
+                      <p class="muted">Plain or transparent backgrounds keep the silhouette cleaner.</p>
+                    </article>
+                  </div>
+
+                  <div class="character-stage-notes">
+                    <p class="eyebrow">What happens next</p>
+                    <p class="muted">After the upload is accepted, the workspace moves to motion selection automatically.</p>
+                  </div>
+                </section>
+
+                <section class="panel panel--wide surface">
+                  <div class="panel__header">
+                    <p class="eyebrow">New Character</p>
+                    <h2>Upload and name</h2>
+                  </div>
+
+                  <form id="create-character-form" class="stack">
+                    <label class="field">
+                      <span>Name</span>
+                      <input id="character-name" name="name" type="text" maxlength="100" required />
+                    </label>
+
+                    <label class="field">
+                      <span>Description</span>
+                      <textarea id="character-description" name="characterDescription" rows="3"></textarea>
+                    </label>
+
+                    <label class="field">
+                      <span>Character image</span>
+                      <input id="character-image" name="image" type="file" accept="image/png,image/jpeg,image/webp" required />
+                    </label>
+
+                    <label class="toggle">
+                      <input id="is-humanoid" name="isHumanoid" type="checkbox" checked />
+                      <span>Prefer humanoid motion</span>
+                    </label>
+
+                    <button class="button button--primary" type="submit">Create character</button>
+                  </form>
+
+                  <p id="create-message" class="message" role="status"></p>
+                </section>
+              </div>
+            </section>
+
+            <section id="stage-animate" class="stage-panel hidden" data-stage-panel="animate">
+              <div class="stage-heading">
+                <p class="eyebrow">Animate</p>
+                <h2>Choose the motion pack</h2>
+                <p class="muted">Pick the standard motions for this batch or branch into pose and custom action setup when the character needs it.</p>
+              </div>
+
+              <div class="animate-stage-layout">
+                <section class="panel panel--wide surface">
+                  <div class="animate-subtabs" id="animate-tabs">
+                    <button class="animate-subtab" type="button" data-animate-panel="select">Select motions</button>
+                    <button class="animate-subtab" type="button" data-animate-panel="pose">Create pose</button>
+                    <button class="animate-subtab" type="button" data-animate-panel="custom">Custom action</button>
+                  </div>
+
+                  <section id="animate-panel-select" class="animate-panel">
+                    <form id="generate-form" class="generate-layout">
+                      <div class="generate-main">
+                        <div class="section-title">
+                          <strong>Standard and custom motions</strong>
+                          <span class="muted">Pick up to five motions for the next render batch.</span>
+                        </div>
+
+                        <div id="action-list" class="action-list action-list--tiles"></div>
+                      </div>
+
+                      <aside class="generate-side">
+                        <div class="generate-summary-card">
+                          <p class="eyebrow">Render Batch</p>
+                          <h3 id="generate-summary-title">Nothing selected</h3>
+                          <p id="generate-summary-copy" class="muted">Choose one or more motions to unlock generation.</p>
+                        </div>
+
+                        <button id="generate-button" class="button button--primary" type="submit" disabled>
+                          Generate spritesheets
+                        </button>
+                        <p id="generate-message" class="message" role="status"></p>
+                      </aside>
+                    </form>
+                  </section>
+
+                  <section id="animate-panel-pose" class="animate-panel hidden">
+                    <div class="builder-two-up">
+                      <form id="pose-form" class="stack">
+                        <div class="section-title">
+                          <strong>Create pose</strong>
+                          <span class="muted">Upload a frame reference or describe a new pose.</span>
+                        </div>
+
+                        <label class="field">
+                          <span>Pose name</span>
+                          <input id="pose-name" name="name" type="text" maxlength="100" />
+                        </label>
+                        <label class="field">
+                          <span>Prompt</span>
+                          <textarea id="pose-prompt" name="prompt" rows="2" placeholder="example: right punch wind-up"></textarea>
+                        </label>
+                        <label class="field">
+                          <span>Pose image</span>
+                          <input id="pose-image" name="image" type="file" accept="image/png,image/jpeg,image/webp" />
+                        </label>
+                        <button id="pose-button" class="button button--primary" type="submit" disabled>Create pose</button>
+                        <p id="pose-message" class="message" role="status"></p>
+                      </form>
+
+                      <div class="entity-list-wrap">
+                        <p class="eyebrow">Pose library</p>
+                        <div id="pose-list" class="mini-list"></div>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section id="animate-panel-custom" class="animate-panel hidden">
+                    <div class="builder-two-up">
+                      <form id="custom-animation-form" class="stack">
+                        <div class="section-title">
+                          <strong>Save custom action</strong>
+                          <span class="muted">Use prompt guidance and first or last frame control when the preset pack is not enough.</span>
+                        </div>
+
+                        <label class="field">
+                          <span>Action name</span>
+                          <input id="custom-name" name="name" type="text" maxlength="100" required />
+                        </label>
+                        <label class="field">
+                          <span>Action prompt</span>
+                          <textarea id="custom-prompt" name="prompt" rows="2" required></textarea>
+                        </label>
+                        <label class="field">
+                          <span>Mode</span>
+                          <select id="custom-mode" name="mode">
+                            <option value="auto">Auto</option>
+                            <option value="first_frame_only">First frame only</option>
+                            <option value="first_and_last_frame">First and last frame</option>
+                          </select>
+                        </label>
+                        <label class="toggle">
+                          <input id="custom-loop" name="loop" type="checkbox" />
+                          <span>Loop</span>
+                        </label>
+                        <label class="field">
+                          <span>First frame pose</span>
+                          <select id="custom-first-pose" name="poseId"></select>
+                        </label>
+                        <label class="field">
+                          <span>Last frame pose</span>
+                          <select id="custom-last-pose" name="lastFramePoseId"></select>
+                        </label>
+                        <button id="custom-button" class="button button--primary" type="submit" disabled>Save custom action</button>
+                        <p id="custom-message" class="message" role="status"></p>
+                      </form>
+
+                      <div class="entity-list-wrap">
+                        <p class="eyebrow">Custom action library</p>
+                        <div id="custom-animation-list" class="mini-list"></div>
+                      </div>
+                    </div>
+                  </section>
+                </section>
+
+                <aside class="stage-side-column">
+                  <section class="panel panel--wide surface">
+                    <div class="panel__header">
+                      <p class="eyebrow">Queue</p>
+                      <h2>Current jobs</h2>
+                    </div>
+                    <div id="job-list" class="job-list"></div>
+                  </section>
+                </aside>
+              </div>
+            </section>
+
+            <section id="stage-preview" class="stage-panel hidden" data-stage-panel="preview">
+              <div class="stage-heading">
+                <p class="eyebrow">Preview</p>
+                <h2>Inspect the generated motion</h2>
+                <p class="muted">Watch the sheet as an animation, tighten the loop range, and confirm the timing before export.</p>
+              </div>
+
+              <div class="preview-stage-layout">
+                <aside class="panel panel--wide surface preview-sidebar">
+                  <div class="panel__header">
+                    <p class="eyebrow">Generated Motions</p>
+                    <h2>Pick a result</h2>
+                  </div>
+                  <div id="preview-result-list" class="preview-result-list"></div>
+
+                  <div class="panel__header preview-sidebar__divider">
+                    <p class="eyebrow">Queue</p>
+                    <h2>Generation state</h2>
+                  </div>
+                  <div id="preview-job-list" class="job-list"></div>
+                </aside>
+
+                <section class="panel panel--wide surface preview-workspace">
+                  <div class="preview-workspace__top">
+                    <div id="preview-meta" class="preview-meta">
+                      <p class="muted">No generated result yet.</p>
+                    </div>
+
+                    <button id="preview-to-exports" class="btn btn-secondary" type="button">
+                      Open spritesheets
+                    </button>
+                  </div>
+
+                  <div class="preview-player-shell">
+                    <canvas id="preview-canvas" width="256" height="256"></canvas>
+                  </div>
+
+                  <div class="preview-controls">
+                    <label class="field">
+                      <span>Loop start</span>
+                      <input id="preview-range-start" type="range" min="0" max="0" value="0" />
+                    </label>
+                    <label class="field">
+                      <span>Loop end</span>
+                      <input id="preview-range-end" type="range" min="0" max="0" value="0" />
+                    </label>
+                    <label class="field">
+                      <span>FPS</span>
+                      <input id="preview-fps" type="range" min="4" max="24" value="12" />
+                    </label>
+                  </div>
+
+                  <div class="preview-readout">
+                    <article class="preview-readout__card">
+                      <span>Loop</span>
+                      <strong id="preview-loop-readout">Frames 0 to 0</strong>
+                    </article>
+                    <article class="preview-readout__card">
+                      <span>Speed</span>
+                      <strong id="preview-fps-readout">12 FPS</strong>
+                    </article>
+                  </div>
+                </section>
+              </div>
+            </section>
+
+            <section id="stage-spritesheets" class="stage-panel hidden" data-stage-panel="spritesheets">
+              <div class="stage-heading">
+                <p class="eyebrow">Spritesheets</p>
+                <h2>Download your export set</h2>
+                <p class="muted">Take the final PNG and atlas files out of the workspace or jump back into preview for one more pass.</p>
+              </div>
+
+              <div class="exports-stage-layout">
+                <section class="panel panel--wide surface">
+                  <div class="panel__header">
+                    <p class="eyebrow">Exports</p>
+                    <h2>Generated results</h2>
+                  </div>
+                  <div id="spritesheet-list" class="spritesheet-list"></div>
+                </section>
+
+                <aside class="panel panel--wide surface">
+                  <div class="panel__header">
+                    <p class="eyebrow">Recent Jobs</p>
+                    <h2>Run history</h2>
+                  </div>
+                  <div id="exports-job-list" class="job-list"></div>
+                </aside>
+              </div>
+            </section>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>
