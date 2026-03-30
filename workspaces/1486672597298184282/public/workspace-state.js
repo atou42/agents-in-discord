@@ -97,6 +97,27 @@
     };
   }
 
+  function getCharacterStageSubtitle({ characterDescription = null, workspaceSummary = null } = {}) {
+    if (characterDescription) {
+      return characterDescription;
+    }
+
+    const summary = workspaceSummary || deriveWorkspaceSummary();
+    if (summary.completedSpritesheetCount > 0) {
+      return "Base art is loaded. Check the source character, then jump into Animate, Preview, or Exports.";
+    }
+
+    if (summary.activeJobCount > 0) {
+      return "Base art is loaded. Check the source character, then jump into Animate while the first motion is still rendering.";
+    }
+
+    if (summary.failedJobCount > 0) {
+      return "Base art is loaded. Check the source character, then return to Animate to retry the failed motion.";
+    }
+
+    return "Base art is loaded. Check the source character, then jump into Animate to generate the first motion.";
+  }
+
   function getCharacterCardState({
     workspaceSummary = null,
     isSelected = false,
@@ -270,6 +291,7 @@
     deriveWorkspaceSummary,
     isStageAccessible,
     getPreviewStageCopy,
+    getCharacterStageSubtitle,
     getCharacterCardState,
     getCurrentResultState,
     getJobMotionKey,

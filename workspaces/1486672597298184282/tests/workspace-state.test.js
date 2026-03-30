@@ -2,6 +2,7 @@ const {
   deriveWorkspaceSummary,
   isStageAccessible,
   getPreviewStageCopy,
+  getCharacterStageSubtitle,
   getCharacterCardState,
   getCurrentResultState,
   getAnimateMotionState,
@@ -69,6 +70,17 @@ describe("workspace state derivations", () => {
       badgeLabel: "ready",
       stateLabel: "Loaded",
     });
+  });
+
+  it("does not advertise locked Preview or Exports in the character-stage subtitle", () => {
+    const emptySummary = deriveWorkspaceSummary({
+      jobs: [],
+      spritesheets: [],
+    });
+
+    expect(getCharacterStageSubtitle({ workspaceSummary: emptySummary })).toBe(
+      "Base art is loaded. Check the source character, then jump into Animate to generate the first motion.",
+    );
   });
 
   it("surfaces a failed current-result state instead of collapsing it into no result", () => {

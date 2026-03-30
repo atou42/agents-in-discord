@@ -37,6 +37,7 @@ const {
   deriveWorkspaceSummary,
   isStageAccessible: deriveStageAccessibility,
   getPreviewStageCopy,
+  getCharacterStageSubtitle,
   getCharacterCardState,
   getCurrentResultState,
   getAnimateMotionState,
@@ -1153,7 +1154,10 @@ function getStageSubtitle() {
   }
 
   if (state.currentStage === "character") {
-    return state.selectedCharacter.characterDescription || "Base art is loaded. Check the source character, then jump into Animate, Preview, or Exports.";
+    return getCharacterStageSubtitle({
+      characterDescription: state.selectedCharacter.characterDescription,
+      workspaceSummary,
+    });
   }
 
   if (state.currentStage === "animate") {

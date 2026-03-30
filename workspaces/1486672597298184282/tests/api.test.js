@@ -164,6 +164,8 @@ async function createMockNetaServer({
   serveCharacterArtifact = true,
   servePoseArtifact = true,
   serveVideoArtifact = true,
+  videoArtifactFailuresBeforeSuccess = 0,
+  taskResultOverrides = {},
 }) {
   const app = express();
   app.use(express.json());
@@ -199,6 +201,12 @@ async function createMockNetaServer({
 
   app.get("/v1/artifact/task/:taskId", (request, response) => {
     const origin = `${request.protocol}://${request.get("host")}`;
+    const override = taskResultOverrides[request.params.taskId];
+    if (override) {
+      response.json(override);
+      return;
+    }
+
     if (request.params.taskId === "task_make_image") {
       response.json({
         task_status: "SUCCESS",
@@ -258,7 +266,17 @@ async function createMockNetaServer({
   }
 
   if (serveVideoArtifact) {
+    let remainingVideoArtifactFailures = videoArtifactFailuresBeforeSuccess;
     app.get("/artifacts/generated-video.mp4", (_request, response) => {
+      if (remainingVideoArtifactFailures > 0) {
+        remainingVideoArtifactFailures -= 1;
+        response.status(404).json({
+          error: {
+            message: "Missing video artifact",
+          },
+        });
+        return;
+      }
       response.type("mp4").sendFile(videoPath);
     });
   }
@@ -787,6 +805,24 @@ describe("AutoSprite Phase 2 API", () => {
     expect(walkAtlas.meta.frameCount).toBe(8);
   }, 15000);
 
+  it("surfaces export build failures when a selected spritesheet asset is missing", async () => {
+    const { client, baseDir } = await makeLocalApp();
+    const character = await createCharacter(client, "BrokenBundle");
+
+    const generation = await client
+      .post(`/api/characters/${character.id}/spritesheets`)
+      .send({ actions: ["walk"], frameCount: 8 })
+      .expect(202);
+
+    const job = await waitForJob(client, generation.body.workflows[0].jobId);
+    const atlasPath = path.join(baseDir, "runtime", "storage", "atlases", `${job.resultIds[0]}.json`);
+    await fs.rm(atlasPath);
+
+    const response = await client.get(`/api/characters/${character.id}/export-package`).expect(500);
+    expect(response.body.error.code).toBe("EXPORT_BUILD_FAILED");
+    expect(response.body.error.message).toContain("ENOENT");
+  }, 15000);
+
   it("redos a spritesheet into a new version and auto-selects the latest version for that action", async () => {
     const { client } = await makeLocalApp();
     const character = await createCharacter(client, "Redo Hero");
@@ -1072,6 +1108,93 @@ describe("AutoSprite Phase 2 API", () => {
     expect(list.body.spritesheets).toHaveLength(0);
   });
 
+  it("keeps the queue moving after a failed job frees the only worker slot", async () => {
+    const baseDir = await fs.mkdtemp(path.join(os.tmpdir(), "autosprite-phase2-neta-queue-fail-"));
+    tempDirectories.push(baseDir);
+    const characterImageBuffer = await makeCharacterImage();
+    const poseImageBuffer = await makeSolidColorImage(160, 224, { r: 180, g: 80, b: 220, alpha: 1 });
+    const { videoPath } = await makeMockVideo(baseDir);
+    const mockNeta = await createMockNetaServer({
+      characterImageBuffer,
+      poseImageBuffer,
+      videoPath,
+      videoArtifactFailuresBeforeSuccess: 1,
+    });
+
+    const { client } = await makeNetaApp({
+      netaApiBaseUrl: mockNeta.apiBaseUrl,
+      maxConcurrentJobs: 1,
+      jobStepDelayMs: 180,
+    });
+
+    const character = await createCharacter(client, "QueueFailureRecovery");
+    const generation = await client
+      .post(`/api/characters/${character.id}/spritesheets`)
+      .set("x-neta-token", "test-token")
+      .send({ actions: ["idle", "walk"], frameCount: 8 })
+      .expect(202);
+
+    const [firstJobId, secondJobId] = generation.body.workflows.map((workflow) => workflow.jobId);
+    const [firstJob, secondJob] = await waitForStatuses(
+      client,
+      [firstJobId, secondJobId],
+      ([left, right]) => left.status === "running" && right.status === "queued",
+      3000,
+    );
+
+    expect(firstJob.steps[0].status).toBe("running");
+    expect(secondJob.steps[0].status).toBe("queued");
+
+    const completedFirstJob = await waitForJob(client, firstJobId);
+    const completedSecondJob = await waitForJob(client, secondJobId);
+
+    expect(completedFirstJob.status).toBe("failed");
+    expect(completedFirstJob.error).toContain("Failed to download remote media: 404.");
+    expect(completedSecondJob.status).toBe("succeeded");
+
+    const list = await client.get(`/api/characters/${character.id}/spritesheets`).expect(200);
+    expect(list.body.spritesheets).toHaveLength(1);
+    expect(mockNeta.calls.makeVideo).toHaveLength(2);
+  }, 15000);
+
+  it("fails the job when Neta reports an upstream task failure", async () => {
+    const baseDir = await fs.mkdtemp(path.join(os.tmpdir(), "autosprite-phase2-neta-task-fail-"));
+    tempDirectories.push(baseDir);
+    const characterImageBuffer = await makeCharacterImage();
+    const poseImageBuffer = await makeSolidColorImage(160, 224, { r: 180, g: 80, b: 220, alpha: 1 });
+    const { videoPath } = await makeMockVideo(baseDir);
+    const mockNeta = await createMockNetaServer({
+      characterImageBuffer,
+      poseImageBuffer,
+      videoPath,
+      taskResultOverrides: {
+        task_make_video: {
+          task_status: "FAILURE",
+          err_msg: "Upstream video render failed.",
+          artifacts: [],
+        },
+      },
+    });
+
+    const { client } = await makeNetaApp({
+      netaApiBaseUrl: mockNeta.apiBaseUrl,
+    });
+
+    const character = await createCharacter(client, "FailedRemoteRunner");
+    const generation = await client
+      .post(`/api/characters/${character.id}/spritesheets`)
+      .set("x-neta-token", "test-token")
+      .send({ actions: ["walk"] })
+      .expect(202);
+
+    const job = await waitForJob(client, generation.body.workflows[0].jobId);
+    expect(job.status).toBe("failed");
+    expect(job.error).toContain("Upstream video render failed.");
+
+    const list = await client.get(`/api/characters/${character.id}/spritesheets`).expect(200);
+    expect(list.body.spritesheets).toHaveLength(0);
+  });
+
   it("creates an original pose together with each character", async () => {
     const { client } = await makeLocalApp();
     const character = await createCharacter(client, "PoseSeed");
@@ -1166,6 +1289,61 @@ describe("AutoSprite Phase 2 API", () => {
       .expect(400);
 
     expect(missingLastPose.body.error.code).toBe("MISSING_LAST_FRAME_POSE");
+  });
+
+  it("rejects duplicate character names and invalid render styles before creating records", async () => {
+    const { client } = await makeLocalApp();
+    await createCharacter(client, "Repeat Hero");
+
+    const duplicateNameImage = await makeCharacterImage();
+    const duplicateName = await client
+      .post("/api/characters")
+      .field("name", "Repeat Hero")
+      .attach("image", duplicateNameImage, "repeat-hero.png")
+      .expect(409);
+
+    expect(duplicateName.body.error.code).toBe("DUPLICATE_CHARACTER");
+
+    const invalidRenderStyleImage = await makeCharacterImage();
+    const invalidRenderStyle = await client
+      .post("/api/characters")
+      .field("name", "Styled Hero")
+      .field("renderStyle", "oil-painting")
+      .attach("image", invalidRenderStyleImage, "styled-hero.png")
+      .expect(400);
+
+    expect(invalidRenderStyle.body.error.code).toBe("INVALID_RENDER_STYLE");
+
+    const list = await client.get("/api/characters").expect(200);
+    expect(list.body.characters.map((character) => character.name)).toEqual(["Repeat Hero"]);
+  });
+
+  it("rejects duplicate custom animation names for the same character", async () => {
+    const { client } = await makeLocalApp();
+    const character = await createCharacter(client, "DuplicateAnimator");
+    const [originalPose] = await listPoses(client, character.id);
+
+    await client
+      .post(`/api/characters/${character.id}/custom-animations`)
+      .send({
+        name: "Arc Burst",
+        prompt: "cast a bright energy arc",
+        mode: "first_frame_only",
+        poseId: originalPose.id,
+      })
+      .expect(201);
+
+    const duplicate = await client
+      .post(`/api/characters/${character.id}/custom-animations`)
+      .send({
+        name: "Arc Burst",
+        prompt: "cast another bright energy arc",
+        mode: "first_frame_only",
+        poseId: originalPose.id,
+      })
+      .expect(409);
+
+    expect(duplicate.body.error.code).toBe("DUPLICATE_CUSTOM_ANIMATION");
   });
 
   it("stores custom animation definitions with pose constraints", async () => {
