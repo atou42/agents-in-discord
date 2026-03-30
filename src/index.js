@@ -68,7 +68,7 @@ import {
   extractAgentMessageText,
   isFinalAnswerLikeAgentMessage,
 } from './codex-event-utils.js';
-import { ensureDir } from './session-store.js';
+import { ensureDir, normalizeChildThreadWorkspaceMode } from './session-store.js';
 import {
   normalizeQueueLimit,
   normalizeSecurityProfile,
@@ -208,6 +208,9 @@ const MAX_QUEUE_PER_CHANNEL_OVERRIDE = normalizeQueueLimit(process.env.MAX_QUEUE
 const ENABLE_CONFIG_CMD = String(process.env.ENABLE_CONFIG_CMD || 'false').toLowerCase() === 'true';
 const CONFIG_POLICY = parseConfigAllowlist(
   process.env.CONFIG_ALLOWLIST || 'personality,model_reasoning_effort,model_auto_compact_token_limit',
+);
+const CHILD_THREAD_WORKSPACE_MODE = normalizeChildThreadWorkspaceMode(
+  resolveProviderScopedEnv('CHILD_THREAD_WORKSPACE_MODE', BOT_PROVIDER, process.env),
 );
 
 const WORKSPACE_ROOT = process.env.WORKSPACE_ROOT || path.join(ROOT, 'workspaces');
@@ -350,6 +353,7 @@ const appContext = createAppContext({
   sessionStoreOptions: {
     dataFile: DATA_FILE,
     workspaceRoot: WORKSPACE_ROOT,
+    childThreadWorkspaceMode: CHILD_THREAD_WORKSPACE_MODE,
     botProvider: BOT_PROVIDER,
     defaults: {
       provider: DEFAULT_PROVIDER,
@@ -635,6 +639,7 @@ console.log([
   `• MENTION_ONLY=${MENTION_ONLY_OVERRIDE === null ? 'profile-default' : MENTION_ONLY_OVERRIDE}`,
   `• MENTION_ONLY_ENABLED_GUILD_IDS=${MENTION_ONLY_ENABLED_GUILD_IDS?.size ? [...MENTION_ONLY_ENABLED_GUILD_IDS].join(',') : '(none)'}`,
   `• MENTION_ONLY_DISABLED_GUILD_IDS=${MENTION_ONLY_DISABLED_GUILD_IDS?.size ? [...MENTION_ONLY_DISABLED_GUILD_IDS].join(',') : '(none)'}`,
+  `• CHILD_THREAD_WORKSPACE_MODE=${CHILD_THREAD_WORKSPACE_MODE}`,
   `• MAX_QUEUE_PER_CHANNEL=${MAX_QUEUE_PER_CHANNEL_OVERRIDE === null ? 'profile-default' : MAX_QUEUE_PER_CHANNEL_OVERRIDE}`,
   `• ENABLE_CONFIG_CMD=${ENABLE_CONFIG_CMD}`,
   `• CONFIG_ALLOWLIST=${appContext.core.securityPolicy.describeConfigPolicy()}`,

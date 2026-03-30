@@ -153,6 +153,7 @@ npm run start:gemini
   - 或者在只对自己可见的服务器里跑 `dangerous`，避免误操作影响团队
 - `DEFAULT_WORKSPACE_DIR`：所有 provider 共用的默认 workspace（可选）
 - `CODEX__DEFAULT_WORKSPACE_DIR` / `CLAUDE__DEFAULT_WORKSPACE_DIR` / `GEMINI__DEFAULT_WORKSPACE_DIR`：provider 级默认 workspace，会覆盖共享默认值
+- `CHILD_THREAD_WORKSPACE_MODE`：子线程的 workspace 继承策略；`inherit`（默认）表示继承父频道的显式 workspace，`separate` 表示子线程改用自己的 provider 默认目录或 `WORKSPACE_ROOT/<threadId>` 回退目录
 - `WORKSPACE_ROOT`：仅在未配置 thread 覆盖与 provider 默认目录时，作为 legacy 回退目录根路径
 - `CODEX_BIN`：codex 命令/路径（默认 `codex`）
 - `CLAUDE_BIN`：claude 命令/路径（默认 `claude`）
