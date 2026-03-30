@@ -97,6 +97,10 @@ function normalizeProgressText(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
 }
 
+function sanitizeDiscordDisplayText(value) {
+  return String(value || '').replace(/\|\|/g, '｜｜');
+}
+
 function parseProgressJsonMaybe(value) {
   const text = String(value || '').trim();
   if (!text) return null;
@@ -108,34 +112,101 @@ function parseProgressJsonMaybe(value) {
   }
 }
 
-function summarizeClaudeToolInput(input, truncateText, previewChars) {
+function formatClaudePathLabel(rawPath, truncateText, previewChars) {
+  const filePath = normalizeProgressText(rawPath);
+  if (!filePath) return '';
+  const normalized = filePath.replace(/\\/g, '/');
+  const leaf = normalized.split('/').filter(Boolean).pop() || normalized;
+  return truncateText(leaf, previewChars);
+}
+
+function summarizeClaudeShellIntent(command, truncateText, previewChars) {
+  const text = normalizeProgressText(command);
+  if (!text) return '';
+
+  if (/\b(which|command\s+-v|type\s+-p)\b/.test(text)) return 'Check available tools';
+  if (/\b(ls|find)\b/.test(text)) return 'Inspect project files';
+  if (/\b(rg|ripgrep|grep)\b/.test(text)) return 'Search project files';
+  if (/\b(cat|sed|head|tail|awk)\b/.test(text)) return 'Read file content';
+  if (/\bgit\s+(status|diff|log|show)\b/.test(text)) return 'Check repository state';
+  if (/\b(npm|pnpm|yarn)\s+(test|lint|build|typecheck)\b/.test(text)) return 'Run project checks';
+  if (/\b(python|python3|node)\b/.test(text) && (/\s-c\b/.test(text) || /<<\s*['"]?[A-Z_]+['"]?/.test(text))) {
+    return 'Run an analysis script';
+  }
+
+  return `Run shell command: ${truncateText(text, previewChars)}`;
+}
+
+function summarizeClaudeToolInput(input, truncateText, previewChars, toolName = '') {
   if (!input || typeof input !== 'object') return '';
+  const normalizedTool = normalizeProgressEventType(toolName);
+
+  const description = normalizeProgressText(input.description || input.reason || input.explanation || '');
+  if (description) return truncateText(description, previewChars);
+
+  if (normalizedTool === 'todowrite') {
+    const todoCount = Array.isArray(input.todos)
+      ? input.todos.length
+      : Array.isArray(input.newTodos)
+        ? input.newTodos.length
+        : 0;
+    return todoCount > 0 ? `Update plan (${todoCount} steps)` : 'Update plan';
+  }
+
+  const filePath = formatClaudePathLabel(input.file_path || input.path || '', truncateText, previewChars);
+  if (normalizedTool === 'read') return filePath ? `Read ${filePath}` : 'Read file';
+  if (normalizedTool === 'write') return filePath ? `Write ${filePath}` : 'Write file';
+  if (normalizedTool === 'edit' || normalizedTool === 'multiedit') return filePath ? `Edit ${filePath}` : 'Edit file';
+  if (normalizedTool === 'ls') return filePath ? `Inspect ${filePath}` : 'Inspect directory';
+  if (normalizedTool === 'glob') {
+    const pattern = normalizeProgressText(input.pattern || '');
+    return pattern ? `Scan files: ${truncateText(pattern, previewChars)}` : 'Scan files';
+  }
+  if (normalizedTool === 'grep') {
+    const pattern = normalizeProgressText(input.pattern || input.query || input.q || '');
+    return pattern ? `Search files: ${truncateText(pattern, previewChars)}` : 'Search files';
+  }
+  if (normalizedTool === 'websearch') {
+    const query = normalizeProgressText(input.query || input.q || '');
+    return query ? `Search web: ${truncateText(query, previewChars)}` : 'Search web';
+  }
+  if (normalizedTool === 'webfetch') {
+    const url = normalizeProgressText(input.url || '');
+    return url ? `Open page: ${truncateText(url, previewChars)}` : 'Open page';
+  }
 
   const command = normalizeProgressText(input.command || input.cmd || '');
-  if (command) return `run: ${truncateText(command, previewChars)}`;
+  if (command) return summarizeClaudeShellIntent(command, truncateText, previewChars);
 
   const query = normalizeProgressText(input.query || input.q || '');
-  if (query) return `search: ${truncateText(query, previewChars)}`;
+  if (query) return `Search: ${truncateText(query, previewChars)}`;
 
-  const filePath = normalizeProgressText(input.file_path || input.path || '');
-  if (filePath) return `file_path: ${truncateText(filePath, previewChars)}`;
+  if (filePath) return `File: ${filePath}`;
 
   const url = normalizeProgressText(input.url || '');
-  if (url) return `url: ${truncateText(url, previewChars)}`;
+  if (url) return `URL: ${truncateText(url, previewChars)}`;
 
   const pattern = normalizeProgressText(input.pattern || '');
-  if (pattern) return `find: ${truncateText(pattern, previewChars)}`;
-
-  const description = normalizeProgressText(input.description || '');
-  if (description) return truncateText(description, previewChars);
+  if (pattern) return `Find: ${truncateText(pattern, previewChars)}`;
 
   return '';
 }
 
 function formatClaudeToolUseLabel(block, truncateText, previewChars) {
   const toolName = normalizeProgressText(block?.name || 'tool') || 'tool';
-  const detail = summarizeClaudeToolInput(block?.input, truncateText, previewChars);
+  const normalizedTool = normalizeProgressEventType(toolName);
+  const detail = summarizeClaudeToolInput(block?.input, truncateText, previewChars, toolName);
+
+  if (normalizedTool === 'todowrite') return detail || 'Update plan';
+  if (['bash', 'read', 'write', 'edit', 'multiedit', 'ls', 'glob', 'grep', 'websearch', 'webfetch'].includes(normalizedTool)) {
+    return detail || toolName;
+  }
+
   return detail ? `${toolName}: ${detail}` : `tool ${toolName}`;
+}
+
+function shouldSurfaceClaudeToolActivity(block) {
+  return normalizeProgressEventType(block?.name || '') !== 'todowrite';
 }
 
 function createClaudeProgressTracker({ truncateText, previewChars }) {
@@ -188,7 +259,7 @@ function createClaudeProgressTracker({ truncateText, previewChars }) {
       if (block.kind === 'tool_use') {
         const label = formatClaudeToolUseLabel(block, truncateText, previewChars);
         summaryCandidates.push(label);
-        rawActivities.push(label);
+        if (shouldSurfaceClaudeToolActivity(block)) rawActivities.push(label);
         continue;
       }
 
@@ -218,6 +289,7 @@ function createClaudeProgressTracker({ truncateText, previewChars }) {
       if (!toolUseId) continue;
       const label = toolUseLabelsById.get(toolUseId);
       if (!label) continue;
+      if (label === 'Update plan' || /^Update plan \(\d+ steps\)$/.test(label)) return null;
       return {
         summaryStep: `${label} completed`,
         rawActivities: [],
@@ -405,6 +477,7 @@ export function createPromptProgressReporterFactory({
     renderProgressPlanLines = () => [],
     renderCompletedStepsLines = () => [],
     formatRuntimePhaseLabel = (phase) => String(phase || ''),
+    sanitizeProgressDisplayText = sanitizeDiscordDisplayText,
   } = presentation;
 
   return function createProgressReporter({
@@ -417,7 +490,9 @@ export function createPromptProgressReporterFactory({
   } = {}) {
     const lang = normalizeUiLanguage(language);
     const processLineLimit = Math.max(1, Math.min(5, Number(processLines || progressProcessLines)));
-    const seededLatestStep = String(initialLatestStep || '').trim() || getDefaultLatestStep(lang);
+    const seededLatestStep = sanitizeProgressDisplayText(
+      String(initialLatestStep || '').trim() || getDefaultLatestStep(lang),
+    );
 
     if (!progressUpdatesEnabled) {
       return createNoopProgressReporter({
@@ -491,7 +566,7 @@ export function createPromptProgressReporterFactory({
         effort ? `${lang === 'en' ? '• effort' : '• effort'}: ${effort}` : null,
         fastMode ? `${lang === 'en' ? '• fast mode' : '• fast mode'}: ${fastMode}` : null,
         `${lang === 'en' ? '• event count' : '• 事件数'}: ${events}`,
-        `${lang === 'en' ? '• latest activity' : '• 最新活动'}: ${latestStep}`,
+        `${lang === 'en' ? '• latest activity' : '• 最新活动'}: ${sanitizeProgressDisplayText(latestStep)}`,
         ...renderProcessContentLines(recentActivities, lang, processLineLimit),
         ...localizeProgressLines(renderProgressPlanLines(planState, progressPlanMaxLines), lang),
         ...localizeProgressLines(renderCompletedStepsLines(completedSteps, {
@@ -630,21 +705,28 @@ export function createPromptProgressReporterFactory({
           const step = extractCompletedStepFromEvent(event);
           return step ? [step] : [];
         })();
+      const safeSummaryStep = sanitizeProgressDisplayText(summaryStep);
+      const safeRawActivities = rawActivities
+        .map((item) => sanitizeProgressDisplayText(item))
+        .filter(Boolean);
+      const safeCompletedStepsFromEvent = completedStepsFromEvent
+        .map((item) => sanitizeProgressDisplayText(item))
+        .filter(Boolean);
       const dedupeKey = buildProgressEventDedupeKey({
-        summaryStep,
-        rawActivity: rawActivities.join(' || '),
-        completedStep: completedStepsFromEvent.join(' || '),
+        summaryStep: safeSummaryStep,
+        rawActivity: safeRawActivities.join(' || '),
+        completedStep: safeCompletedStepsFromEvent.join(' || '),
         planSummary: formatProgressPlanSummary(nextPlan),
       });
       if (isDuplicateProgressEvent(dedupeKey)) return;
 
       events += 1;
-      if (summaryStep && !summaryStep.startsWith('agent message')) {
-        latestStep = summaryStep;
+      if (safeSummaryStep && !safeSummaryStep.startsWith('agent message')) {
+        latestStep = safeSummaryStep;
       } else if (!latestStep) {
-        latestStep = summaryStep;
+        latestStep = safeSummaryStep;
       }
-      for (const rawActivity of rawActivities) {
+      for (const rawActivity of safeRawActivities) {
         if (!rawActivity) continue;
         enqueueActivity(rawActivity);
         if (recentActivities.length === 0) {
@@ -661,7 +743,7 @@ export function createPromptProgressReporterFactory({
           }
         }
       }
-      for (const completedStep of completedStepsFromEvent) {
+      for (const completedStep of safeCompletedStepsFromEvent) {
         if (completedStep) appendCompletedStep(completedSteps, completedStep);
       }
       syncActiveRun();
@@ -677,7 +759,9 @@ export function createPromptProgressReporterFactory({
       const sourceLabel = lang === 'en'
         ? source
         : (source === 'stderr' ? '标准错误' : '标准输出');
-      latestStep = `${sourceLabel}: ${truncate(String(line || '').replace(/\s+/g, ' ').trim(), progressTextPreviewChars)}`;
+      latestStep = sanitizeProgressDisplayText(
+        `${sourceLabel}: ${truncate(String(line || '').replace(/\s+/g, ' ').trim(), progressTextPreviewChars)}`,
+      );
       syncActiveRun();
       void emit(false);
     };

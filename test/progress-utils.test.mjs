@@ -122,6 +122,62 @@ test('extractPlanStateFromEvent reads nested plan from tool arguments', () => {
   assert.deepEqual(plan.steps.map((x) => x.step), ['Inspect parser', 'Write tests']);
 });
 
+test('extractPlanStateFromEvent reads Claude TodoWrite plans from assistant tool_use content', () => {
+  const ev = {
+    type: 'assistant',
+    session_id: 'claude-session-1',
+    message: {
+      role: 'assistant',
+      type: 'message',
+      content: [
+        {
+          type: 'tool_use',
+          id: 'call_todo_1',
+          name: 'TodoWrite',
+          input: {
+            todos: [
+              { activeForm: 'Working on A', content: 'A', status: 'pending' },
+              { activeForm: 'Working on B', content: 'B', status: 'in_progress' },
+              { activeForm: 'Working on C', content: 'C', status: 'completed' },
+            ],
+          },
+        },
+      ],
+    },
+  };
+
+  const plan = extractPlanStateFromEvent(ev, { previewChars: 180 });
+  assert.ok(plan);
+  assert.equal(plan.total, 3);
+  assert.equal(plan.completed, 1);
+  assert.equal(plan.inProgress, 1);
+  assert.deepEqual(plan.steps.map((x) => x.step), ['A', 'B', 'C']);
+});
+
+test('extractPlanStateFromEvent reads Claude TodoWrite updates from tool_result newTodos', () => {
+  const ev = {
+    type: 'user',
+    session_id: 'claude-session-1',
+    tool_use_result: {
+      oldTodos: [
+        { content: 'A', status: 'pending', activeForm: 'Working on A' },
+        { content: 'B', status: 'pending', activeForm: 'Working on B' },
+      ],
+      newTodos: [
+        { content: 'A', status: 'completed', activeForm: 'Working on A' },
+        { content: 'B', status: 'in_progress', activeForm: 'Working on B' },
+      ],
+    },
+  };
+
+  const plan = extractPlanStateFromEvent(ev, { previewChars: 180 });
+  assert.ok(plan);
+  assert.equal(plan.total, 2);
+  assert.equal(plan.completed, 1);
+  assert.equal(plan.inProgress, 1);
+  assert.deepEqual(plan.steps.map((x) => x.step), ['A', 'B']);
+});
+
 test('appendCompletedStep de-duplicates and keeps newest items', () => {
   const list = ['step a', 'step b'];
   appendCompletedStep(list, 'step a', { doneStepsMax: 2, previewChars: 120 });

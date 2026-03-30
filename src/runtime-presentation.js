@@ -24,6 +24,10 @@ function truncateLine(value, max) {
   return `${text.slice(0, limit - 3)}...`;
 }
 
+function sanitizeProgressDisplayText(value) {
+  return String(value || '').replace(/\|\|/g, '｜｜');
+}
+
 export function createRuntimePresentation({
   showReasoning = false,
   progressTextPreviewChars = 140,
@@ -60,9 +64,9 @@ export function createRuntimePresentation({
   }
 
   function localizeProgressLine(line, language = 'en') {
-    if (language === 'en') return line;
+    if (language === 'en') return sanitizeProgressDisplayText(line);
     const text = String(line || '');
-    return text
+    return sanitizeProgressDisplayText(text
       .replace(/^• activity (\d+): /, '• 活动 $1：')
       .replace(/^• plan: received$/, '• 计划：已接收')
       .replace(/^• plan: (\d+)\/(\d+) completed(?:, (\d+) in progress)?$/, (_m, completed, total, inProgress) => (
@@ -71,7 +75,7 @@ export function createRuntimePresentation({
       .replace(/^• completed milestones: /, '• 已完成里程碑：')
       .replace(/^• completed steps: /, '• 已完成步骤：')
       .replace(/^  note: /, '  说明：')
-      .replace(/^  … \+(\d+) more$/, '  … 还有 $1 项');
+      .replace(/^  … \+(\d+) more$/, '  … 还有 $1 项'));
   }
 
   function localizeProgressLines(lines, language = 'en') {
@@ -85,7 +89,7 @@ export function createRuntimePresentation({
       ? activities
         .slice(-limit)
         .map((line) => truncateLine(
-          String(line || '').replace(/\s+/g, ' ').trim(),
+          sanitizeProgressDisplayText(String(line || '').replace(/\s+/g, ' ').trim()),
           Math.max(80, progressTextPreviewChars),
         ))
         .filter(Boolean)
@@ -182,14 +186,14 @@ export function createRuntimePresentation({
   }
 
   function appendCompletedStep(list, stepText) {
-    appendCompletedStepBase(list, stepText, {
+    appendCompletedStepBase(list, sanitizeProgressDisplayText(stepText), {
       previewChars: progressTextPreviewChars,
       doneStepsMax: progressDoneStepsMax,
     });
   }
 
   function appendRecentActivity(list, activityText) {
-    appendRecentActivityBase(list, activityText, {
+    appendRecentActivityBase(list, sanitizeProgressDisplayText(activityText), {
       previewChars: progressTextPreviewChars,
       maxSteps: 5,
       truncateText: false,
@@ -246,6 +250,7 @@ export function createRuntimePresentation({
     renderProcessContentLines,
     renderProgressPlanLines,
     renderRecentActivitiesLines,
+    sanitizeProgressDisplayText,
     summarizeCodexEvent,
   };
 }

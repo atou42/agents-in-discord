@@ -349,6 +349,29 @@ test('createPromptProgressReporterFactory derives Claude commentary and tool pro
 
   const finalCard = harness.edits[harness.edits.length - 1].content;
   assert.match(finalCard, /process: 我来查看当前目录。/);
-  assert.match(finalCard, /process: Bash: run: pwd/);
-  assert.match(finalCard, /done: Bash: run: pwd/);
+  assert.match(finalCard, /process: Show current working directory/);
+  assert.match(finalCard, /done: Show current working directory/);
+});
+
+test('createPromptProgressReporterFactory sanitizes Discord spoiler markers in surfaced progress text', async () => {
+  const harness = createHarness();
+
+  await harness.reporter.start();
+  harness.channelState.activeRun.phase = 'exec';
+
+  harness.reporter.onEvent({
+    summaryStep: 'Checking cache || fallback',
+    rawActivity: 'command || true',
+    completedStep: 'verified || done',
+  });
+
+  const runningCard = harness.edits[harness.edits.length - 1].content;
+  assert.doesNotMatch(runningCard, /\|\|/);
+  assert.match(runningCard, /Checking cache ｜｜ fallback/);
+
+  await harness.reporter.finish({ ok: true });
+  const finalCard = harness.edits[harness.edits.length - 1].content;
+  assert.doesNotMatch(finalCard, /\|\|/);
+  assert.match(finalCard, /command ｜｜ true/);
+  assert.match(finalCard, /verified ｜｜ done/);
 });

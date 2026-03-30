@@ -723,8 +723,19 @@ function normalizePlanEntries(raw, options = {}) {
   const out = [];
   for (const item of raw) {
     if (!item || typeof item !== 'object') continue;
+    const hasStatusLike = Object.prototype.hasOwnProperty.call(item, 'status')
+      || Object.prototype.hasOwnProperty.call(item, 'state')
+      || Object.prototype.hasOwnProperty.call(item, 'phase');
+    const explicitPlanText = item.step || item.title || item.task || '';
+    const todoLike = Object.prototype.hasOwnProperty.call(item, 'status')
+      && (Object.prototype.hasOwnProperty.call(item, 'content') || Object.prototype.hasOwnProperty.call(item, 'activeForm'));
     const step = normalizeWhitespace(
-      item.step || item.title || item.task || item.name || item.label || '',
+      explicitPlanText
+      || (hasStatusLike ? item.name : '')
+      || (hasStatusLike ? item.label : '')
+      || (todoLike ? item.content : '')
+      || (todoLike ? item.activeForm : '')
+      || '',
     );
     if (!step) continue;
     out.push({
@@ -755,7 +766,18 @@ function buildPlanStateFromUnknown(raw, options = {}, depth = 0) {
 
   if (typeof raw !== 'object') return null;
 
-  const direct = normalizePlanEntries(Array.isArray(raw.plan) ? raw.plan : raw.steps, options);
+  const directSource = Array.isArray(raw.plan)
+    ? raw.plan
+    : Array.isArray(raw.steps)
+      ? raw.steps
+      : Array.isArray(raw.todos)
+        ? raw.todos
+        : Array.isArray(raw.newTodos)
+          ? raw.newTodos
+          : Array.isArray(raw.oldTodos)
+            ? raw.oldTodos
+            : null;
+  const direct = normalizePlanEntries(directSource, options);
   if (direct.length) {
     return cloneProgressPlan({
       explanation: raw.explanation || raw.summary || raw.note || '',
@@ -782,11 +804,15 @@ export function extractPlanStateFromEvent(ev, options = {}) {
     ev.result,
     ev.output,
     ev.data,
+    ev.tool_use_result,
+    ev.toolUseResult,
     ev.payload,
     payload?.plan,
     payload?.result,
     payload?.output,
     payload?.input,
+    payload?.tool_use_result,
+    payload?.toolUseResult,
     payload?.call?.arguments,
     payload?.call?.args,
     payload?.content,
@@ -794,6 +820,8 @@ export function extractPlanStateFromEvent(ev, options = {}) {
     item?.result,
     item?.output,
     item?.input,
+    item?.tool_use_result,
+    item?.toolUseResult,
     item?.call?.arguments,
     item?.call?.args,
     item?.content,

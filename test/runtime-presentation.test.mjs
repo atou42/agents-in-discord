@@ -43,17 +43,18 @@ test('runtime presentation localizes and renders process/progress helper lines',
   const longLine = 'x'.repeat(120);
 
   assert.deepEqual(
-    presentation.localizeProgressLines(['• plan: received', '• completed steps: boot'], 'zh'),
-    ['• 计划：已接收', '• 已完成步骤：boot'],
+    presentation.localizeProgressLines(['• plan: received', '• completed steps: boot || done'], 'zh'),
+    ['• 计划：已接收', '• 已完成步骤：boot ｜｜ done'],
   );
   assert.deepEqual(
-    presentation.renderProcessContentLines(['step a', 'step b', 'step c'], 'en', 2),
-    ['• process content:', '  · step b', '  · step c'],
+    presentation.renderProcessContentLines(['step a', 'step b || c', 'step c'], 'en', 2),
+    ['• process content:', '  · step b ｜｜ c', '  · step c'],
   );
   assert.deepEqual(
     presentation.renderProcessContentLines([longLine], 'en', 1),
     ['• process content:', `  · ${'x'.repeat(77)}...`],
   );
+  assert.equal(presentation.sanitizeProgressDisplayText('check || fallback'), 'check ｜｜ fallback');
 });
 
 test('runtime presentation wraps progress list mutation with configured limits', () => {
