@@ -191,6 +191,7 @@ if (!DISCORD_TOKEN) {
 
 const ALLOWED_CHANNEL_IDS = parseCsvSet(resolveProviderScopedEnv('ALLOWED_CHANNEL_IDS', BOT_PROVIDER, process.env));
 const ALLOWED_USER_IDS = parseCsvSet(resolveProviderScopedEnv('ALLOWED_USER_IDS', BOT_PROVIDER, process.env));
+const MENTION_ONLY_CHANNEL_IDS = parseCsvSet(resolveProviderScopedEnv('MENTION_ONLY_CHANNEL_IDS', BOT_PROVIDER, process.env));
 const SECURITY_PROFILE = normalizeSecurityProfile(process.env.SECURITY_PROFILE || 'auto');
 const SECURITY_PROFILE_DEFAULTS = Object.freeze({
   solo: { mentionOnly: false, maxQueuePerChannel: 0 },
@@ -342,6 +343,7 @@ const appContext = createAppContext({
     mentionOnlyOverride: MENTION_ONLY_OVERRIDE,
     mentionOnlyEnabledGuildIds: MENTION_ONLY_ENABLED_GUILD_IDS,
     mentionOnlyDisabledGuildIds: MENTION_ONLY_DISABLED_GUILD_IDS,
+    mentionOnlyChannelIds: MENTION_ONLY_CHANNEL_IDS,
     maxQueuePerChannelOverride: MAX_QUEUE_PER_CHANNEL_OVERRIDE,
     enableConfigCmd: ENABLE_CONFIG_CMD,
     configPolicy: CONFIG_POLICY,
@@ -635,6 +637,7 @@ console.log([
   `• MENTION_ONLY=${MENTION_ONLY_OVERRIDE === null ? 'profile-default' : MENTION_ONLY_OVERRIDE}`,
   `• MENTION_ONLY_ENABLED_GUILD_IDS=${MENTION_ONLY_ENABLED_GUILD_IDS?.size ? [...MENTION_ONLY_ENABLED_GUILD_IDS].join(',') : '(none)'}`,
   `• MENTION_ONLY_DISABLED_GUILD_IDS=${MENTION_ONLY_DISABLED_GUILD_IDS?.size ? [...MENTION_ONLY_DISABLED_GUILD_IDS].join(',') : '(none)'}`,
+  `• MENTION_ONLY_CHANNEL_IDS=${MENTION_ONLY_CHANNEL_IDS?.size ? [...MENTION_ONLY_CHANNEL_IDS].join(',') : '(none)'}`,
   `• MAX_QUEUE_PER_CHANNEL=${MAX_QUEUE_PER_CHANNEL_OVERRIDE === null ? 'profile-default' : MAX_QUEUE_PER_CHANNEL_OVERRIDE}`,
   `• ENABLE_CONFIG_CMD=${ENABLE_CONFIG_CMD}`,
   `• CONFIG_ALLOWLIST=${appContext.core.securityPolicy.describeConfigPolicy()}`,

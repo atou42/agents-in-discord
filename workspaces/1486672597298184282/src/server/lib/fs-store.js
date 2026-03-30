@@ -14,6 +14,7 @@ async function ensureAppPaths(paths) {
     paths.videosDir,
     paths.sheetsDir,
     paths.atlasesDir,
+    paths.exportsDir,
     ...Object.values(paths.entityDirs),
   ];
 
@@ -71,8 +72,20 @@ async function writeJsonAtomic(filePath, value) {
 
 async function readJson(filePath) {
   await waitForPendingWrite(filePath);
-  const raw = await fs.readFile(filePath, "utf8");
-  return JSON.parse(raw);
+
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      const raw = await fs.readFile(filePath, "utf8");
+      return JSON.parse(raw);
+    } catch (error) {
+      if (error && error.code === "ENOENT" && attempt < 5) {
+        await waitForPendingWrite(filePath);
+        await new Promise((resolve) => setTimeout(resolve, 5 * (attempt + 1)));
+        continue;
+      }
+      throw error;
+    }
+  }
 }
 
 async function readJsonIfExists(filePath) {

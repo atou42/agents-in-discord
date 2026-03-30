@@ -11,9 +11,10 @@ import {
   parseOptionalBool,
 } from '../src/security-policy.js';
 
-function createGuildChannel({ canView = false } = {}) {
+function createGuildChannel({ canView = false, id = null } = {}) {
   const everyone = { id: 'everyone' };
   return {
+    id,
     guild: {
       roles: { everyone },
     },
@@ -112,6 +113,7 @@ test('security-policy supports per-guild mention-only overrides', () => {
     mentionOnlyOverride: false,
     mentionOnlyEnabledGuildIds: parseCsvSet('guild-force-mention'),
     mentionOnlyDisabledGuildIds: parseCsvSet('guild-no-mention'),
+    mentionOnlyChannelIds: new Set(['channel-1']),
     maxQueuePerChannelOverride: null,
     getEffectiveSecurityProfile: () => ({ profile: 'auto', source: 'env default' }),
     permissionFlagsBits: { ViewChannel: 'VIEW' },
@@ -140,10 +142,21 @@ test('security-policy supports per-guild mention-only overrides', () => {
     },
   }, {});
   const fallbackMention = policy.resolveSecurityContext(createGuildChannel({ canView: true }), {});
+  const channelSecurity = policy.resolveSecurityContext(createGuildChannel({ canView: false, id: 'channel-1' }), {});
+  const threadSecurity = policy.resolveSecurityContext({
+    id: 'thread-1',
+    parentId: 'channel-1',
+    isThread: () => true,
+    parent: createGuildChannel({ canView: false, id: 'channel-1' }),
+  }, {});
 
   assert.equal(forcedMention.mentionOnly, true);
   assert.equal(disabledMention.mentionOnly, false);
   assert.equal(fallbackMention.mentionOnly, false);
+  assert.equal(channelSecurity.profile, 'team');
+  assert.equal(channelSecurity.mentionOnly, true);
+  assert.equal(threadSecurity.profile, 'team');
+  assert.equal(threadSecurity.mentionOnly, true);
 });
 
 test('security-policy formats security profile display for localized output', () => {

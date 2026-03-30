@@ -58,6 +58,7 @@ export function createSecurityPolicy({
   mentionOnlyOverride = null,
   mentionOnlyEnabledGuildIds = null,
   mentionOnlyDisabledGuildIds = null,
+  mentionOnlyChannelIds = null,
   maxQueuePerChannelOverride = null,
   enableConfigCmd = false,
   configPolicy = { allowAll: false, keys: new Set() },
@@ -93,7 +94,18 @@ export function createSecurityPolicy({
     return normalized || null;
   }
 
+  function isMentionOnlyChannel(channel) {
+    if (!mentionOnlyChannelIds?.size || !channel) return false;
+
+    const channelId = String(channel.id || '').trim();
+    if (channelId && mentionOnlyChannelIds.has(channelId)) return true;
+
+    const parentId = String(channel.parentId || channel.parent?.id || '').trim();
+    return Boolean(parentId && mentionOnlyChannelIds.has(parentId));
+  }
+
   function resolveMentionOnly(defaults, channel) {
+    if (isMentionOnlyChannel(channel)) return true;
     const guildId = resolveGuildId(channel);
     if (guildId && mentionOnlyEnabledGuildIds?.has(guildId)) return true;
     if (guildId && mentionOnlyDisabledGuildIds?.has(guildId)) return false;
