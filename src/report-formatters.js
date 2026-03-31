@@ -621,13 +621,13 @@ export function createReportFormatters({
       return [
         changed ? '✅ Fast mode updated' : 'ℹ️ Fast mode',
         `• status: ${formatFastModeLabel(fastModeSetting.enabled, language)} (${formatSettingSourceLabel(fastModeSetting.source, language)})`,
-        '• note: this mirrors Codex `/fast` behavior by passing `features.fast_mode` in non-interactive runs when overridden per channel.',
+        '• note: when the effective setting is off, the bot explicitly passes `features.fast_mode=false`; channel and parent overrides are also passed through to mirror Codex `/fast`.',
       ].join('\n');
     }
     return [
       changed ? '✅ Fast mode 已更新' : 'ℹ️ 当前 Fast mode',
       `• 状态：${formatFastModeLabel(fastModeSetting.enabled, language)}（${formatSettingSourceLabel(fastModeSetting.source, language)}）`,
-      '• 说明：频道覆盖时，bot 会在非交互 `codex exec` 中透传 `features.fast_mode`，对齐 Codex 里的 `/fast` 行为。',
+      '• 说明：只要当前生效值是关闭，bot 就会在非交互 `codex exec` 中显式透传 `features.fast_mode=false`；频道和父频道覆盖也会继续透传，对齐 Codex 里的 `/fast` 行为。',
     ].join('\n');
   }
 

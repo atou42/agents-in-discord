@@ -196,6 +196,44 @@ test('createRunnerArgsBuilder uses inherited model and effort settings', () => {
     'gpt-5.4',
     '-c',
     'model_reasoning_effort="high"',
+    '-c',
+    'features.fast_mode=false',
+    'inspect',
+  ]);
+});
+
+test('createRunnerArgsBuilder explicitly disables fast mode when config.toml resolves to off', () => {
+  const { buildSessionRunnerArgs } = createRunnerArgsBuilder({
+    defaultModel: 'gpt-5-codex',
+    normalizeProvider: (value) => value,
+    getSessionId: () => null,
+    resolveFastModeSetting: () => ({ enabled: false, source: 'config.toml' }),
+    resolveCompactStrategySetting: () => ({ strategy: 'hard' }),
+    resolveCompactEnabledSetting: () => ({ enabled: false }),
+    resolveNativeCompactTokenLimitSetting: () => ({ tokens: 0 }),
+  });
+
+  const args = buildSessionRunnerArgs({
+    provider: 'codex',
+    session: {
+      mode: 'safe',
+      configOverrides: [],
+    },
+    workspaceDir: '/tmp/workspace',
+    prompt: 'inspect',
+  });
+
+  assert.deepEqual(args, [
+    'exec',
+    '--json',
+    '--skip-git-repo-check',
+    '--full-auto',
+    '-C',
+    '/tmp/workspace',
+    '-m',
+    'gpt-5-codex',
+    '-c',
+    'features.fast_mode=false',
     'inspect',
   ]);
 });

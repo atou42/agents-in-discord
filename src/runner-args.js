@@ -62,11 +62,14 @@ export function createRunnerArgsBuilder({
     const compactSetting = resolveCompactStrategySetting(session);
     const compactEnabled = resolveCompactEnabledSetting(session);
     const nativeLimit = resolveNativeCompactTokenLimitSetting(session);
+    const shouldPassFastMode = fastMode.source === 'session override'
+      || fastMode.source === 'parent channel'
+      || fastMode.enabled === false;
 
     const common = [];
     if (model) common.push('-m', model);
     if (effort) common.push('-c', `model_reasoning_effort="${effort}"`);
-    if (fastMode.source === 'session override' || fastMode.source === 'parent channel') {
+    if (shouldPassFastMode) {
       common.push('-c', `features.fast_mode=${fastMode.enabled ? 'true' : 'false'}`);
     }
     if (compactSetting.strategy === 'native' && compactEnabled.enabled) {
