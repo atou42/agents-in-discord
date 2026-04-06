@@ -105,7 +105,6 @@ export function createDiscordLifecycle({
     if (selfHealInFlight) return;
 
     selfHealInFlight = true;
-    cancelAllChannelWork(`self_heal:${reason}`);
 
     try {
       if (client) {

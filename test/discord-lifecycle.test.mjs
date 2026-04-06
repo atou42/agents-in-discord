@@ -92,7 +92,7 @@ test('createDiscordLifecycle scheduleSelfHeal ignores invalid token errors', () 
   assert.equal(timerCount, 0);
 });
 
-test('createDiscordLifecycle scheduleSelfHeal restarts the client and cancels channel work', async () => {
+test('createDiscordLifecycle scheduleSelfHeal restarts the client without cancelling channel work', async () => {
   const clients = [];
   const binds = [];
   const cancellations = [];
@@ -143,7 +143,7 @@ test('createDiscordLifecycle scheduleSelfHeal restarts the client and cancels ch
   scheduled.fn();
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  assert.deepEqual(cancellations, ['self_heal:disconnect']);
+  assert.deepEqual(cancellations, []);
   assert.equal(clients.length, 2);
   assert.equal(clients[0].removeAllListenersCalled, 1);
   assert.equal(clients[0].destroyCalled, 1);
