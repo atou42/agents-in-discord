@@ -153,6 +153,7 @@ Important knobs:
   - run the bot in a private guild where you trust all members
 - `DEFAULT_WORKSPACE_DIR`: optional shared default workspace for all providers
 - `CODEX__DEFAULT_WORKSPACE_DIR` / `CLAUDE__DEFAULT_WORKSPACE_DIR` / `GEMINI__DEFAULT_WORKSPACE_DIR`: provider-specific default workspaces that override the shared default
+- `CHILD_THREAD_WORKSPACE_MODE`: child thread workspace strategy; `inherit` reuses the parent channel's explicit workspace, while `separate` makes each child thread use its own provider default or `WORKSPACE_ROOT/<threadId>` fallback
 - `WORKSPACE_ROOT`: legacy fallback root used only when neither thread override nor provider default is configured
 - `CODEX_BIN`: codex command/path (default `codex`)
 - `CLAUDE_BIN`: claude command/path (default `claude`)

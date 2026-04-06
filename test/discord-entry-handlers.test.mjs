@@ -19,6 +19,7 @@ function createHarness(overrides = {}) {
     logs: [],
     routeSlashCommand: [],
     retries: [],
+    workspaceBusy: 0,
     workspaceBrowser: 0,
     onboarding: 0,
     settingsPanel: 0,
@@ -65,10 +66,14 @@ function createHarness(overrides = {}) {
       buildPromptFromMessage: (text) => text,
     },
     parseCommandActionButtonId: () => null,
+    isWorkspaceBusyComponentId: () => false,
     isWorkspaceBrowserComponentId: () => false,
     isOnboardingButtonId: () => false,
     isSettingsPanelComponentId: () => false,
     isSettingsPanelModalId: () => false,
+    handleWorkspaceBusyInteraction: async () => {
+      calls.workspaceBusy = (calls.workspaceBusy || 0) + 1;
+    },
     handleWorkspaceBrowserInteraction: async () => {
       calls.workspaceBrowser += 1;
     },
@@ -148,6 +153,26 @@ test('handleInteractionCreate routes settings panel component interactions', asy
   assert.equal(calls.settingsPanel, 1);
   assert.equal(calls.workspaceBrowser, 0);
   assert.equal(calls.onboarding, 0);
+});
+
+test('handleInteractionCreate routes workspace busy action buttons', async () => {
+  const { handlers, calls } = createHarness({
+    isWorkspaceBusyComponentId: () => true,
+  });
+  const interaction = {
+    customId: 'wbusy:isolate:12345',
+    user: { id: '12345' },
+    isButton: () => true,
+    isStringSelectMenu: () => false,
+    isModalSubmit: () => false,
+    isChatInputCommand: () => false,
+    async reply() {},
+  };
+
+  await handlers.handleInteractionCreate(interaction);
+
+  assert.equal(calls.workspaceBusy, 1);
+  assert.equal(calls.workspaceBrowser, 0);
 });
 
 test('handleInteractionCreate routes settings panel modal submits', async () => {

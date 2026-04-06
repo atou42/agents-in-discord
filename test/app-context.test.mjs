@@ -62,14 +62,17 @@ test('createAppContext wires factories and cross-links composition dependencies'
   };
   const commandSurface = {
     formatWorkspaceBusyReport: () => 'busy',
+    buildWorkspaceBusyPayload: () => ({ content: 'busy', components: [] }),
     handleCommand: () => 'handled',
     handleOnboardingButtonInteraction: () => 'onboarded',
+    handleWorkspaceBusyInteraction: () => 'workspace-busy',
     handleSettingsPanelInteraction: () => 'settings',
     handleSettingsPanelModalSubmit: () => 'settings-modal',
     handleWorkspaceBrowserInteraction: () => 'browsed',
     isOnboardingButtonId: () => false,
     isSettingsPanelComponentId: () => false,
     isSettingsPanelModalId: () => false,
+    isWorkspaceBusyComponentId: () => false,
     isWorkspaceBrowserComponentId: () => false,
     normalizeSlashCommandName: (name) => name,
     routeSlashCommand: () => 'routed',
@@ -99,6 +102,8 @@ test('createAppContext wires factories and cross-links composition dependencies'
     commandActionsOptions: {
       resolveProviderDefaultWorkspace: () => ({ workspaceDir: '/repo/default' }),
       setProviderDefaultWorkspace: () => {},
+      resolveChildThreadWorkspaceMode: () => ({ mode: 'inherit' }),
+      setChildThreadWorkspaceMode: () => ({ mode: 'separate' }),
       getProviderShortName: () => 'Codex',
       listRecentSessions: () => [],
       humanAge: () => '1s',
@@ -147,6 +152,8 @@ test('createAppContext wires factories and cross-links composition dependencies'
       reportOptions: {},
       workspaceBrowserOptions: {
         resolveProviderDefaultWorkspace: () => ({ workspaceDir: '/repo/default' }),
+        resolveChildThreadWorkspaceMode: () => ({ mode: 'inherit', source: 'default' }),
+        setChildThreadWorkspaceMode: () => ({ mode: 'separate', source: 'provider-scoped env' }),
       },
       slashRouterOptions: {},
       textCommandOptions: {},
@@ -242,6 +249,8 @@ test('createAppContext wires factories and cross-links composition dependencies'
   assert.equal(calls.promptRuntime.promptOrchestratorOptions.slashRef('status'), '/bot_status');
   assert.equal(calls.commandSurface.reportOptions.getRuntimeSnapshot, promptRuntime.getRuntimeSnapshot);
   assert.equal(calls.commandSurface.workspaceBrowserOptions.commandActions, commandActions);
+  assert.equal(typeof calls.commandSurface.workspaceBrowserOptions.resolveChildThreadWorkspaceMode, 'function');
+  assert.equal(typeof calls.commandSurface.workspaceBrowserOptions.setChildThreadWorkspaceMode, 'function');
   assert.equal(calls.commandSurface.slashRouterOptions.cancelChannelWork, promptRuntime.cancelChannelWork);
   assert.equal(calls.commandSurface.slashRouterOptions.retryLastPrompt, promptRuntime.retryLastPrompt);
   assert.equal(calls.commandSurface.textCommandOptions.cancelChannelWork, promptRuntime.cancelChannelWork);

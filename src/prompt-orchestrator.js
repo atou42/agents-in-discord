@@ -9,6 +9,7 @@ export function createPromptOrchestrator({
   showReasoning = false,
   resultChunkChars = 1900,
   safeReply,
+  safeChannelSend = async (message, payload) => message.channel.send(payload),
   withDiscordNetworkRetry,
   splitForDiscord,
   getSession,
@@ -31,6 +32,9 @@ export function createPromptOrchestrator({
   resolveCompactEnabledSetting,
   resolveCompactThresholdSetting,
   formatWorkspaceBusyReport,
+  buildWorkspaceBusyPayload = ({ session, workspaceDir, owner }) => ({
+    content: formatWorkspaceBusyReport(session, workspaceDir, owner),
+  }),
   formatTimeoutLabel,
   setActiveRun,
   acquireWorkspace,
@@ -278,7 +282,13 @@ export function createPromptOrchestrator({
                 ? `Workspace busy: ${workspaceDir}`
                 : `workspace 正忙：${workspaceDir}`,
             );
-            return safeReply(message, formatWorkspaceBusyReport(session, workspaceDir, owner)).catch(() => {});
+            return safeReply(message, buildWorkspaceBusyPayload({
+              key,
+              session,
+              userId: message?.author?.id || null,
+              workspaceDir,
+              owner,
+            })).catch(() => {});
           },
         },
       );
@@ -514,10 +524,7 @@ export function createPromptOrchestrator({
 
       await safeReply(message, parts[0]);
       for (let i = 1; i < parts.length; i += 1) {
-        await withDiscordNetworkRetry(
-          () => message.channel.send(parts[i]),
-          { logger: console, label: 'channel.send (result part)' },
-        );
+        await safeChannelSend(message, parts[i]);
       }
 
       progressOutcome = { ok: true, cancelled: false, timedOut: false, error: '' };

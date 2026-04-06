@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { createSessionStore } from '../src/session-store.js';
+import { createSessionStore, normalizeChildThreadWorkspaceMode } from '../src/session-store.js';
 
 function normalizeProvider(value) {
   const raw = String(value || '').trim().toLowerCase();
@@ -199,6 +199,101 @@ test('createSessionStore lets a thread inherit the parent channel workspace bind
   assert.equal(binding.workspaceDir, parentWorkspaceDir);
   assert.equal(binding.source, 'parent channel');
   assert.equal(binding.parentChannelId, 'channel-1');
+});
+
+test('normalizeChildThreadWorkspaceMode defaults invalid values to inherit', () => {
+  assert.equal(normalizeChildThreadWorkspaceMode('inherit'), 'inherit');
+  assert.equal(normalizeChildThreadWorkspaceMode('separate'), 'separate');
+  assert.equal(normalizeChildThreadWorkspaceMode('unknown'), 'inherit');
+});
+
+test('createSessionStore can keep child threads on separate fallback workspaces', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-cli-discord-session-store-'));
+  const dataFile = path.join(root, 'sessions.json');
+  const workspaceRoot = path.join(root, 'workspaces');
+  const parentWorkspaceDir = path.join(root, 'parent-workspace');
+  fs.mkdirSync(parentWorkspaceDir, { recursive: true });
+
+  const store = createSessionStore({
+    dataFile,
+    workspaceRoot,
+    childThreadWorkspaceMode: 'separate',
+    defaults: {
+      provider: 'codex',
+      mode: 'safe',
+      language: 'zh',
+      onboardingEnabled: true,
+    },
+    getSessionId: (session) => String(session?.runnerSessionId || session?.codexThreadId || '').trim() || null,
+    normalizeProvider,
+    normalizeUiLanguage,
+    normalizeSessionSecurityProfile,
+    normalizeSessionTimeoutMs,
+    normalizeSessionCompactStrategy,
+    normalizeSessionCompactEnabled,
+    normalizeSessionCompactTokenLimit,
+  });
+
+  const parentSession = store.getSession('channel-1');
+  parentSession.workspaceDir = parentWorkspaceDir;
+  store.saveDb();
+
+  const threadSession = store.getSession('thread-1', {
+    channel: {
+      parentId: 'channel-1',
+      isThread: () => true,
+    },
+  });
+  const binding = store.getWorkspaceBinding(threadSession, 'thread-1');
+  const workspaceDir = store.ensureWorkspace(threadSession, 'thread-1');
+
+  assert.equal(binding.workspaceDir, path.join(workspaceRoot, 'thread-1'));
+  assert.equal(binding.source, 'legacy fallback');
+  assert.equal(workspaceDir, path.join(workspaceRoot, 'thread-1'));
+  assert.equal(fs.existsSync(workspaceDir), true);
+});
+
+test('createSessionStore can resolve child thread workspace mode dynamically per provider', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-cli-discord-session-store-'));
+  const dataFile = path.join(root, 'sessions.json');
+  const workspaceRoot = path.join(root, 'workspaces');
+  const parentWorkspaceDir = path.join(root, 'parent-workspace');
+  fs.mkdirSync(parentWorkspaceDir, { recursive: true });
+
+  const store = createSessionStore({
+    dataFile,
+    workspaceRoot,
+    resolveChildThreadWorkspaceMode: (provider) => (provider === 'codex' ? 'separate' : 'inherit'),
+    defaults: {
+      provider: 'codex',
+      mode: 'safe',
+      language: 'zh',
+      onboardingEnabled: true,
+    },
+    getSessionId: (session) => String(session?.runnerSessionId || session?.codexThreadId || '').trim() || null,
+    normalizeProvider,
+    normalizeUiLanguage,
+    normalizeSessionSecurityProfile,
+    normalizeSessionTimeoutMs,
+    normalizeSessionCompactStrategy,
+    normalizeSessionCompactEnabled,
+    normalizeSessionCompactTokenLimit,
+  });
+
+  const parentSession = store.getSession('channel-1');
+  parentSession.workspaceDir = parentWorkspaceDir;
+  store.saveDb();
+
+  const threadSession = store.getSession('thread-1', {
+    channel: {
+      parentId: 'channel-1',
+      isThread: () => true,
+    },
+  });
+  const binding = store.getWorkspaceBinding(threadSession, 'thread-1');
+
+  assert.equal(binding.workspaceDir, path.join(workspaceRoot, 'thread-1'));
+  assert.equal(binding.source, 'legacy fallback');
 });
 
 test('createSessionStore keeps thread legacy fallback isolated when parent has no explicit workspace override', () => {

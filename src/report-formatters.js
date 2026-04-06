@@ -917,6 +917,7 @@ export function createReportFormatters({
       getSessionLanguage,
       normalizeUiLanguage,
       humanAge,
+      slashRef,
     });
   }
 

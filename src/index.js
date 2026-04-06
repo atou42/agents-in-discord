@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { safeReply, withDiscordNetworkRetry } from './discord-reply-utils.js';
+import { safeChannelSend, safeReply, withDiscordNetworkRetry } from './discord-reply-utils.js';
 import { splitForDiscord } from './discord-message-splitter.js';
 import { bootApp, createAppContext } from './app-context.js';
 import {
@@ -77,6 +77,9 @@ import {
   parseCsvSet,
   parseOptionalBool,
 } from './security-policy.js';
+import {
+  createChildThreadWorkspaceModeStore,
+} from './child-thread-workspace-mode.js';
 import {
   createProviderDefaultWorkspaceStore,
   resolveConfiguredWorkspaceDir,
@@ -166,6 +169,17 @@ if (proxyLogs.length) {
   }
 }
 
+let activeLifecycle = null;
+const getActiveDiscordClient = () => activeLifecycle?.getClient?.() ?? null;
+const safeReplyWithLiveClient = (message, payload, options = {}) => safeReply(message, payload, {
+  ...options,
+  getActiveClient: getActiveDiscordClient,
+});
+const safeChannelSendWithLiveClient = (target, payload, options = {}) => safeChannelSend(target, payload, {
+  ...options,
+  getActiveClient: getActiveDiscordClient,
+});
+
 const {
   ActionRowBuilder,
   ButtonBuilder,
@@ -190,6 +204,7 @@ if (!DISCORD_TOKEN) {
 }
 
 const ALLOWED_CHANNEL_IDS = parseCsvSet(resolveProviderScopedEnv('ALLOWED_CHANNEL_IDS', BOT_PROVIDER, process.env));
+const ALLOWED_GUILD_IDS = parseCsvSet(resolveProviderScopedEnv('ALLOWED_GUILD_IDS', BOT_PROVIDER, process.env));
 const ALLOWED_USER_IDS = parseCsvSet(resolveProviderScopedEnv('ALLOWED_USER_IDS', BOT_PROVIDER, process.env));
 const MENTION_ONLY_CHANNEL_IDS = parseCsvSet(resolveProviderScopedEnv('MENTION_ONLY_CHANNEL_IDS', BOT_PROVIDER, process.env));
 const SECURITY_PROFILE = normalizeSecurityProfile(process.env.SECURITY_PROFILE || 'auto');
@@ -210,9 +225,23 @@ const ENABLE_CONFIG_CMD = String(process.env.ENABLE_CONFIG_CMD || 'false').toLow
 const CONFIG_POLICY = parseConfigAllowlist(
   process.env.CONFIG_ALLOWLIST || 'personality,model_reasoning_effort,model_auto_compact_token_limit',
 );
-
 const WORKSPACE_ROOT = process.env.WORKSPACE_ROOT || path.join(ROOT, 'workspaces');
 const WORKSPACE_LOCK_ROOT = path.join(DATA_DIR, 'workspace-locks');
+const SHARED_CHILD_THREAD_WORKSPACE_MODE = process.env.CHILD_THREAD_WORKSPACE_MODE;
+const PROVIDER_CHILD_THREAD_WORKSPACE_MODE_OVERRIDES = {
+  codex: process.env.CODEX__CHILD_THREAD_WORKSPACE_MODE,
+  claude: process.env.CLAUDE__CHILD_THREAD_WORKSPACE_MODE,
+  gemini: process.env.GEMINI__CHILD_THREAD_WORKSPACE_MODE,
+};
+const {
+  resolve: resolveChildThreadWorkspaceMode,
+  set: setChildThreadWorkspaceMode,
+} = createChildThreadWorkspaceModeStore({
+  env: process.env,
+  envFilePath: ENV_FILE,
+  sharedMode: SHARED_CHILD_THREAD_WORKSPACE_MODE,
+  providerModeOverrides: PROVIDER_CHILD_THREAD_WORKSPACE_MODE_OVERRIDES,
+});
 const SHARED_DEFAULT_WORKSPACE_DIR = resolveConfiguredWorkspaceDir(process.env.DEFAULT_WORKSPACE_DIR);
 const PROVIDER_DEFAULT_WORKSPACE_OVERRIDES = {
   codex: resolveConfiguredWorkspaceDir(process.env.CODEX__DEFAULT_WORKSPACE_DIR),
@@ -352,6 +381,7 @@ const appContext = createAppContext({
   sessionStoreOptions: {
     dataFile: DATA_FILE,
     workspaceRoot: WORKSPACE_ROOT,
+    resolveChildThreadWorkspaceMode: (provider) => resolveChildThreadWorkspaceMode(provider).mode,
     botProvider: BOT_PROVIDER,
     defaults: {
       provider: DEFAULT_PROVIDER,
@@ -443,7 +473,8 @@ const appContext = createAppContext({
       progressDoneStepsMax: PROGRESS_DONE_STEPS_MAX,
       showReasoning: SHOW_REASONING,
       resultChunkChars: 1900,
-      safeReply,
+      safeReply: safeReplyWithLiveClient,
+      safeChannelSend: safeChannelSendWithLiveClient,
       withDiscordNetworkRetry,
       splitForDiscord,
       normalizeUiLanguage,
@@ -464,7 +495,7 @@ const appContext = createAppContext({
       composeFinalAnswerText,
     },
     channelQueueOptions: {
-      safeReply,
+      safeReply: safeReplyWithLiveClient,
       safeError,
     },
   },
@@ -481,6 +512,7 @@ const appContext = createAppContext({
       workspaceRoot: WORKSPACE_ROOT,
       discordToken: DISCORD_TOKEN,
       allowedChannelIds: ALLOWED_CHANNEL_IDS,
+      allowedGuildIds: ALLOWED_GUILD_IDS,
       allowedUserIds: ALLOWED_USER_IDS,
       ActionRowBuilder,
       ButtonBuilder,
@@ -510,6 +542,7 @@ const appContext = createAppContext({
     reportOptions: {
       botProvider: BOT_PROVIDER,
       allowedChannelIds: ALLOWED_CHANNEL_IDS,
+      allowedGuildIds: ALLOWED_GUILD_IDS,
       allowedUserIds: ALLOWED_USER_IDS,
       progressProcessLines: PROGRESS_PROCESS_LINES,
       progressPlanMaxLines: PROGRESS_PLAN_MAX_LINES,
@@ -542,8 +575,11 @@ const appContext = createAppContext({
       ButtonBuilder,
       ButtonStyle,
       StringSelectMenuBuilder,
+      ensureDir,
       workspaceRoot: WORKSPACE_ROOT,
       resolveProviderDefaultWorkspace,
+      resolveChildThreadWorkspaceMode,
+      setChildThreadWorkspaceMode,
     },
     slashRouterOptions: {
       ActionRowBuilder,
@@ -568,7 +604,7 @@ const appContext = createAppContext({
     textCommandOptions: {
       getProviderDisplayName,
       getProviderShortName,
-      safeReply,
+      safeReply: safeReplyWithLiveClient,
       formatProviderSessionLabel,
       providerSupportsRawConfigOverrides,
       formatProviderRawConfigSurface,
@@ -591,6 +627,7 @@ const appContext = createAppContext({
   },
   accessPolicyOptions: {
     allowedChannelIds: ALLOWED_CHANNEL_IDS,
+    allowedGuildIds: ALLOWED_GUILD_IDS,
     allowedUserIds: ALLOWED_USER_IDS,
   },
   entryHandlerOptions: {
@@ -601,7 +638,7 @@ const appContext = createAppContext({
     discordToken: DISCORD_TOKEN,
     restProxyAgent,
     withDiscordNetworkRetry,
-    safeReply,
+    safeReply: safeReplyWithLiveClient,
     safeError,
     isIgnorableDiscordRuntimeError,
     isRecoverableGatewayCloseCode,
@@ -626,6 +663,7 @@ const appContext = createAppContext({
     logger: console,
   },
 });
+activeLifecycle = appContext.lifecycle;
 
 console.log([
   '🔐 Security defaults:',
@@ -638,6 +676,7 @@ console.log([
   `• MENTION_ONLY_ENABLED_GUILD_IDS=${MENTION_ONLY_ENABLED_GUILD_IDS?.size ? [...MENTION_ONLY_ENABLED_GUILD_IDS].join(',') : '(none)'}`,
   `• MENTION_ONLY_DISABLED_GUILD_IDS=${MENTION_ONLY_DISABLED_GUILD_IDS?.size ? [...MENTION_ONLY_DISABLED_GUILD_IDS].join(',') : '(none)'}`,
   `• MENTION_ONLY_CHANNEL_IDS=${MENTION_ONLY_CHANNEL_IDS?.size ? [...MENTION_ONLY_CHANNEL_IDS].join(',') : '(none)'}`,
+  `• CHILD_THREAD_WORKSPACE_MODE=${resolveChildThreadWorkspaceMode(BOT_PROVIDER || DEFAULT_PROVIDER).mode}`,
   `• MAX_QUEUE_PER_CHANNEL=${MAX_QUEUE_PER_CHANNEL_OVERRIDE === null ? 'profile-default' : MAX_QUEUE_PER_CHANNEL_OVERRIDE}`,
   `• ENABLE_CONFIG_CMD=${ENABLE_CONFIG_CMD}`,
   `• CONFIG_ALLOWLIST=${appContext.core.securityPolicy.describeConfigPolicy()}`,

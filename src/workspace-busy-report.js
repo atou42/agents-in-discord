@@ -8,6 +8,7 @@ export function formatWorkspaceBusyReport(
     getSessionLanguage = () => 'zh',
     normalizeUiLanguage = (value) => (String(value || '').trim().toLowerCase() === 'en' ? 'en' : 'zh'),
     humanAge = defaultHumanAge,
+    slashRef = (name) => `/${name}`,
   } = {},
 ) {
   const language = normalizeUiLanguage(getSessionLanguage(session));
@@ -23,6 +24,9 @@ export function formatWorkspaceBusyReport(
       ownerProvider ? `• owner provider: ${ownerProvider}` : null,
       ownerKey ? `• owner channel: ${ownerKey}` : null,
       age ? `• lock age: ${age}` : null,
+      `• quick fix: click the button below to move this channel to its own workspace right now`,
+      `• future fix: enable automatic separate workspaces for new child threads`,
+      `• if many channels keep colliding, update the provider default via \`${slashRef('setdefaultdir')} path:browse\``,
     ].filter(Boolean).join('\n');
   }
 
@@ -32,5 +36,8 @@ export function formatWorkspaceBusyReport(
     ownerProvider ? `• 当前持有 provider: ${ownerProvider}` : null,
     ownerKey ? `• 当前持有频道: ${ownerKey}` : null,
     age ? `• 锁已持有: ${age}` : null,
+    '• 快捷处理：可以直接点下方按钮，立刻把当前频道切到独立 workspace',
+    '• 长期处理：也可以开启后续新子 thread 默认独立 workspace',
+    `• 如果很多频道反复撞锁，请用 \`${slashRef('setdefaultdir')} path:browse\` 调整 provider 默认 workspace`,
   ].filter(Boolean).join('\n');
 }

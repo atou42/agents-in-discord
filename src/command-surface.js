@@ -8,6 +8,7 @@ import {
 import { createSlashCommandRouter } from './slash-command-router.js';
 import { createSettingsPanel } from './settings-panel.js';
 import { createTextCommandHandler } from './text-command-handler.js';
+import { createWorkspaceBusyActions } from './workspace-busy-actions.js';
 import { createWorkspaceBrowser } from './workspace-browser.js';
 
 export function createCommandSurface({
@@ -40,6 +41,20 @@ export function createCommandSurface({
     ...workspaceBrowserOptions,
     formatWorkspaceUpdateReport: reports.formatWorkspaceUpdateReport,
     formatDefaultWorkspaceUpdateReport: reports.formatDefaultWorkspaceUpdateReport,
+  });
+
+  const workspaceBusyActions = createWorkspaceBusyActions({
+    ...workspaceBrowserOptions,
+    commandActions: workspaceBrowserOptions.commandActions,
+    getSessionLanguage: reportOptions.getSessionLanguage,
+    getSessionProvider: reportOptions.getSessionProvider,
+    getWorkspaceBinding: reportOptions.getWorkspaceBinding,
+    resolveChildThreadWorkspaceMode: workspaceBrowserOptions.resolveChildThreadWorkspaceMode,
+    setChildThreadWorkspaceMode: workspaceBrowserOptions.setChildThreadWorkspaceMode,
+    formatWorkspaceBusyReport: reports.formatWorkspaceBusyReport,
+    formatWorkspaceUpdateReport: reports.formatWorkspaceUpdateReport,
+    openWorkspaceBrowser: workspaceBrowser.openWorkspaceBrowser,
+    slashRef,
   });
 
   const onboarding = createOnboardingFlow({
@@ -127,14 +142,17 @@ export function createCommandSurface({
 
   return {
     formatWorkspaceBusyReport: reports.formatWorkspaceBusyReport,
+    buildWorkspaceBusyPayload: workspaceBusyActions.buildWorkspaceBusyPayload,
     handleCommand,
     handleOnboardingButtonInteraction: onboarding.handleOnboardingButtonInteraction,
     handleSettingsPanelInteraction: settingsPanel.handleSettingsPanelInteraction,
     handleSettingsPanelModalSubmit: settingsPanel.handleSettingsPanelModalSubmit,
+    handleWorkspaceBusyInteraction: workspaceBusyActions.handleWorkspaceBusyInteraction,
     handleWorkspaceBrowserInteraction: workspaceBrowser.handleWorkspaceBrowserInteraction,
     isOnboardingButtonId: onboarding.isOnboardingButtonId,
     isSettingsPanelComponentId: settingsPanel.isSettingsPanelComponentId,
     isSettingsPanelModalId: settingsPanel.isSettingsPanelModalId,
+    isWorkspaceBusyComponentId: workspaceBusyActions.isWorkspaceBusyComponentId,
     isWorkspaceBrowserComponentId: workspaceBrowser.isWorkspaceBrowserComponentId,
     normalizeSlashCommandName,
     routeSlashCommand,

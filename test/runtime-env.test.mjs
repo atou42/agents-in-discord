@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import { createChildThreadWorkspaceModeStore } from '../src/child-thread-workspace-mode.js';
 import { createProviderDefaultWorkspaceStore, resolveConfiguredWorkspaceDir, resolvePath } from '../src/provider-default-workspace.js';
 import { autoRepairProxyEnv } from '../src/proxy-env.js';
 
@@ -96,4 +97,48 @@ test('createProviderDefaultWorkspaceStore.set updates env and persists provider-
   assert.equal(env.GEMINI__DEFAULT_WORKSPACE_DIR, '/workspace/gemini');
   const content = fs.readFileSync(envFilePath, 'utf8');
   assert.match(content, /^GEMINI__DEFAULT_WORKSPACE_DIR=\/workspace\/gemini$/m);
+});
+
+test('createChildThreadWorkspaceModeStore resolves provider override before shared mode', () => {
+  const store = createChildThreadWorkspaceModeStore({
+    sharedMode: 'inherit',
+    providerModeOverrides: {
+      codex: 'separate',
+    },
+  });
+
+  assert.deepEqual(store.resolve('codex'), {
+    provider: 'codex',
+    mode: 'separate',
+    source: 'provider-scoped env',
+    envKey: 'CODEX__CHILD_THREAD_WORKSPACE_MODE',
+  });
+  assert.deepEqual(store.resolve('claude'), {
+    provider: 'claude',
+    mode: 'inherit',
+    source: 'default',
+    envKey: 'CLAUDE__CHILD_THREAD_WORKSPACE_MODE',
+  });
+});
+
+test('createChildThreadWorkspaceModeStore.set persists provider-scoped mode', () => {
+  const rootDir = makeTempRoot();
+  const envFilePath = path.join(rootDir, '.env');
+  const env = {};
+  const store = createChildThreadWorkspaceModeStore({
+    env,
+    envFilePath,
+  });
+
+  const next = store.set('gemini', 'separate');
+
+  assert.deepEqual(next, {
+    provider: 'gemini',
+    mode: 'separate',
+    source: 'provider-scoped env',
+    envKey: 'GEMINI__CHILD_THREAD_WORKSPACE_MODE',
+  });
+  assert.equal(env.GEMINI__CHILD_THREAD_WORKSPACE_MODE, 'separate');
+  const content = fs.readFileSync(envFilePath, 'utf8');
+  assert.match(content, /^GEMINI__CHILD_THREAD_WORKSPACE_MODE=separate$/m);
 });

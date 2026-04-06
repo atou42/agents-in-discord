@@ -298,6 +298,9 @@ test('createReportFormatters.workspace reports explain session reset and lock ow
   assert.match(busyReport, /workspace 正忙/);
   assert.match(busyReport, /当前持有 provider: `gemini`/);
   assert.match(busyReport, /当前持有频道: `thread-9`/);
+  assert.match(busyReport, /立刻把当前频道切到独立 workspace/);
+  assert.match(busyReport, /后续新子 thread 默认独立 workspace/);
+  assert.match(busyReport, /\/bot-setdefaultdir path:browse/);
 });
 
 test('createReportFormatters config helpers and reports remain available from one factory', () => {

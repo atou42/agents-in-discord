@@ -18,10 +18,12 @@ export function createDiscordEntryHandlers({
   enqueuePrompt,
   messageInput = {},
   parseCommandActionButtonId,
+  isWorkspaceBusyComponentId,
   isWorkspaceBrowserComponentId,
   isOnboardingButtonId,
   isSettingsPanelComponentId,
   isSettingsPanelModalId,
+  handleWorkspaceBusyInteraction,
   handleWorkspaceBrowserInteraction,
   handleOnboardingButtonInteraction,
   handleSettingsPanelInteraction,
@@ -203,11 +205,12 @@ export function createDiscordEntryHandlers({
 
   async function handleInteractionCreate(interaction) {
     if (interaction.isButton() || interaction.isStringSelectMenu()) {
+      const isWorkspaceBusy = interaction.isButton() && isWorkspaceBusyComponentId(interaction.customId);
       const isWorkspaceBrowser = isWorkspaceBrowserComponentId(interaction.customId);
       const commandButton = interaction.isButton() ? parseCommandActionButtonId(interaction.customId) : null;
       const isOnboarding = interaction.isButton() && isOnboardingButtonId(interaction.customId);
       const isSettingsPanel = isSettingsPanelComponentId(interaction.customId);
-      if (!isWorkspaceBrowser && !isOnboarding && !commandButton && !isSettingsPanel) return;
+      if (!isWorkspaceBusy && !isWorkspaceBrowser && !isOnboarding && !commandButton && !isSettingsPanel) return;
       logger.log(`[interaction] kind=${interaction.isButton() ? 'button' : 'select'} id=${interaction.customId} user=${interaction.user?.tag || interaction.user?.id || 'unknown'} channel=${interaction.channelId || 'unknown'}`);
       try {
         if (!isAllowedUser(interaction.user.id)) {
@@ -231,6 +234,10 @@ export function createDiscordEntryHandlers({
           if (!handled) {
             await sendInteractionResponse(interaction, { content: '❌ 快捷按钮已失效，请重新执行 slash 命令。', flags: 64 });
           }
+          return;
+        }
+        if (isWorkspaceBusy) {
+          await handleWorkspaceBusyInteraction(interaction);
           return;
         }
         if (isWorkspaceBrowser) {

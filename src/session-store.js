@@ -30,6 +30,12 @@ function normalizeWorkspaceDir(value) {
   return path.resolve(raw);
 }
 
+export function normalizeChildThreadWorkspaceMode(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw === 'separate') return 'separate';
+  return 'inherit';
+}
+
 function normalizeChannelId(value) {
   const raw = String(value || '').trim();
   return raw || null;
@@ -79,6 +85,8 @@ function normalizeWorkspaceFavoritesMap(value, normalizeProvider) {
 export function createSessionStore({
   dataFile,
   workspaceRoot,
+  childThreadWorkspaceMode = 'inherit',
+  resolveChildThreadWorkspaceMode = null,
   botProvider = null,
   defaults,
   getSessionId,
@@ -93,6 +101,12 @@ export function createSessionStore({
   resolveDefaultWorkspace = () => ({ workspaceDir: null, source: 'unset', envKey: null }),
 } = {}) {
   let db = loadDb(dataFile);
+  const getChildThreadWorkspaceMode = (provider) => {
+    if (typeof resolveChildThreadWorkspaceMode === 'function') {
+      return normalizeChildThreadWorkspaceMode(resolveChildThreadWorkspaceMode(provider));
+    }
+    return normalizeChildThreadWorkspaceMode(childThreadWorkspaceMode);
+  };
 
   function ensureDbShape() {
     let changed = false;
@@ -404,6 +418,7 @@ export function createSessionStore({
 
   function getWorkspaceBinding(session, key, visited = new Set()) {
     const provider = normalizeProvider(session?.provider || defaults.provider);
+    const childThreadWorkspaceModeValue = getChildThreadWorkspaceMode(provider);
     const defaultBinding = resolveDefaultWorkspace(provider) || {};
     const defaultWorkspaceDir = normalizeWorkspaceDir(defaultBinding.workspaceDir);
     const legacyWorkspaceDir = normalizeWorkspaceDir(path.join(workspaceRoot, key));
@@ -437,23 +452,25 @@ export function createSessionStore({
       visited.add(normalizedKey);
     }
 
-    const parentSession = getParentSession(session);
-    const parentChannelId = normalizeChannelId(session?.parentChannelId);
-    const parentExplicitWorkspaceDir = normalizeWorkspaceDir(parentSession?.workspaceDir);
-    if (parentSession && parentChannelId && parentExplicitWorkspaceDir) {
-      const parentBinding = getWorkspaceBinding(parentSession, parentChannelId, visited);
-      if (parentBinding?.workspaceDir) {
-        return {
-          provider,
-          workspaceDir: parentBinding.workspaceDir,
-          source: 'parent channel',
-          parentChannelId,
-          parentSource: parentBinding.source,
-          defaultWorkspaceDir,
-          defaultSource: defaultBinding.source || 'unset',
-          defaultEnvKey: defaultBinding.envKey || null,
-          legacyWorkspaceDir,
-        };
+    if (childThreadWorkspaceModeValue === 'inherit') {
+      const parentSession = getParentSession(session);
+      const parentChannelId = normalizeChannelId(session?.parentChannelId);
+      const parentExplicitWorkspaceDir = normalizeWorkspaceDir(parentSession?.workspaceDir);
+      if (parentSession && parentChannelId && parentExplicitWorkspaceDir) {
+        const parentBinding = getWorkspaceBinding(parentSession, parentChannelId, visited);
+        if (parentBinding?.workspaceDir) {
+          return {
+            provider,
+            workspaceDir: parentBinding.workspaceDir,
+            source: 'parent channel',
+            parentChannelId,
+            parentSource: parentBinding.source,
+            defaultWorkspaceDir,
+            defaultSource: defaultBinding.source || 'unset',
+            defaultEnvKey: defaultBinding.envKey || null,
+            legacyWorkspaceDir,
+          };
+        }
       }
     }
 

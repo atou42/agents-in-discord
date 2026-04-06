@@ -256,6 +256,53 @@ test('createPromptOrchestrator.handlePrompt adds retry button after final failur
   });
 });
 
+test('createPromptOrchestrator.handlePrompt sends workspace busy payload while waiting on lock', async () => {
+  const busyPayloads = [];
+  const harness = createOrchestrator({
+    buildWorkspaceBusyPayload: (input) => {
+      busyPayloads.push(input);
+      return {
+        content: `busy:${input.workspaceDir}`,
+        components: [{ type: 'row' }],
+      };
+    },
+    acquireWorkspace: async (_workspaceDir, _owner, options = {}) => {
+      await options.onWait?.({ owner: { provider: 'codex', key: 'thread-2' } });
+      return { acquired: true, aborted: false, release() {} };
+    },
+  });
+  const { replyLog, orchestrator } = harness;
+  const message = {
+    id: 'msg-busy',
+    author: { id: 'user-busy' },
+    channel: {
+      async sendTyping() {},
+      async send(payload) {
+        replyLog.push(payload);
+      },
+    },
+    async reply(payload) {
+      replyLog.push(payload);
+    },
+  };
+  const channelState = { queue: [], cancelRequested: false, activeRun: null };
+
+  await orchestrator.handlePrompt(message, 'thread-1', 'do work', channelState);
+
+  assert.equal(busyPayloads.length, 1);
+  assert.deepEqual(busyPayloads[0], {
+    key: 'thread-1',
+    session: harness.session,
+    userId: 'user-busy',
+    workspaceDir: '/repo/demo',
+    owner: { provider: 'codex', key: 'thread-2' },
+  });
+  assert.deepEqual(replyLog[0], {
+    content: 'busy:/repo/demo',
+    components: [{ type: 'row' }],
+  });
+});
+
 test('createPromptOrchestrator.handlePrompt preserves the current session across auto retries', async () => {
   let runCount = 0;
   const harness = createOrchestrator({

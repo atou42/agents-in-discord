@@ -82,8 +82,12 @@ export function createAppContext({
       getSessionLanguage: sessionSettings.getSessionLanguage,
       normalizeUiLanguage: promptOrchestratorOptions.normalizeUiLanguage,
       humanAge: reportOptions.humanAge,
+      slashRef: promptSlashRef,
     },
   );
+  let buildWorkspaceBusyPayload = ({ key, session, userId, workspaceDir, owner }) => ({
+    content: formatWorkspaceBusyReport(session, workspaceDir, owner),
+  });
 
   const {
     runtimePresentationOptions = {},
@@ -137,6 +141,7 @@ export function createAppContext({
       resolveCompactThresholdSetting: sessionSettings.resolveCompactThresholdSetting,
       acquireWorkspace: workspaceRuntime.acquireWorkspace,
       formatWorkspaceBusyReport,
+      buildWorkspaceBusyPayload: (input) => buildWorkspaceBusyPayload(input),
       slashRef: promptSlashRef,
     },
     channelQueueOptions: {
@@ -222,6 +227,8 @@ export function createAppContext({
       getSessionLanguage: sessionSettings.getSessionLanguage,
       getSessionProvider: identity.getSessionProvider,
       getWorkspaceBinding: sessionStore.getWorkspaceBinding,
+      resolveChildThreadWorkspaceMode: workspaceBrowserOptions.resolveChildThreadWorkspaceMode,
+      setChildThreadWorkspaceMode: workspaceBrowserOptions.setChildThreadWorkspaceMode,
       listStoredSessions: sessionStore.listSessions,
       listFavoriteWorkspaces: sessionStore.listFavoriteWorkspaces,
       addFavoriteWorkspace: sessionStore.addFavoriteWorkspace,
@@ -264,6 +271,9 @@ export function createAppContext({
       cancelChannelWork: promptRuntime.cancelChannelWork,
     },
   });
+  if (typeof commandSurface.buildWorkspaceBusyPayload === 'function') {
+    buildWorkspaceBusyPayload = commandSurface.buildWorkspaceBusyPayload;
+  }
 
   const accessPolicy = createDiscordAccessPolicyFn(accessPolicyOptions);
   const entryHandlers = createDiscordEntryHandlersFn({
@@ -274,10 +284,12 @@ export function createAppContext({
     resolveSecurityContext: securityPolicy.resolveSecurityContext,
     handleCommand: commandSurface.handleCommand,
     enqueuePrompt: promptRuntime.enqueuePrompt,
+    isWorkspaceBusyComponentId: commandSurface.isWorkspaceBusyComponentId,
     isWorkspaceBrowserComponentId: commandSurface.isWorkspaceBrowserComponentId,
     isOnboardingButtonId: commandSurface.isOnboardingButtonId,
     isSettingsPanelComponentId: commandSurface.isSettingsPanelComponentId,
     isSettingsPanelModalId: commandSurface.isSettingsPanelModalId,
+    handleWorkspaceBusyInteraction: commandSurface.handleWorkspaceBusyInteraction,
     handleWorkspaceBrowserInteraction: commandSurface.handleWorkspaceBrowserInteraction,
     handleOnboardingButtonInteraction: commandSurface.handleOnboardingButtonInteraction,
     handleSettingsPanelInteraction: commandSurface.handleSettingsPanelInteraction,
