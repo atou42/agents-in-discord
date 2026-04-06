@@ -1,5 +1,6 @@
 export function createDiscordAccessPolicy({
   allowedChannelIds = null,
+  allowedGuildIds = null,
   allowedUserIds = null,
 } = {}) {
   function isAllowedUser(userId) {
@@ -7,8 +8,17 @@ export function createDiscordAccessPolicy({
     return allowedUserIds.has(userId);
   }
 
+  function getGuildId(channel) {
+    const guildId = channel?.guild?.id || channel?.parent?.guild?.id || '';
+    const normalized = String(guildId || '').trim();
+    return normalized || null;
+  }
+
   function isAllowedChannel(channel) {
-    if (!allowedChannelIds) return true;
+    if (!allowedChannelIds && !allowedGuildIds) return true;
+    const guildId = getGuildId(channel);
+    if (guildId && allowedGuildIds?.has(guildId)) return true;
+    if (!allowedChannelIds) return false;
     if (allowedChannelIds.has(channel.id)) return true;
 
     const parentId = channel.isThread?.() ? channel.parentId : null;
@@ -16,10 +26,10 @@ export function createDiscordAccessPolicy({
   }
 
   async function isAllowedInteractionChannel(interaction) {
-    if (!allowedChannelIds) return true;
+    if (!allowedChannelIds && !allowedGuildIds) return true;
 
     const channelId = interaction.channelId;
-    if (channelId && allowedChannelIds.has(channelId)) return true;
+    if (channelId && allowedChannelIds?.has(channelId)) return true;
 
     let channel = interaction.channel || null;
     if (!channel && channelId) {
@@ -30,6 +40,9 @@ export function createDiscordAccessPolicy({
       }
     }
     if (!channel) return false;
+    const guildId = getGuildId(channel);
+    if (guildId && allowedGuildIds?.has(guildId)) return true;
+    if (!allowedChannelIds) return false;
 
     const parentId = channel.isThread?.() ? channel.parentId : null;
     return Boolean(parentId && allowedChannelIds.has(parentId));
