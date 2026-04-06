@@ -1,6 +1,7 @@
 const REPLY_TO_SYSTEM_MESSAGE_CODE = 'REPLIES_CANNOT_REPLY_TO_SYSTEM_MESSAGE';
 const REPLY_TO_SYSTEM_MESSAGE_HINT = 'cannot reply to a system message';
 const MESSAGE_REFERENCE_HINT = 'message_reference';
+const TOKEN_MISSING_HINT = 'expected token to be set for this request';
 const TRANSIENT_NETWORK_ERROR_CODES = new Set([
   'ECONNRESET',
   'ETIMEDOUT',
@@ -75,6 +76,16 @@ export function isTransientDiscordNetworkError(err) {
     || text.includes('fetch failed');
 }
 
+export function isStaleDiscordClientError(err) {
+  if (!err) return false;
+  const text = [
+    String(err?.message || ''),
+    String(err?.rawError?.message || ''),
+    String(err?.cause?.message || ''),
+  ].join(' ').toLowerCase();
+  return text.includes(TOKEN_MISSING_HINT);
+}
+
 export async function withDiscordNetworkRetry(action, {
   logger = console,
   label = 'discord call',
@@ -98,6 +109,91 @@ export async function withDiscordNetworkRetry(action, {
   throw lastErr;
 }
 
+function getChannelLike(target) {
+  if (!target || typeof target !== 'object') return null;
+  if (typeof target.send === 'function') return target;
+  if (target.channel && typeof target.channel.send === 'function') return target.channel;
+  return null;
+}
+
+function getChannelId(target) {
+  const direct = String(target?.channelId || target?.id || '').trim();
+  if (direct) return direct;
+  const nested = String(target?.channel?.id || '').trim();
+  return nested || '';
+}
+
+async function resolveLiveChannel(target, getActiveClient) {
+  const client = typeof getActiveClient === 'function' ? getActiveClient() : null;
+  if (!client) return null;
+
+  const channelId = getChannelId(target);
+  if (!channelId) return null;
+
+  const cached = client.channels?.cache?.get?.(channelId);
+  if (cached) return cached;
+
+  if (typeof client.channels?.fetch !== 'function') return null;
+  try {
+    return await client.channels.fetch(channelId);
+  } catch {
+    return null;
+  }
+}
+
+async function resolveLiveReplyTarget(message, getActiveClient) {
+  const channel = await resolveLiveChannel(message, getActiveClient);
+  if (!channel) return { channel: null, message: null };
+
+  const messageId = String(message?.id || '').trim();
+  if (!messageId || typeof channel.messages?.fetch !== 'function') {
+    return { channel, message: null };
+  }
+
+  try {
+    const liveMessage = await channel.messages.fetch(messageId);
+    return { channel, message: liveMessage };
+  } catch {
+    return { channel, message: null };
+  }
+}
+
+async function sendWithChannel(channel, payload, { logger = console, label = 'channel.send' } = {}) {
+  if (!channel || typeof channel.send !== 'function') {
+    throw new Error('Cannot send message: channel.send is unavailable');
+  }
+  return withDiscordNetworkRetry(
+    () => channel.send(payload),
+    { logger, label },
+  );
+}
+
+async function recoverReplyWithLiveClient(message, payload, channelPayload, {
+  logger = console,
+  getActiveClient,
+} = {}) {
+  const target = await resolveLiveReplyTarget(message, getActiveClient);
+  if (target.message && typeof target.message.reply === 'function') {
+    try {
+      return await withDiscordNetworkRetry(
+        () => target.message.reply(payload),
+        { logger, label: 'message.reply (recovered)' },
+      );
+    } catch (err) {
+      if (!isReplyToSystemMessageError(err)) throw err;
+    }
+  }
+
+  if (target.channel) {
+    return sendWithChannel(target.channel, channelPayload, {
+      logger,
+      label: 'channel.send (recovered)',
+    });
+  }
+
+  return null;
+}
+
 export function isReplyToSystemMessageError(err) {
   if (!err) return false;
 
@@ -115,19 +211,41 @@ export function isReplyToSystemMessageError(err) {
   return hasDiscordValidationCode(err, 50035) && text.includes(MESSAGE_REFERENCE_HINT);
 }
 
-export async function safeReply(message, payload, { logger = console } = {}) {
-  const channel = message?.channel;
+export async function safeChannelSend(target, payload, {
+  logger = console,
+  getActiveClient,
+} = {}) {
+  const channel = getChannelLike(target);
+  if (!channel) {
+    throw new Error('Cannot send message: channel.send is unavailable');
+  }
+
+  try {
+    return await sendWithChannel(channel, payload, { logger, label: 'channel.send' });
+  } catch (err) {
+    if (!isStaleDiscordClientError(err)) throw err;
+
+    const liveChannel = await resolveLiveChannel(target, getActiveClient);
+    if (!liveChannel || liveChannel === channel) throw err;
+    return sendWithChannel(liveChannel, payload, {
+      logger,
+      label: 'channel.send (recovered)',
+    });
+  }
+}
+
+export async function safeReply(message, payload, {
+  logger = console,
+  getActiveClient,
+} = {}) {
   const channelPayload = sanitizeReplyMetadata(payload);
 
   if (message?.system) {
-    if (!channel || typeof channel.send !== 'function') {
-      throw new Error('Cannot send message: channel.send is unavailable for system message fallback');
-    }
     logger.warn(`⚠️ Message ${message?.id || '(unknown)'} is a system message, sending without reply reference`);
-    return await withDiscordNetworkRetry(
-      () => channel.send(channelPayload),
-      { logger, label: 'channel.send (system message)' },
-    );
+    return safeChannelSend(message, channelPayload, {
+      logger,
+      getActiveClient,
+    });
   }
 
   try {
@@ -136,13 +254,21 @@ export async function safeReply(message, payload, { logger = console } = {}) {
       { logger, label: 'message.reply' },
     );
   } catch (err) {
-    if (!isReplyToSystemMessageError(err)) throw err;
-    if (!channel || typeof channel.send !== 'function') throw err;
+    if (isReplyToSystemMessageError(err)) {
+      logger.warn(`⚠️ Cannot reply to system message ${message?.id || '(unknown)'}, fallback to channel.send`);
+      return safeChannelSend(message, channelPayload, {
+        logger,
+        getActiveClient,
+      });
+    }
 
-    logger.warn(`⚠️ Cannot reply to system message ${message?.id || '(unknown)'}, fallback to channel.send`);
-    return await withDiscordNetworkRetry(
-      () => channel.send(channelPayload),
-      { logger, label: 'channel.send (safeReply fallback)' },
-    );
+    if (!isStaleDiscordClientError(err)) throw err;
+
+    const recovered = await recoverReplyWithLiveClient(message, payload, channelPayload, {
+      logger,
+      getActiveClient,
+    });
+    if (recovered) return recovered;
+    throw err;
   }
 }
