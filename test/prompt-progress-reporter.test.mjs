@@ -6,6 +6,7 @@ import {
   createProgressEventDeduper,
 } from '../src/codex-event-utils.js';
 import { createPromptProgressReporterFactory } from '../src/prompt-progress-reporter.js';
+import { createRuntimePresentation } from '../src/runtime-presentation.js';
 
 function clonePlan(plan) {
   return plan ? JSON.parse(JSON.stringify(plan)) : null;
@@ -15,6 +16,20 @@ function appendUnique(list, value) {
   const text = String(value || '').trim();
   if (!text || list.includes(text)) return;
   list.push(text);
+}
+
+function createRealPresentation() {
+  return createRuntimePresentation({
+    showReasoning: false,
+    progressTextPreviewChars: 120,
+    progressDoneStepsMax: 4,
+    progressActivityMaxLines: 5,
+    progressProcessLines: 5,
+    humanAge: (ms) => `${ms}ms`,
+    getSessionId: (session) => session?.runnerSessionId || null,
+    getSessionProvider: (session) => session?.provider || 'codex',
+    formatSessionIdLabel: (sessionId) => `\`${sessionId || 'auto'}\``,
+  });
 }
 
 function createHarness(overrides = {}) {
@@ -351,6 +366,103 @@ test('createPromptProgressReporterFactory derives Claude commentary and tool pro
   assert.match(finalCard, /process: 我来查看当前目录。/);
   assert.match(finalCard, /process: Show current working directory/);
   assert.match(finalCard, /done: Show current working directory/);
+});
+
+test('createPromptProgressReporterFactory renders codex subagent lifecycle events on the live card', async () => {
+  const harness = createHarness({
+    factoryOptions: {
+      progressProcessLines: 5,
+      presentation: createRealPresentation(),
+    },
+  });
+
+  await harness.reporter.start();
+  harness.channelState.activeRun.phase = 'exec';
+
+  harness.reporter.onEvent({
+    type: 'response_item',
+    payload: {
+      type: 'function_call',
+      name: 'spawn_agent',
+      arguments: JSON.stringify({
+        agent_type: 'worker',
+        message: 'Verify the Discord progress card shows sub tasks in real time.',
+      }),
+      call_id: 'call_spawn_1',
+    },
+  });
+  assert.match(harness.edits[0].content, /subagent worker starting: Verify the Discord progress card shows sub tasks in real time\./);
+
+  harness.reporter.onEvent({
+    type: 'response_item',
+    payload: {
+      type: 'function_call_output',
+      call_id: 'call_spawn_1',
+      output: JSON.stringify({
+        agent_id: '019d5809-05fe-7b90-a4d5-c76249a0be23',
+        nickname: 'Harvey',
+      }),
+    },
+  });
+  harness.reporter.onEvent({
+    type: 'response_item',
+    payload: {
+      type: 'function_call',
+      name: 'send_input',
+      arguments: JSON.stringify({
+        target: '019d5809-05fe-7b90-a4d5-c76249a0be23',
+        interrupt: true,
+        message: 'Re-check the sub flow after the parent task changed.',
+      }),
+      call_id: 'call_send_1',
+    },
+  });
+  harness.reporter.onEvent({
+    type: 'response_item',
+    payload: {
+      type: 'function_call',
+      name: 'wait_agent',
+      arguments: JSON.stringify({
+        targets: ['019d5809-05fe-7b90-a4d5-c76249a0be23'],
+        timeout_ms: 1000,
+      }),
+      call_id: 'call_wait_1',
+    },
+  });
+  harness.reporter.onEvent({
+    type: 'response_item',
+    payload: {
+      type: 'function_call_output',
+      call_id: 'call_wait_1',
+      output: JSON.stringify({
+        status: {},
+        timed_out: true,
+      }),
+    },
+  });
+  harness.reporter.onEvent({
+    type: 'response_item',
+    payload: {
+      type: 'message',
+      role: 'user',
+      content: [
+        {
+          type: 'input_text',
+          text: '<subagent_notification>\n{"agent_path":"019d5809-05fe-7b90-a4d5-c76249a0be23","status":{"completed":"Subagent finished the verification run and attached evidence."}}\n</subagent_notification>',
+        },
+      ],
+    },
+  });
+
+  await harness.reporter.finish({ ok: true });
+
+  const finalCard = harness.edits[harness.edits.length - 1].content;
+  assert.match(finalCard, /subagent started: Harvey \(019d5809-05fe\)/);
+  assert.match(finalCard, /subagent update 019d5809-05fe: Re-check the sub flow after the parent task changed\./);
+  assert.match(finalCard, /waiting for subagent 019d5809-05fe/);
+  assert.match(finalCard, /subagent wait timed out/);
+  assert.match(finalCard, /subagent report 019d5809-05fe: Subagent finished the verification run and attached evidence\./);
+  assert.match(finalCard, /subagent completed: 019d5809-05fe/);
 });
 
 test('createPromptProgressReporterFactory sanitizes Discord spoiler markers in surfaced progress text', async () => {

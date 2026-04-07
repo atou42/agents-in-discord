@@ -38,6 +38,77 @@ test('summarizeCodexEvent handles response_item web_search_call open_page', () =
   assert.equal(summary, 'web search completed: open page: developers.openai.com/codex/cli/reference');
 });
 
+test('summarizeCodexEvent surfaces subagent launch task from spawn_agent', () => {
+  const ev = {
+    type: 'response_item',
+    payload: {
+      type: 'function_call',
+      name: 'spawn_agent',
+      arguments: JSON.stringify({
+        agent_type: 'worker',
+        message: 'Verify the Discord progress card shows sub tasks in real time.',
+      }),
+      call_id: 'call_spawn_1',
+    },
+  };
+
+  const summary = summarizeCodexEvent(ev, { previewChars: 180 });
+  assert.equal(summary, 'subagent worker starting: Verify the Discord progress card shows sub tasks in real time.');
+});
+
+test('summarizeCodexEvent surfaces subagent start confirmation from function_call_output', () => {
+  const ev = {
+    type: 'response_item',
+    payload: {
+      type: 'function_call_output',
+      call_id: 'call_spawn_1',
+      output: JSON.stringify({
+        agent_id: '019d5809-05fe-7b90-a4d5-c76249a0be23',
+        nickname: 'Harvey',
+      }),
+    },
+  };
+
+  const summary = summarizeCodexEvent(ev, { previewChars: 180 });
+  assert.equal(summary, 'subagent started: Harvey (019d5809-05fe)');
+});
+
+test('summarizeCodexEvent surfaces send_input task updates for subagents', () => {
+  const ev = {
+    type: 'response_item',
+    payload: {
+      type: 'function_call',
+      name: 'send_input',
+      arguments: JSON.stringify({
+        target: '019d5810-418f-7d13-9b39-30b79a8c9c65',
+        interrupt: true,
+        message: 'Re-check the sub flow after the parent task changed.',
+      }),
+      call_id: 'call_send_1',
+    },
+  };
+
+  const summary = summarizeCodexEvent(ev, { previewChars: 180 });
+  assert.equal(summary, 'subagent update 019d5810-418f: Re-check the sub flow after the parent task changed.');
+});
+
+test('summarizeCodexEvent surfaces timed out wait_agent output', () => {
+  const ev = {
+    type: 'response_item',
+    payload: {
+      type: 'function_call_output',
+      call_id: 'call_wait_1',
+      output: JSON.stringify({
+        status: {},
+        timed_out: true,
+      }),
+    },
+  };
+
+  const summary = summarizeCodexEvent(ev, { previewChars: 180 });
+  assert.equal(summary, 'subagent wait timed out');
+});
+
 test('extractCompletedStepFromEvent returns semantic web search step from response_item', () => {
   const ev = {
     type: 'response_item',
@@ -85,6 +156,23 @@ test('extractCompletedStepFromEvent treats response_item function_call without s
 
   const step = extractCompletedStepFromEvent(ev, { previewChars: 180 });
   assert.equal(step, 'exec_command: run: git status --short');
+});
+
+test('extractCompletedStepFromEvent does not treat spawn_agent launch as a completed milestone', () => {
+  const ev = {
+    type: 'response_item',
+    payload: {
+      type: 'function_call',
+      name: 'spawn_agent',
+      arguments: JSON.stringify({
+        message: 'Inspect the codebase',
+      }),
+      call_id: 'call_spawn_2',
+    },
+  };
+
+  const step = extractCompletedStepFromEvent(ev, { previewChars: 180 });
+  assert.equal(step, '');
 });
 
 test('extractCompletedStepFromEvent still ignores response_item update_plan function_call noise', () => {
@@ -185,6 +273,30 @@ test('appendCompletedStep de-duplicates and keeps newest items', () => {
   appendCompletedStep(list, 'step d', { doneStepsMax: 2, previewChars: 120 });
 
   assert.deepEqual(list, ['step b', 'step a', 'step c', 'step d']);
+});
+
+test('summarizeCodexEvent and progress extractors surface subagent completion notifications', () => {
+  const ev = {
+    type: 'response_item',
+    payload: {
+      type: 'message',
+      role: 'user',
+      content: [
+        {
+          type: 'input_text',
+          text: '<subagent_notification>\n{"agent_path":"019d5809-05fe-7b90-a4d5-c76249a0be23","status":{"completed":"Subagent finished the verification run and attached evidence."}}\n</subagent_notification>',
+        },
+      ],
+    },
+  };
+
+  const summary = summarizeCodexEvent(ev, { previewChars: 180 });
+  const raw = extractRawProgressTextFromEvent(ev);
+  const step = extractCompletedStepFromEvent(ev, { previewChars: 180 });
+
+  assert.equal(summary, 'subagent completed: 019d5809-05fe');
+  assert.equal(raw, 'subagent report 019d5809-05fe: Subagent finished the verification run and attached evidence.');
+  assert.equal(step, 'subagent completed: 019d5809-05fe');
 });
 
 test('summarizeCodexEvent includes delta text for output_text delta events', () => {

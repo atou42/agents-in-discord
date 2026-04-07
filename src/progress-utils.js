@@ -153,6 +153,215 @@ function extractDirectToolName(raw) {
   return normalizeWhitespace(match?.[1] || toolId) || null;
 }
 
+function compactAgentId(rawId) {
+  const id = normalizeWhitespace(rawId);
+  if (!id) return '';
+  const grouped = id.match(/^([0-9a-z]+-[0-9a-z]+)/i);
+  if (grouped?.[1]) return grouped[1];
+  return id.length <= 14 ? id : id.slice(0, 14);
+}
+
+function formatSubagentLabel({ agentId = '', nickname = '' } = {}) {
+  const compactId = compactAgentId(agentId);
+  const name = normalizeWhitespace(nickname);
+  if (name && compactId) return `${name} (${compactId})`;
+  return name || compactId || 'subagent';
+}
+
+function isSubagentToolName(toolName) {
+  const normalized = normalizeEventType(toolName);
+  return normalized === 'spawn_agent'
+    || normalized === 'send_input'
+    || normalized === 'wait_agent'
+    || normalized === 'resume_agent'
+    || normalized === 'close_agent';
+}
+
+function extractSubagentTaskPreview(args, options = {}) {
+  if (!args || typeof args !== 'object') return '';
+  const previewChars = Math.max(60, Number(options.previewChars || DEFAULT_PREVIEW_CHARS));
+
+  const candidates = [
+    args.message,
+    args.task,
+    args.prompt,
+    args.instructions,
+    args.question,
+  ];
+
+  for (const candidate of candidates) {
+    const text = normalizeWhitespace(candidate);
+    if (text) return truncate(text, previewChars);
+  }
+
+  if (Array.isArray(args.items)) {
+    const merged = normalizeWhitespace(args.items
+      .map((item) => {
+        if (!item || typeof item !== 'object') return '';
+        return item.type === 'text'
+          ? item.text
+          : item.text || item.name || '';
+      })
+      .filter(Boolean)
+      .join(' '));
+    if (merged) return truncate(merged, previewChars);
+  }
+
+  return '';
+}
+
+function formatSubagentTargets(rawTargets) {
+  const list = Array.isArray(rawTargets)
+    ? rawTargets
+    : rawTargets
+      ? [rawTargets]
+      : [];
+  const labels = list
+    .map((item) => formatSubagentLabel({ agentId: item }))
+    .filter(Boolean);
+  if (!labels.length) return '';
+  if (labels.length <= 2) return labels.join(', ');
+  return `${labels[0]}, ${labels[1]} +${labels.length - 2} more`;
+}
+
+function summarizeSubagentToolCall(toolName, args, options = {}) {
+  const normalizedTool = normalizeEventType(toolName);
+  if (!isSubagentToolName(normalizedTool)) return '';
+
+  if (normalizedTool === 'spawn_agent') {
+    const task = extractSubagentTaskPreview(args, options);
+    const agentType = normalizeWhitespace(args?.agent_type || '');
+    const prefix = agentType ? `subagent ${agentType}` : 'subagent';
+    return task ? `${prefix} starting: ${task}` : `${prefix} starting`;
+  }
+
+  if (normalizedTool === 'send_input') {
+    const target = formatSubagentTargets(args?.target || args?.targets);
+    const task = extractSubagentTaskPreview(args, options);
+    const prefix = target ? `subagent update ${target}` : 'subagent update';
+    return task ? `${prefix}: ${task}` : prefix;
+  }
+
+  if (normalizedTool === 'wait_agent') {
+    const target = formatSubagentTargets(args?.targets || args?.target);
+    return target ? `waiting for subagent ${target}` : 'waiting for subagent';
+  }
+
+  if (normalizedTool === 'resume_agent') {
+    const target = formatSubagentTargets(args?.id || args?.target);
+    return target ? `resuming subagent ${target}` : 'resuming subagent';
+  }
+
+  if (normalizedTool === 'close_agent') {
+    const target = formatSubagentTargets(args?.target);
+    return target ? `closing subagent ${target}` : 'closing subagent';
+  }
+
+  return '';
+}
+
+function extractFunctionCallOutputObject(payload) {
+  if (!payload || typeof payload !== 'object') return null;
+  const raw = payload.output ?? payload.result ?? payload.data ?? null;
+  if (!raw) return null;
+  if (typeof raw === 'string') {
+    const parsed = parseJsonMaybe(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  }
+  return raw && typeof raw === 'object' ? raw : null;
+}
+
+function extractSubagentStatusInfo(status) {
+  if (!status || typeof status !== 'object' || Array.isArray(status)) {
+    return { state: '', detail: '' };
+  }
+  const [entry] = Object.entries(status);
+  if (!entry) return { state: '', detail: '' };
+  const [rawState, rawDetail] = entry;
+  return {
+    state: normalizeStatus(rawState) || normalizeEventType(rawState),
+    detail: normalizeWhitespace(rawDetail),
+  };
+}
+
+function summarizeSubagentToolOutput(payload) {
+  const output = extractFunctionCallOutputObject(payload);
+  if (!output) return '';
+
+  if (output.agent_id || output.nickname) {
+    return `subagent started: ${formatSubagentLabel({
+      agentId: output.agent_id,
+      nickname: output.nickname,
+    })}`;
+  }
+
+  if (output.submission_id) return 'subagent message queued';
+
+  if (Object.prototype.hasOwnProperty.call(output, 'timed_out') || output.status) {
+    if (output.timed_out === true) return 'subagent wait timed out';
+    const statusInfo = extractSubagentStatusInfo(output.status);
+    if (statusInfo.state) return `subagent ${statusInfo.state}`;
+    return 'subagent wait updated';
+  }
+
+  return '';
+}
+
+function parseSubagentNotificationText(rawText) {
+  const text = String(rawText || '');
+  if (!text.includes('<subagent_notification>')) return null;
+  const match = text.match(/<subagent_notification>\s*([\s\S]*?)\s*<\/subagent_notification>/i);
+  if (!match?.[1]) return null;
+  const parsed = parseJsonMaybe(match[1].trim());
+  return parsed && typeof parsed === 'object' ? parsed : null;
+}
+
+function extractSubagentNotification(item) {
+  if (!item || typeof item !== 'object') return null;
+  const candidates = [];
+  if (typeof item.text === 'string') candidates.push(item.text);
+  if (typeof item.message === 'string') candidates.push(item.message);
+  if (typeof item.content === 'string') candidates.push(item.content);
+  if (Array.isArray(item.content)) {
+    for (const part of item.content) {
+      if (!part || typeof part !== 'object') continue;
+      if (typeof part.text === 'string') candidates.push(part.text);
+      if (typeof part.output_text === 'string') candidates.push(part.output_text);
+      if (typeof part.input_text === 'string') candidates.push(part.input_text);
+    }
+  }
+
+  for (const candidate of candidates) {
+    const parsed = parseSubagentNotificationText(candidate);
+    if (parsed) return parsed;
+  }
+  return null;
+}
+
+function summarizeSubagentNotification(notification) {
+  if (!notification || typeof notification !== 'object') return '';
+  const label = formatSubagentLabel({
+    agentId: notification.agent_path || notification.agent_id,
+    nickname: notification.nickname,
+  });
+  const statusInfo = extractSubagentStatusInfo(notification.status);
+  const state = statusInfo.state || 'updated';
+  return label ? `subagent ${state}: ${label}` : `subagent ${state}`;
+}
+
+function extractSubagentNotificationReportPreview(notification, options = {}) {
+  if (!notification || typeof notification !== 'object') return '';
+  const statusInfo = extractSubagentStatusInfo(notification.status);
+  if (!statusInfo.detail) return summarizeSubagentNotification(notification);
+  const previewChars = Math.max(60, Number(options.previewChars || DEFAULT_PREVIEW_CHARS));
+  const label = formatSubagentLabel({
+    agentId: notification.agent_path || notification.agent_id,
+    nickname: notification.nickname,
+  });
+  const preview = truncate(statusInfo.detail, previewChars);
+  return label ? `subagent report ${label}: ${preview}` : `subagent report: ${preview}`;
+}
+
 function summarizeKnownArgObject(args, options = {}) {
   if (!args || typeof args !== 'object') return '';
 
@@ -264,6 +473,8 @@ function summarizeResponseItem(payload, options = {}) {
   }
 
   if (payloadType === 'message') {
+    const notification = extractSubagentNotification(payload);
+    if (notification) return summarizeSubagentNotification(notification);
     const preview = extractPayloadTextPreview(payload, options);
     return preview ? `agent message: ${preview}` : 'agent message';
   }
@@ -276,9 +487,16 @@ function summarizeResponseItem(payload, options = {}) {
 
   if (payloadType === 'function_call' || payloadType === 'custom_tool_call') {
     const toolName = extractItemToolName(payload) || normalizeWhitespace(payload.name || payload.tool_name || payload.call?.name || 'tool');
+    const subagentSummary = summarizeSubagentToolCall(toolName, extractToolCallArguments(payload) || payload, options);
+    if (subagentSummary) return subagentSummary;
     const detail = summarizeKnownArgObject(extractToolCallArguments(payload) || payload, options);
     const phase = status || 'updated';
     return detail ? `tool ${toolName} ${phase}: ${detail}` : `tool ${toolName} ${phase}`;
+  }
+
+  if (payloadType === 'function_call_output') {
+    const subagentSummary = summarizeSubagentToolOutput(payload);
+    if (subagentSummary) return subagentSummary;
   }
 
   return '';
@@ -397,6 +615,8 @@ export function summarizeCodexEvent(ev, options = {}) {
     }
     case 'tool_use': {
       const toolName = extractDirectToolName(ev) || 'tool';
+      const subagentSummary = summarizeSubagentToolCall(toolName, ev.parameters || ev.args || ev, opts);
+      if (subagentSummary) return subagentSummary;
       const detail = summarizeKnownArgObject(ev.parameters || ev.args || ev, opts);
       return detail ? `tool ${toolName} started: ${detail}` : `tool ${toolName} started`;
     }
@@ -434,6 +654,8 @@ export function summarizeCodexEvent(ev, options = {}) {
 
       const toolName = extractItemToolName(item);
       if (toolName) {
+        const subagentSummary = summarizeSubagentToolCall(toolName, extractToolCallArguments(item) || item, opts);
+        if (subagentSummary) return subagentSummary;
         const detail = summarizeKnownArgObject(extractToolCallArguments(item) || item, opts);
         return detail ? `tool ${toolName} ${action}: ${detail}` : `tool ${toolName} ${action}`;
       }
@@ -588,6 +810,11 @@ export function extractRawProgressTextFromEvent(ev) {
   }
 
   if (type === 'message') {
+    const notification = extractSubagentNotification(ev) || extractSubagentNotification(payload);
+    if (notification) {
+      const preview = extractSubagentNotificationReportPreview(notification);
+      return isLowSignalProcessText(preview) ? '' : preview;
+    }
     const role = normalizeEventType(ev.role || payload?.role || '');
     const stopReason = extractStopReason(ev, payload);
     if (role && role !== 'assistant') return '';
@@ -631,7 +858,21 @@ export function extractRawProgressTextFromEvent(ev) {
 
   if (type === 'response_item' && payload && typeof payload === 'object') {
     const payloadType = normalizeEventType(payload.type || '');
+    if (payloadType === 'function_call' || payloadType === 'custom_tool_call') {
+      const toolName = extractItemToolName(payload) || normalizeWhitespace(payload.name || payload.tool_name || '');
+      const subagentSummary = summarizeSubagentToolCall(toolName, extractToolCallArguments(payload) || payload);
+      if (subagentSummary) return subagentSummary;
+    }
+    if (payloadType === 'function_call_output') {
+      const subagentSummary = summarizeSubagentToolOutput(payload);
+      if (subagentSummary) return subagentSummary;
+    }
     if (payloadType === 'message') {
+      const notification = extractSubagentNotification(payload);
+      if (notification) {
+        const preview = extractSubagentNotificationReportPreview(notification);
+        return isLowSignalProcessText(preview) ? '' : preview;
+      }
       const phase = normalizeEventType(payload.phase || '');
       const role = normalizeEventType(payload.role || '');
       if (phase === 'final_answer') return '';
@@ -863,9 +1104,19 @@ function summarizeCompletedPayload(payload, options = {}) {
 
   if (payloadType === 'function_call' || payloadType === 'custom_tool_call') {
     const toolName = extractItemToolName(payload) || normalizeWhitespace(payload.name || payload.tool_name || 'tool');
+    if (isSubagentToolName(toolName)) return '';
     if (toolName.toLowerCase().includes('update_plan')) return '';
     const detail = summarizeKnownArgObject(extractToolCallArguments(payload) || payload, options);
     return detail ? `${toolName}: ${detail}` : `tool ${toolName}`;
+  }
+
+  if (payloadType === 'function_call_output') {
+    const output = extractFunctionCallOutputObject(payload);
+    if (!output) return '';
+    if (output.timed_out === true) return '';
+    const statusInfo = extractSubagentStatusInfo(output.status);
+    if (statusInfo.state === 'completed') return summarizeSubagentToolOutput(payload);
+    return '';
   }
 
   const preview = extractPayloadTextPreview(payload, options);
@@ -883,10 +1134,19 @@ export function extractCompletedStepFromEvent(ev, options = {}) {
 
   if (type === 'response_item' && payload) {
     const payloadType = normalizeEventType(payload.type || '');
+    if (payloadType === 'message') {
+      const notification = extractSubagentNotification(payload);
+      if (notification) {
+        const statusInfo = extractSubagentStatusInfo(notification.status);
+        return statusInfo.state === 'completed' ? summarizeSubagentNotification(notification) : '';
+      }
+    }
     const status = normalizeStatus(payload.status || '');
     if (status === 'completed') return summarizeCompletedPayload(payload, opts);
 
     if (!status && ['function_call', 'custom_tool_call', 'local_shell_call', 'web_search_call'].includes(payloadType)) {
+      const toolName = extractItemToolName(payload) || normalizeWhitespace(payload.name || payload.tool_name || '');
+      if (isSubagentToolName(toolName)) return '';
       return summarizeCompletedPayload(payload, opts);
     }
 
@@ -929,6 +1189,7 @@ export function extractCompletedStepFromEvent(ev, options = {}) {
 
   const toolName = extractItemToolName(item);
   if (toolName) {
+    if (isSubagentToolName(toolName)) return '';
     if (toolName.toLowerCase().includes('update_plan')) return '';
     const detail = summarizeKnownArgObject(extractToolCallArguments(item) || item, opts);
     return detail ? `${toolName}: ${detail}` : `tool ${toolName}`;
