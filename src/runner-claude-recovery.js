@@ -2,11 +2,62 @@ function normalizeComparableText(value) {
   return String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
+function normalizeTextList(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .map((item) => String(item || '').trim())
+    .filter(Boolean);
+}
+
+function dedupeTextList(list) {
+  const next = [];
+  const seen = new Set();
+  for (const item of normalizeTextList(list)) {
+    const key = normalizeComparableText(item);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    next.push(item);
+  }
+  return next;
+}
+
+function isClaudeReferenceOnlyFinalAnswer(value) {
+  const text = String(value || '').trim();
+  if (!text || text.length > 200) return false;
+  return /(如上|见上|上面|上文|上述|如前|above|as above|see above|shown above|output above)/i.test(text);
+}
+
 export function hasVisibleAssistantText(result) {
   return Boolean(
     (Array.isArray(result?.finalAnswerMessages) && result.finalAnswerMessages.some((item) => String(item || '').trim()))
     || (Array.isArray(result?.messages) && result.messages.some((item) => String(item || '').trim())),
   );
+}
+
+export function normalizeClaudeResultForDisplay(result) {
+  if (!result || typeof result !== 'object') return result;
+
+  const toolResultMessages = dedupeTextList(result?.meta?.claudeToolResultMessages);
+  if (!toolResultMessages.length) return result;
+
+  const finalAnswerMessages = normalizeTextList(result.finalAnswerMessages);
+  if (!finalAnswerMessages.length) {
+    return {
+      ...result,
+      finalAnswerMessages: toolResultMessages,
+    };
+  }
+
+  const lastFinalAnswer = finalAnswerMessages[finalAnswerMessages.length - 1] || '';
+  if (!isClaudeReferenceOnlyFinalAnswer(lastFinalAnswer)) return result;
+
+  return {
+    ...result,
+    finalAnswerMessages: dedupeTextList([
+      ...toolResultMessages,
+      ...finalAnswerMessages,
+    ]),
+  };
 }
 
 export function shouldAutoRecoverClaudeResult(result) {

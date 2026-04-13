@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   buildClaudeRecoveryPrompt,
   hasVisibleAssistantText,
+  normalizeClaudeResultForDisplay,
   shouldAutoRecoverClaudeResult,
 } from '../src/runner-claude-recovery.js';
 
@@ -61,4 +62,43 @@ test('buildClaudeRecoveryPrompt asks for a final answer instead of preamble', ()
   assert.match(prompt, /继续刚才的同一任务/);
   assert.match(prompt, /请直接完成任务并输出最终答案/);
   assert.match(prompt, /不要只输出一句开场白/);
+});
+
+test('normalizeClaudeResultForDisplay surfaces tool_result output when final answer only references it', () => {
+  const result = normalizeClaudeResultForDisplay({
+    ok: true,
+    cancelled: false,
+    timedOut: false,
+    messages: [],
+    finalAnswerMessages: ['三张卡完整输出如上。'],
+    meta: {
+      claudeToolResultMessages: [
+        '## 角色卡 #1\n\n完整正文 A',
+        '## 角色卡 #2\n\n完整正文 B',
+      ],
+    },
+  });
+
+  assert.deepEqual(result.finalAnswerMessages, [
+    '## 角色卡 #1\n\n完整正文 A',
+    '## 角色卡 #2\n\n完整正文 B',
+    '三张卡完整输出如上。',
+  ]);
+});
+
+test('normalizeClaudeResultForDisplay uses tool_result output when Claude returns no final answer text', () => {
+  const result = normalizeClaudeResultForDisplay({
+    ok: true,
+    cancelled: false,
+    timedOut: false,
+    messages: [],
+    finalAnswerMessages: [],
+    meta: {
+      claudeToolResultMessages: [
+        '## 角色卡 #1\n\n完整正文 A',
+      ],
+    },
+  });
+
+  assert.deepEqual(result.finalAnswerMessages, ['## 角色卡 #1\n\n完整正文 A']);
 });

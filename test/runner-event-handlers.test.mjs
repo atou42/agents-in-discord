@@ -243,3 +243,38 @@ test('handleClaudeRunnerEvent reads real Claude assistant session messages and s
   assert.equal(state.threadId, 'claude-session-2');
   assert.deepEqual(bridges, ['claude-session-2', 'claude-session-2']);
 });
+
+test('handleClaudeRunnerEvent captures visible tool_result text from Claude session user events', () => {
+  const state = {
+    messages: [],
+    finalAnswerMessages: [],
+    reasonings: [],
+    logs: [],
+    usage: null,
+    threadId: null,
+    meta: {
+      claudeSawAgentToolUse: false,
+      claudeStopReason: '',
+    },
+  };
+
+  handleClaudeRunnerEvent({
+    type: 'user',
+    sessionId: 'claude-session-3',
+    message: {
+      role: 'user',
+      content: [
+        {
+          type: 'tool_result',
+          tool_use_id: 'call_1',
+          content: '## 角色卡 #1\n\n完整正文',
+        },
+      ],
+    },
+  }, state, () => {});
+
+  assert.equal(state.threadId, 'claude-session-3');
+  assert.deepEqual(state.meta.claudeToolResultMessages, ['## 角色卡 #1\n\n完整正文']);
+  assert.deepEqual(state.messages, []);
+  assert.deepEqual(state.finalAnswerMessages, []);
+});

@@ -6,6 +6,7 @@ import {
 import {
   buildClaudeRecoveryPrompt,
   hasVisibleAssistantText,
+  normalizeClaudeResultForDisplay,
   shouldAutoRecoverClaudeResult,
 } from './runner-claude-recovery.js';
 
@@ -76,9 +77,12 @@ export function createRunnerExecutor({
       onLog,
       timeoutMs,
     });
+    const normalizedResult = normalizeProvider(provider) === 'claude'
+      ? normalizeClaudeResultForDisplay(result)
+      : result;
 
-    if (normalizeProvider(provider) === 'claude' && shouldAutoRecoverClaudeResult(result)) {
-      const recoverySessionId = result.threadId || getSessionId(session);
+    if (normalizeProvider(provider) === 'claude' && shouldAutoRecoverClaudeResult(normalizedResult)) {
+      const recoverySessionId = normalizedResult.threadId || getSessionId(session);
       if (recoverySessionId) {
         const recoverySession = {
           ...session,
@@ -99,23 +103,24 @@ export function createRunnerExecutor({
           onLog,
           timeoutMs,
         });
+        const normalizedRecovered = normalizeClaudeResultForDisplay(recovered);
 
-        if (recovered.ok && hasVisibleAssistantText(recovered) && !shouldAutoRecoverClaudeResult(recovered)) {
+        if (normalizedRecovered.ok && hasVisibleAssistantText(normalizedRecovered) && !shouldAutoRecoverClaudeResult(normalizedRecovered)) {
           return {
-            ...recovered,
+            ...normalizedRecovered,
             notes: [...notes, '检测到 Claude 子代理提前返回，已自动续跑一次。'],
           };
         }
 
         return {
-          ...result,
+          ...normalizedResult,
           notes: [...notes, '检测到 Claude 子代理提前返回，已尝试自动续跑一次，但没有拿到更完整结果。'],
         };
       }
     }
 
     return {
-      ...result,
+      ...normalizedResult,
       notes,
     };
   }

@@ -127,3 +127,51 @@ test('claude session progress bridge skips old replay when an existing session f
     stop();
   }
 });
+
+test('claude session progress bridge forwards user tool_result events for downstream result parsing', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agents-in-discord-progress-claude-tool-result-'));
+  const sessionFile = path.join(root, 'session.jsonl');
+  fs.writeFileSync(sessionFile, '');
+
+  const seen = [];
+  const factory = createSessionProgressBridgeFactory({
+    normalizeProvider: (provider) => provider,
+    extractRawProgressTextFromEvent: () => '',
+    findLatestRolloutFileBySessionId: () => null,
+    findLatestClaudeSessionFileBySessionId: () => readMatch(sessionFile),
+  });
+
+  const stop = factory.startSessionProgressBridge({
+    provider: 'claude',
+    threadId: 'sid-claude-tool-result',
+    workspaceDir: '/tmp/demo',
+    onEvent: (event) => seen.push(event),
+  });
+
+  try {
+    await wait(150);
+    fs.appendFileSync(
+      sessionFile,
+      `${JSON.stringify({
+        timestamp: '2026-03-25T10:00:01.000Z',
+        type: 'user',
+        sessionId: 'sid-claude-tool-result',
+        message: {
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              content: '## 角色卡 #1\n\n完整正文',
+            },
+          ],
+        },
+      })}\n`,
+    );
+
+    await wait(900);
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0]?.type, 'user');
+  } finally {
+    stop();
+  }
+});

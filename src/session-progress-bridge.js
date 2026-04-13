@@ -6,6 +6,19 @@ export function createSessionProgressBridgeFactory({
   findLatestRolloutFileBySessionId,
   findLatestClaudeSessionFileBySessionId,
 } = {}) {
+  function hasClaudeToolResultPayload(value) {
+    if (value === null || value === undefined) return false;
+    if (Array.isArray(value)) return value.some((item) => hasClaudeToolResultPayload(item));
+    if (typeof value !== 'object') return false;
+
+    const type = String(value.type || '').trim().toLowerCase();
+    if (type === 'tool_result') return true;
+
+    return hasClaudeToolResultPayload(value.message)
+      || hasClaudeToolResultPayload(value.content)
+      || hasClaudeToolResultPayload(value.result);
+  }
+
   function resolveInitialOffset({ match, bridgeStartedAtMs, baselineMatch }) {
     const currentSize = Math.max(0, Number(match?.sizeBytes) || 0);
     const currentPath = String(match?.file || '');
@@ -203,11 +216,12 @@ export function createSessionProgressBridgeFactory({
         return;
       }
       if (!ev || typeof ev !== 'object') return;
-      if (String(ev.type || '').toLowerCase() === 'user') return;
+      const hasToolResult = hasClaudeToolResultPayload(ev);
+      if (String(ev.type || '').toLowerCase() === 'user' && !hasToolResult) return;
 
       const text = extractRawProgressTextFromEvent(ev);
-      if (!text) return;
-      const key = [ev.timestamp || '', ev.type || '', ev.sessionId || '', text].join('|');
+      if (!text && !hasToolResult) return;
+      const key = [ev.timestamp || '', ev.type || '', ev.sessionId || '', hasToolResult ? 'tool_result' : '', text].join('|');
       if (!rememberKey(key)) return;
       onEvent(ev);
     };

@@ -122,8 +122,18 @@ export function handleClaudeRunnerEvent(event, state, ensureSessionBridge) {
       state.threadId = event.session_id || event.sessionId || state.threadId;
       if (state.threadId) ensureSessionBridge(state.threadId);
       break;
+    case 'user': {
+      appendClaudeToolResultText(state, event);
+      const nextThreadId = event.session_id || event.sessionId || state.threadId;
+      if (nextThreadId && nextThreadId !== state.threadId) {
+        state.threadId = nextThreadId;
+        ensureSessionBridge(state.threadId);
+      }
+      break;
+    }
     case 'message':
     case 'assistant': {
+      appendClaudeToolResultText(state, event);
       const text = extractClaudeText(event);
       if (!text) break;
       if (isClaudeFinalAnswerEvent(event)) appendUniqueText(state.finalAnswerMessages, text);
@@ -162,6 +172,60 @@ function appendUniqueText(list, text) {
 
 function normalizeComparableText(value) {
   return String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function appendClaudeToolResultText(state, event) {
+  const text = extractClaudeToolResultText(event);
+  if (!text) return;
+  if (!state.meta || typeof state.meta !== 'object') {
+    state.meta = {};
+  }
+  if (!Array.isArray(state.meta.claudeToolResultMessages)) {
+    state.meta.claudeToolResultMessages = [];
+  }
+  appendUniqueText(state.meta.claudeToolResultMessages, text);
+}
+
+function extractClaudeToolResultText(event) {
+  const parts = collectClaudeToolResultParts([
+    event?.message,
+    event?.content,
+    event?.result,
+  ]);
+  return parts.join('\n\n').trim();
+}
+
+function collectClaudeToolResultParts(value) {
+  if (value === null || value === undefined) return [];
+  if (Array.isArray(value)) return value.flatMap((item) => collectClaudeToolResultParts(item));
+  if (typeof value !== 'object') return [];
+
+  const type = String(value.type || '').trim().toLowerCase();
+  const parts = [];
+
+  if (type === 'tool_result') {
+    parts.push(...collectClaudeTextParts([
+      value.content,
+      value.text,
+      value.output_text,
+      value.input_text,
+      value.stdout,
+      value.stderr,
+      value.message,
+    ]));
+  }
+
+  if (value.message && typeof value.message === 'object') {
+    parts.push(...collectClaudeToolResultParts(value.message));
+  }
+  if (Array.isArray(value.content)) {
+    parts.push(...collectClaudeToolResultParts(value.content));
+  }
+  if (value.result && typeof value.result === 'object') {
+    parts.push(...collectClaudeToolResultParts(value.result));
+  }
+
+  return parts;
 }
 
 function collectClaudeTextParts(value) {
