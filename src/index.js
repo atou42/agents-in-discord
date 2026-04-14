@@ -95,6 +95,7 @@ import {
   normalizeSessionCompactStrategy,
   normalizeSessionCompactTokenLimit,
   normalizeSessionFastMode,
+  normalizeSessionRuntimeMode,
   normalizeSessionSecurityProfile,
   normalizeSessionTimeoutMs,
   normalizeTimeoutMs,
@@ -102,6 +103,7 @@ import {
   parseCompactConfigAction,
   parseCompactConfigFromText,
   parseFastModeAction,
+  parseRuntimeModeAction,
   parseReasoningEffortInput,
   parseSecurityProfileInput,
   parseTimeoutConfigAction,
@@ -311,6 +313,18 @@ const MODEL_AUTO_COMPACT_TOKEN_LIMIT = toInt(
   process.env.MODEL_AUTO_COMPACT_TOKEN_LIMIT,
   MAX_INPUT_TOKENS_BEFORE_COMPACT,
 );
+const CLAUDE_RUNTIME_MODE = normalizeSessionRuntimeMode(
+  process.env.CLAUDE__RUNTIME_MODE || process.env.CLAUDE_RUNTIME_MODE || 'normal',
+) || 'normal';
+const CLAUDE_LONG_IDLE_MS = normalizeIntervalMs(
+  process.env.CLAUDE__LONG_IDLE_MS || process.env.CLAUDE_LONG_IDLE_MS,
+  15 * 60_000,
+  1000,
+);
+const CLAUDE_LONG_MAX_SESSIONS = Math.max(
+  1,
+  toInt(process.env.CLAUDE__LONG_MAX_SESSIONS || process.env.CLAUDE_LONG_MAX_SESSIONS, 8),
+);
 const SLASH_PREFIX = normalizeSlashPrefix(process.env.SLASH_PREFIX || getDefaultSlashPrefix(BOT_PROVIDER));
 const SPAWN_ENV = buildSpawnEnv(process.env);
 const getProviderBin = (provider) => getProviderBinBase(provider, {
@@ -365,6 +379,7 @@ const appContext = createAppContext({
     taskRetryBaseDelayMs: TASK_RETRY_BASE_DELAY_MS,
     taskRetryMaxDelayMs: TASK_RETRY_MAX_DELAY_MS,
     compactStrategy: COMPACT_STRATEGY,
+    claudeRuntimeMode: CLAUDE_RUNTIME_MODE,
     compactOnThreshold: COMPACT_ON_THRESHOLD,
     maxInputTokensBeforeCompact: MAX_INPUT_TOKENS_BEFORE_COMPACT,
     modelAutoCompactTokenLimit: MODEL_AUTO_COMPACT_TOKEN_LIMIT,
@@ -452,6 +467,8 @@ const appContext = createAppContext({
       spawnEnv: SPAWN_ENV,
       defaultTimeoutMs: CODEX_TIMEOUT_MS,
       defaultModel: DEFAULT_MODEL,
+      claudeLongIdleMs: CLAUDE_LONG_IDLE_MS,
+      claudeLongMaxSessions: CLAUDE_LONG_MAX_SESSIONS,
       ensureDir,
       normalizeProvider,
       getProviderBin,
@@ -602,6 +619,7 @@ const appContext = createAppContext({
       parseWorkspaceCommandAction,
       parseUiLanguageInput,
       parseFastModeAction,
+      parseRuntimeModeAction,
       parseSecurityProfileInput,
       parseTimeoutConfigAction,
       parseCompactConfigAction,
@@ -621,6 +639,7 @@ const appContext = createAppContext({
       parseProviderInput,
       parseUiLanguageInput,
       parseFastModeAction,
+      parseRuntimeModeAction,
       parseSecurityProfileInput,
       parseTimeoutConfigAction,
       parseCompactConfigFromText,
@@ -677,6 +696,9 @@ console.log([
   `• BOT_MODE=${BOT_MODE}`,
   `• DEFAULT_PROVIDER=${DEFAULT_PROVIDER}`,
   `• DEFAULT_MODE=${DEFAULT_MODE}`,
+  `• CLAUDE_RUNTIME_MODE=${CLAUDE_RUNTIME_MODE}`,
+  `• CLAUDE_LONG_IDLE_MS=${CLAUDE_LONG_IDLE_MS}`,
+  `• CLAUDE_LONG_MAX_SESSIONS=${CLAUDE_LONG_MAX_SESSIONS}`,
   `• SLASH_PREFIX=${SLASH_PREFIX || '(none)'}`,
   `• SECURITY_PROFILE=${SECURITY_PROFILE}`,
   `• MENTION_ONLY=${MENTION_ONLY_OVERRIDE === null ? 'profile-default' : MENTION_ONLY_OVERRIDE}`,

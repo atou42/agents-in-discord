@@ -29,7 +29,9 @@ function createRouterState(overrides = {}) {
   const browseCalls = [];
   const settingsCalls = [];
   let fastModeSetting = { enabled: false, supported: true, source: 'config.toml' };
+  let runtimeModeSetting = { mode: 'normal', supported: true, source: 'env default' };
   let retryOutcome = { ok: true, enqueued: true, queuedAhead: 0 };
+  const closeRuntimeCalls = [];
 
   const router = createSlashCommandRouter({
     slashRef: (name) => `/cx_${name}`,
@@ -39,6 +41,7 @@ function createRouterState(overrides = {}) {
     getProviderDisplayName: (provider) => provider,
     getEffectiveSecurityProfile: () => ({ profile: 'team' }),
     resolveFastModeSetting: () => fastModeSetting,
+    resolveRuntimeModeSetting: () => runtimeModeSetting,
     resolveTimeoutSetting: () => ({ timeoutMs: 0, source: 'default' }),
     isReasoningEffortSupported: () => true,
     commandActions: {
@@ -57,6 +60,11 @@ function createRouterState(overrides = {}) {
       setFastMode(_session, enabled) {
         fastModeSetting = { enabled: Boolean(enabled), supported: true, source: enabled === null ? 'config.toml' : 'session override' };
         return { fastModeSetting };
+      },
+      setRuntimeMode(_session, mode) {
+        runtimeModeSetting = { mode: mode || 'normal', supported: true, source: mode ? 'session override' : 'env default' };
+        session.runtimeMode = mode;
+        return { runtimeMode: mode };
       },
       setReasoningEffort: () => ({ effort: null }),
       applyCompactConfig() {},
@@ -84,6 +92,8 @@ function createRouterState(overrides = {}) {
     formatLanguageConfigReport: () => '',
     formatFastModeConfigHelp: () => 'fast-help',
     formatFastModeConfigReport: (_language, provider, setting, changed) => `${provider}:${setting.supported}:${setting.enabled}:${setting.source}:${changed}`,
+    formatRuntimeModeConfigHelp: () => 'runtime-help',
+    formatRuntimeModeConfigReport: (_language, provider, setting, changed) => `${provider}:${setting.supported}:${setting.mode}:${setting.source}:${changed}`,
     formatProfileConfigHelp: () => '',
     formatProfileConfigReport: () => '',
     formatTimeoutConfigHelp: () => '',
@@ -107,6 +117,13 @@ function createRouterState(overrides = {}) {
       if (raw === 'off') return { type: 'set', enabled: false };
       return { type: 'invalid' };
     },
+    parseRuntimeModeAction: (value) => {
+      const raw = String(value || '').trim().toLowerCase();
+      if (raw === 'status') return { type: 'status' };
+      if (raw === 'default') return { type: 'set', mode: null };
+      if (raw === 'normal' || raw === 'long') return { type: 'set', mode: raw };
+      return { type: 'invalid' };
+    },
     parseSecurityProfileInput: () => 'team',
     parseTimeoutConfigAction: () => ({ type: 'status' }),
     parseCompactConfigAction: () => ({ type: 'status' }),
@@ -115,6 +132,10 @@ function createRouterState(overrides = {}) {
       const outcome = { key, reason };
       cancelCalls.push(outcome);
       return outcome;
+    },
+    closeRuntimeSession: (key, reason) => {
+      closeRuntimeCalls.push({ key, reason });
+      return true;
     },
     retryLastPrompt: async (key, userId) => {
       retryCalls.push({ key, userId });
@@ -148,6 +169,8 @@ function createRouterState(overrides = {}) {
     },
     getSettingsCalls: () => [...settingsCalls],
     getFastModeSetting: () => fastModeSetting,
+    getRuntimeModeSetting: () => runtimeModeSetting,
+    getCloseRuntimeCalls: () => [...closeRuntimeCalls],
   };
 }
 
@@ -353,6 +376,32 @@ test('createSlashCommandRouter updates fast mode for codex provider', async () =
   assert.deepEqual(state.getFastModeSetting(), { enabled: true, supported: true, source: 'session override' });
   assert.deepEqual(state.replies, [{
     content: 'codex:true:true:session override:true',
+    flags: 64,
+  }]);
+});
+
+test('createSlashCommandRouter updates Claude runtime mode and closes current hot process', async () => {
+  const state = createRouterState();
+  state.session.provider = 'claude';
+  state.session.runnerSessionId = 'sess-stays';
+  const interaction = createInteraction('cx_runtime');
+  interaction.options.getString = () => 'long';
+
+  const handled = await state.router({
+    interaction,
+    commandName: 'runtime',
+    respond: async (payload) => {
+      state.replies.push(payload);
+    },
+  });
+
+  assert.equal(handled, true);
+  assert.equal(state.session.runtimeMode, 'long');
+  assert.equal(state.session.runnerSessionId, 'sess-stays');
+  assert.deepEqual(state.getRuntimeModeSetting(), { mode: 'long', supported: true, source: 'session override' });
+  assert.deepEqual(state.getCloseRuntimeCalls(), [{ key: 'channel-1', reason: 'runtime config changed' }]);
+  assert.deepEqual(state.replies, [{
+    content: 'claude:true:long:session override:true',
     flags: 64,
   }]);
 });

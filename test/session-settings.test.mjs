@@ -7,10 +7,12 @@ import {
   formatLanguageLabel,
   normalizeCompactStrategy,
   normalizeSessionFastMode,
+  normalizeSessionRuntimeMode,
   normalizeUiLanguage,
   parseCompactConfigAction,
   parseCompactConfigFromText,
   parseFastModeAction,
+  parseRuntimeModeAction,
   parseReasoningEffortInput,
   parseWorkspaceCommandAction,
 } from '../src/session-settings.js';
@@ -177,6 +179,59 @@ test('session-settings lets thread fast mode inherit the parent channel provider
   });
 });
 
+test('session-settings resolves Claude runtime mode from session, parent, and env default', () => {
+  const parentSession = {
+    provider: 'claude',
+    providers: {
+      claude: {
+        runnerSessionId: null,
+        codexThreadId: null,
+        lastInputTokens: null,
+        model: null,
+        effort: null,
+        fastMode: null,
+        runtimeMode: 'long',
+        compactStrategy: null,
+        compactEnabled: null,
+        compactThresholdTokens: null,
+        nativeCompactTokenLimit: null,
+        configOverrides: [],
+      },
+    },
+  };
+  const settings = createSessionSettings({
+    claudeRuntimeMode: 'normal',
+    getParentSession: () => parentSession,
+    normalizeProvider: (provider) => String(provider || '').trim().toLowerCase() || 'codex',
+  });
+
+  assert.deepEqual(settings.resolveRuntimeModeSetting({ provider: 'claude', runtimeMode: 'normal' }), {
+    mode: 'normal',
+    supported: true,
+    source: 'session override',
+  });
+  assert.deepEqual(settings.resolveRuntimeModeSetting({ provider: 'claude', runtimeMode: null, parentChannelId: 'channel-1' }), {
+    mode: 'long',
+    supported: true,
+    source: 'parent channel',
+  });
+  assert.deepEqual(settings.resolveRuntimeModeSetting({ provider: 'claude', runtimeMode: null }), {
+    mode: 'long',
+    supported: true,
+    source: 'parent channel',
+  });
+  assert.deepEqual(createSessionSettings({ claudeRuntimeMode: 'hot' }).resolveRuntimeModeSetting({ provider: 'claude' }), {
+    mode: 'long',
+    supported: true,
+    source: 'env default',
+  });
+  assert.deepEqual(settings.resolveRuntimeModeSetting({ provider: 'codex', runtimeMode: 'long' }), {
+    mode: 'normal',
+    supported: false,
+    source: 'provider unsupported',
+  });
+});
+
 test('session-settings parses compact, reasoning and workspace command inputs', () => {
   assert.deepEqual(parseCompactConfigAction('strategy', 'native'), {
     type: 'set_strategy',
@@ -196,6 +251,10 @@ test('session-settings parses compact, reasoning and workspace command inputs', 
   assert.deepEqual(parseFastModeAction('default'), { type: 'set', enabled: null });
   assert.deepEqual(parseFastModeAction('status'), { type: 'status' });
   assert.equal(normalizeSessionFastMode('off'), false);
+  assert.deepEqual(parseRuntimeModeAction('long'), { type: 'set', mode: 'long' });
+  assert.deepEqual(parseRuntimeModeAction('default'), { type: 'set', mode: null });
+  assert.deepEqual(parseRuntimeModeAction('status'), { type: 'status' });
+  assert.equal(normalizeSessionRuntimeMode('hot'), 'long');
   assert.deepEqual(parseWorkspaceCommandAction('browse'), { type: 'browse' });
   assert.deepEqual(parseWorkspaceCommandAction('~/repo'), { type: 'set', value: '~/repo' });
   assert.equal(parseReasoningEffortInput('HIGH'), 'high');

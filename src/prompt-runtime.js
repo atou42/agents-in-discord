@@ -79,6 +79,9 @@ export function createPromptRuntime({
     handlePrompt,
     runProviderTask,
     runCodex: runnerExecutor.runCodex || runProviderTask,
+    closeRuntimeSession: runnerExecutor.closeRuntimeSession || (() => false),
+    closeAllRuntimeSessions: runnerExecutor.closeAllRuntimeSessions || (() => 0),
+    getClaudeLongSessions: runnerExecutor.getClaudeLongSessions || (() => []),
     startSessionProgressBridge,
   };
 }

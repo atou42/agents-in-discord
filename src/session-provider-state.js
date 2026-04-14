@@ -9,6 +9,7 @@ const PROVIDER_SCOPED_SESSION_DEFAULTS = Object.freeze({
   compactEnabled: null,
   compactThresholdTokens: null,
   nativeCompactTokenLimit: null,
+  runtimeMode: null,
   configOverrides: Object.freeze([]),
 });
 
@@ -23,6 +24,7 @@ export const PROVIDER_SCOPED_SESSION_FIELDS = Object.freeze([
   'compactEnabled',
   'compactThresholdTokens',
   'nativeCompactTokenLimit',
+  'runtimeMode',
   'configOverrides',
 ]);
 

@@ -21,6 +21,16 @@ function normalizeOptionalEffortOverride(value) {
   const text = normalizeOptionalOverride(value);
   return text === null ? null : text.toLowerCase();
 }
+
+function normalizeOptionalRuntimeMode(value) {
+  const text = normalizeOptionalOverride(value);
+  if (text === null) return null;
+  const raw = text.toLowerCase();
+  if (raw === 'normal' || raw === 'short' || raw === 'cold') return 'normal';
+  if (raw === 'long' || raw === 'hot') return 'long';
+  throw new Error(`invalid Claude runtime mode: ${value}`);
+}
+
 function normalizeSessionKey(value) {
   const text = String(value || '').trim();
   return text || null;
@@ -140,6 +150,12 @@ export function createSessionCommandActions({
     session.fastMode = enabled;
     saveDb();
     return { fastModeSetting: resolveFastModeSetting(session) };
+  }
+
+  function setRuntimeMode(session, mode) {
+    session.runtimeMode = normalizeOptionalRuntimeMode(mode);
+    saveDb();
+    return { runtimeMode: session.runtimeMode };
   }
 
   function setGlobalModelDefault(_session, value) {
@@ -400,6 +416,7 @@ export function createSessionCommandActions({
     setModel,
     setReasoningEffort,
     setFastMode,
+    setRuntimeMode,
     setGlobalModelDefault,
     setGlobalReasoningEffortDefault,
     setGlobalFastModeDefault,

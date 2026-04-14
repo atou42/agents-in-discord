@@ -53,3 +53,61 @@ test('createRunnerExecutor builds gemini args instead of codex args', () => {
     'summarize the repo',
   ]);
 });
+
+test('createRunnerExecutor routes Claude long runtime to the hot-session runner', async () => {
+  let longRunInput = null;
+  const executor = createRunnerExecutor({
+    spawnEnv: process.env,
+    ensureDir: () => {},
+    normalizeProvider: (value) => value,
+    getSessionProvider: (session) => session.provider,
+    getProviderBin: () => 'claude',
+    getSessionId: (session) => session.runnerSessionId,
+    resolveModelSetting: () => ({ value: null, source: 'provider' }),
+    resolveReasoningEffortSetting: () => ({ value: null, source: 'provider' }),
+    resolveTimeoutSetting: () => ({ timeoutMs: 0 }),
+    resolveFastModeSetting: () => ({ enabled: false, supported: false }),
+    resolveRuntimeModeSetting: () => ({ mode: 'long', supported: true }),
+    resolveCompactStrategySetting: () => ({ strategy: 'hard' }),
+    resolveCompactEnabledSetting: () => ({ enabled: false }),
+    resolveNativeCompactTokenLimitSetting: () => ({ tokens: 0 }),
+    normalizeTimeoutMs: (value) => Number(value || 0),
+    safeError: (err) => String(err?.message || err),
+    stopChildProcess: () => {},
+    startSessionProgressBridge: () => () => {},
+    extractAgentMessageText,
+    isFinalAnswerLikeAgentMessage,
+    createClaudeLongRunnerFn: () => ({
+      runTask(input) {
+        longRunInput = input;
+        return Promise.resolve({
+          ok: true,
+          cancelled: false,
+          timedOut: false,
+          error: '',
+          logs: [],
+          messages: [],
+          finalAnswerMessages: ['done'],
+          reasonings: [],
+          usage: null,
+          threadId: 'claude-session-1',
+        });
+      },
+      closeSession: () => false,
+      closeAll: () => 0,
+      getSnapshot: () => [],
+    }),
+  });
+
+  const result = await executor.runProviderTask({
+    session: { provider: 'claude', mode: 'safe', runnerSessionId: 'claude-session-1' },
+    sessionKey: 'discord-thread-1',
+    workspaceDir: '/tmp/workspace',
+    prompt: 'hello',
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.threadId, 'claude-session-1');
+  assert.equal(longRunInput.sessionKey, 'discord-thread-1');
+  assert.equal(longRunInput.prompt, 'hello');
+});

@@ -117,6 +117,45 @@ test('createSessionCommandActions.setProvider restores preserved provider-scoped
   assert.equal(saveCount, 1);
 });
 
+test('createSessionCommandActions.setRuntimeMode preserves session id and persists the override', () => {
+  let saveCount = 0;
+  const actions = createSessionCommandActions({
+    saveDb: () => {
+      saveCount += 1;
+    },
+    ensureWorkspace: () => '/tmp/workspace',
+    clearSessionId: (session) => {
+      session.runnerSessionId = null;
+      session.codexThreadId = null;
+    },
+    getSessionId: (session) => session.runnerSessionId,
+    setSessionId: (session, value) => {
+      session.runnerSessionId = value;
+      session.codexThreadId = value;
+    },
+    getSessionProvider: (session) => session.provider || 'codex',
+    getProviderShortName: (provider) => provider === 'claude' ? 'Claude' : 'Codex',
+    resolveTimeoutSetting: () => ({ timeoutMs: 60000, source: 'session override' }),
+    listRecentSessions: () => [],
+    humanAge: () => '0s',
+  });
+  const session = {
+    provider: 'claude',
+    runnerSessionId: 'sess-stays',
+    codexThreadId: 'sess-stays',
+    runtimeMode: null,
+  };
+
+  assert.deepEqual(actions.setRuntimeMode(session, 'long'), { runtimeMode: 'long' });
+  assert.equal(session.runnerSessionId, 'sess-stays');
+  assert.equal(session.codexThreadId, 'sess-stays');
+  assert.equal(saveCount, 1);
+
+  assert.deepEqual(actions.setRuntimeMode(session, null), { runtimeMode: null });
+  assert.equal(session.runnerSessionId, 'sess-stays');
+  assert.equal(saveCount, 2);
+});
+
 test('createSessionCommandActions.setWorkspaceDir resets codex session when workspace changes', () => {
   let saveCount = 0;
   const defaultState = { value: '/shared' };

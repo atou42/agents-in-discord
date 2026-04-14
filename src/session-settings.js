@@ -38,6 +38,25 @@ export function normalizeSessionFastMode(value) {
   return null;
 }
 
+export function normalizeSessionRuntimeMode(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const raw = String(value).trim().toLowerCase();
+  if (raw === 'normal' || raw === 'short' || raw === 'cold') return 'normal';
+  if (raw === 'long' || raw === 'hot') return 'long';
+  return null;
+}
+
+export function parseRuntimeModeAction(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw || ['status', 'show', 'state', '查看', '状态'].includes(raw)) return { type: 'status' };
+  if (['default', 'inherit', 'clear', 'reset', 'follow', '跟随默认', '清除'].includes(raw)) {
+    return { type: 'set', mode: null };
+  }
+  const mode = normalizeSessionRuntimeMode(raw);
+  if (!mode) return { type: 'invalid' };
+  return { type: 'set', mode };
+}
+
 export function parseFastModeAction(value) {
   const raw = String(value || '').trim().toLowerCase();
   if (!raw || ['status', 'show', 'state', '查看', '状态'].includes(raw)) return { type: 'status' };
@@ -224,6 +243,7 @@ export function createSessionSettings({
   taskRetryBaseDelayMs = 1000,
   taskRetryMaxDelayMs = 8000,
   compactStrategy = 'native',
+  claudeRuntimeMode = 'normal',
   compactOnThreshold = true,
   maxInputTokensBeforeCompact = 250000,
   modelAutoCompactTokenLimit = maxInputTokensBeforeCompact,
@@ -331,6 +351,42 @@ export function createSessionSettings({
       enabled: Boolean(readCodexDefaults().fastMode),
       supported: true,
       source: 'config.toml',
+    };
+  }
+
+  function resolveRuntimeModeSetting(session) {
+    const provider = normalizeProvider(session?.provider);
+    if (provider !== 'claude') {
+      return {
+        mode: 'normal',
+        supported: false,
+        source: 'provider unsupported',
+      };
+    }
+
+    const sessionRuntimeMode = normalizeSessionRuntimeMode(session?.runtimeMode);
+    if (sessionRuntimeMode) {
+      return {
+        mode: sessionRuntimeMode,
+        supported: true,
+        source: 'session override',
+      };
+    }
+
+    const parentSession = resolveParentSession(session);
+    const parentRuntimeMode = normalizeSessionRuntimeMode(readProviderScopedValue(parentSession, provider, 'runtimeMode'));
+    if (parentRuntimeMode) {
+      return {
+        mode: parentRuntimeMode,
+        supported: true,
+        source: 'parent channel',
+      };
+    }
+
+    return {
+      mode: normalizeSessionRuntimeMode(claudeRuntimeMode) || 'normal',
+      supported: true,
+      source: 'env default',
     };
   }
 
@@ -502,6 +558,7 @@ export function createSessionSettings({
     resolveModelSetting,
     resolveReasoningEffortSetting,
     resolveFastModeSetting,
+    resolveRuntimeModeSetting,
     resolveCompactStrategySetting,
     resolveCompactEnabledSetting,
     resolveCompactThresholdSetting,

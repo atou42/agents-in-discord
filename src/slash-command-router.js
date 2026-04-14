@@ -57,6 +57,7 @@ export function createSlashCommandRouter({
   getEffectiveSecurityProfile,
   getRuntimeSnapshot = () => ({ running: false, queued: 0 }),
   resolveFastModeSetting = () => ({ enabled: false, supported: false, source: 'provider unsupported' }),
+  resolveRuntimeModeSetting = () => ({ mode: 'normal', supported: false, source: 'provider unsupported' }),
   resolveTimeoutSetting,
   isReasoningEffortSupported,
   commandActions = {},
@@ -76,6 +77,8 @@ export function createSlashCommandRouter({
   formatLanguageConfigReport,
   formatFastModeConfigHelp = () => '',
   formatFastModeConfigReport = () => '',
+  formatRuntimeModeConfigHelp = () => '',
+  formatRuntimeModeConfigReport = () => '',
   formatProfileConfigHelp,
   formatProfileConfigReport,
   formatTimeoutConfigHelp,
@@ -91,11 +94,13 @@ export function createSlashCommandRouter({
   parseWorkspaceCommandAction,
   parseUiLanguageInput,
   parseFastModeAction = () => ({ type: 'status' }),
+  parseRuntimeModeAction = () => ({ type: 'status' }),
   parseSecurityProfileInput,
   parseTimeoutConfigAction,
   parseCompactConfigAction,
   providerSupportsCompactConfigAction = () => true,
   cancelChannelWork,
+  closeRuntimeSession = () => false,
   retryLastPrompt,
   openWorkspaceBrowser,
   openSettingsPanel,
@@ -103,6 +108,13 @@ export function createSlashCommandRouter({
   safeError,
 } = {}) {
   const handlers = new Map();
+
+  const closeRuntimeForKey = (key, reason = 'runtime config changed') => {
+    try {
+      closeRuntimeSession(key, reason);
+    } catch {
+    }
+  };
 
   registerSlashHandlers(handlers, ['status'], async ({ interaction, key, session, respond }) => {
     await respond({
@@ -132,6 +144,7 @@ export function createSlashCommandRouter({
   registerSlashHandlers(handlers, ['new'], async ({ interaction, key, session, respond }) => {
     const outcome = cancelChannelWork(key, 'slash_new');
     commandActions.startNewSession(session);
+    closeRuntimeForKey(key, 'new session');
     const lines = ['🆕 已切换到新会话。'];
     if (outcome.cancelledRunning) lines.push('当前运行中的任务已尝试取消。');
     if (outcome.clearedQueued > 0) lines.push(`已清空 ${outcome.clearedQueued} 个排队任务。`);
@@ -144,6 +157,7 @@ export function createSlashCommandRouter({
 
   registerSlashHandlers(handlers, ['reset'], async ({ interaction, key, session, respond }) => {
     commandActions.resetSession(session);
+    closeRuntimeForKey(key, 'reset session');
     await respond({
       content: '♻️ 会话与额外配置已清空，下条消息新开上下文。',
       flags: 64,
@@ -180,6 +194,7 @@ export function createSlashCommandRouter({
     }
     if (action.type === 'clear') {
       const result = commandActions.clearWorkspaceDir(session, key);
+      closeRuntimeForKey(key);
       await respond({ content: formatWorkspaceUpdateReport(key, session, result), flags: 64 });
       return;
     }
@@ -205,6 +220,7 @@ export function createSlashCommandRouter({
     }
 
     const result = commandActions.setWorkspaceDir(session, key, resolved);
+    closeRuntimeForKey(key);
     await respond({ content: formatWorkspaceUpdateReport(key, session, result), flags: 64 });
   });
 
@@ -220,6 +236,7 @@ export function createSlashCommandRouter({
     }
     if (action.type === 'clear') {
       const result = commandActions.setDefaultWorkspaceDir(session, null);
+      closeRuntimeForKey(key);
       await respond({ content: formatDefaultWorkspaceUpdateReport(key, session, result), flags: 64 });
       return;
     }
@@ -245,10 +262,11 @@ export function createSlashCommandRouter({
     }
 
     const result = commandActions.setDefaultWorkspaceDir(session, resolved);
+    closeRuntimeForKey(key);
     await respond({ content: formatDefaultWorkspaceUpdateReport(key, session, result), flags: 64 });
   });
 
-  registerSlashHandlers(handlers, ['provider'], async ({ interaction, session, respond }) => {
+  registerSlashHandlers(handlers, ['provider'], async ({ interaction, key, session, respond }) => {
     if (botProvider) {
       await respond({
         content: `🔒 当前 bot 已锁定 provider = \`${botProvider}\` (${getProviderDisplayName(botProvider)})，不能在频道内切换。`,
@@ -268,12 +286,14 @@ export function createSlashCommandRouter({
 
     const requested = normalizeProvider(rawRequested);
     const { previous } = commandActions.setProvider(session, requested);
+    closeRuntimeForKey(key);
     await respond(`✅ provider = \`${requested}\` (${getProviderDisplayName(requested)})${previous === requested ? '' : '，已清空旧 session 绑定'}`);
   });
 
-  registerSlashHandlers(handlers, ['model'], async ({ interaction, session, respond }) => {
+  registerSlashHandlers(handlers, ['model'], async ({ interaction, key, session, respond }) => {
     const name = interaction.options.getString('name');
     const { model } = commandActions.setModel(session, name);
+    closeRuntimeForKey(key);
     await respond(`✅ model = ${model || '(provider default)'}`);
   });
 
@@ -309,7 +329,40 @@ export function createSlashCommandRouter({
     });
   });
 
-  registerSlashHandlers(handlers, ['effort'], async ({ interaction, session, respond }) => {
+  registerSlashHandlers(handlers, ['runtime'], async ({ interaction, key, session, respond }) => {
+    const provider = getSessionProvider(session);
+    const language = getSessionLanguage(session);
+    const action = parseRuntimeModeAction(interaction.options.getString('mode'));
+    if (provider !== 'claude') {
+      await respond({
+        content: formatRuntimeModeConfigReport(language, provider, { mode: 'normal', supported: false, source: 'provider unsupported' }, false),
+        flags: 64,
+      });
+      return;
+    }
+    if (!action || action.type === 'invalid') {
+      await respond({
+        content: formatRuntimeModeConfigHelp(language, provider),
+        flags: 64,
+      });
+      return;
+    }
+    if (action.type === 'status') {
+      await respond({
+        content: formatRuntimeModeConfigReport(language, provider, resolveRuntimeModeSetting(session), false),
+        flags: 64,
+      });
+      return;
+    }
+    commandActions.setRuntimeMode(session, action.mode);
+    closeRuntimeForKey(key);
+    await respond({
+      content: formatRuntimeModeConfigReport(language, provider, resolveRuntimeModeSetting(session), true),
+      flags: 64,
+    });
+  });
+
+  registerSlashHandlers(handlers, ['effort'], async ({ interaction, key, session, respond }) => {
     const level = interaction.options.getString('level');
     const provider = getSessionProvider(session);
     if (!isReasoningEffortSupported(provider, level)) {
@@ -321,6 +374,7 @@ export function createSlashCommandRouter({
     }
 
     const { effort } = commandActions.setReasoningEffort(session, level);
+    closeRuntimeForKey(key);
     await respond(`✅ effort = ${effort || '(provider default)'}`);
   });
 
@@ -359,13 +413,14 @@ export function createSlashCommandRouter({
     });
   });
 
-  registerSlashHandlers(handlers, ['mode'], async ({ interaction, session, respond }) => {
+  registerSlashHandlers(handlers, ['mode'], async ({ interaction, key, session, respond }) => {
     const type = interaction.options.getString('type');
     const { mode } = commandActions.setMode(session, type);
+    closeRuntimeForKey(key);
     await respond(`✅ mode = ${mode}`);
   });
 
-  registerSlashHandlers(handlers, ['resume'], async ({ interaction, session, respond }) => {
+  registerSlashHandlers(handlers, ['resume'], async ({ interaction, key, session, respond }) => {
     const sid = interaction.options.getString('session_id');
     const binding = commandActions.bindSession(session, interaction.channelId, sid);
     if (!binding.sessionId && binding.missingWorkspaceDir) {
@@ -381,8 +436,9 @@ export function createSlashCommandRouter({
     }
     await respond([
       `✅ 已绑定 ${formatProviderSessionLabel(binding.provider, 'zh')}: \`${binding.sessionId}\``,
-      ...notes,
-    ].join('\n'));
+        ...notes,
+      ].join('\n'));
+    closeRuntimeForKey(key, 'resume session');
   });
 
   registerSlashHandlers(handlers, ['name'], async ({ interaction, session, respond }) => {

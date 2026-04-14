@@ -314,6 +314,7 @@ export function createPromptOrchestrator({
 
       const runPromptAttempt = async ({ promptText, phase }) => runTask({
         session,
+        sessionKey: key,
         workspaceDir,
         prompt: promptText,
         onSpawn: (child) => {

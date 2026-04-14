@@ -163,6 +163,14 @@ function createPanel({ session, botProvider = null, openWorkspaceBrowser, comman
           || (currentSession?.fastMode === null || currentSession?.fastMode === undefined ? 'config.toml' : 'session override'),
       }
       : { enabled: false, supported: false, source: 'provider unsupported' },
+    resolveRuntimeModeSetting: (currentSession) => currentSession?.provider === 'claude'
+      ? {
+        mode: currentSession?.runtimeMode || currentSession?.inheritedRuntimeMode || 'normal',
+        supported: true,
+        source: currentSession?.runtimeModeSource
+          || (currentSession?.runtimeMode ? 'session override' : 'env default'),
+      }
+      : { mode: 'normal', supported: false, source: 'provider unsupported' },
     resolveCompactStrategySetting: (currentSession) => ({
       strategy: currentSession?.compactStrategy || 'native',
       source: currentSession?.compactStrategy ? 'session override' : 'env default',
@@ -257,6 +265,78 @@ test('createSettingsPanel updates fast mode through button interaction', async (
   assert.equal(updates.length, 1);
   assert.match(updates[0].content, /当前项：fast/);
   assert.match(updates[0].content, /fast mode：开启（当前频道）/);
+});
+
+test('createSettingsPanel updates Claude runtime mode and closes the hot process without clearing session id', async () => {
+  const session = {
+    provider: 'claude',
+    language: 'zh',
+    mode: 'safe',
+    runnerSessionId: 'sess-claude',
+    runtimeMode: null,
+  };
+  const updates = [];
+  const closed = [];
+
+  const actualPanel = createSettingsPanel({
+    botProvider: null,
+    defaultUiLanguage: 'zh',
+    ActionRowBuilder: FakeActionRowBuilder,
+    ButtonBuilder: FakeButtonBuilder,
+    ButtonStyle,
+    ModalBuilder: FakeModalBuilder,
+    TextInputBuilder: FakeTextInputBuilder,
+    TextInputStyle,
+    getSession: () => session,
+    getSessionLanguage: () => 'zh',
+    getSessionProvider: () => 'claude',
+    getWorkspaceBinding: () => ({ workspaceDir: '/repo/demo', source: 'provider default' }),
+    getProviderDefaults: () => ({ model: '(provider default)', effort: '(provider default)', source: 'provider' }),
+    getProviderDisplayName: () => 'Claude Code',
+    getSupportedReasoningEffortLevels: () => ['high', 'medium', 'low'],
+    getProviderCompactCapabilities: () => ({ strategies: ['hard', 'native', 'off'] }),
+    normalizeUiLanguage: () => 'zh',
+    resolveModelSetting: () => ({ value: null, source: 'provider' }),
+    resolveReasoningEffortSetting: () => ({ value: null, source: 'provider' }),
+    resolveFastModeSetting: () => ({ enabled: false, supported: false, source: 'provider unsupported' }),
+    resolveRuntimeModeSetting: (currentSession) => ({
+      mode: currentSession.runtimeMode || 'normal',
+      supported: true,
+      source: currentSession.runtimeMode ? 'session override' : 'env default',
+    }),
+    resolveCompactStrategySetting: () => ({ strategy: 'native', source: 'env default' }),
+    commandActions: {
+      setRuntimeMode(currentSession, mode) {
+        currentSession.runtimeMode = mode;
+        return { runtimeMode: mode };
+      },
+    },
+    closeRuntimeSession: (key, reason) => {
+      closed.push({ key, reason });
+    },
+    slashRef: (base) => `/cx_${base}`,
+  });
+
+  await actualPanel.handleSettingsPanelInteraction({
+    customId: 'stg:set:runtime:long:12345',
+    channelId: 'thread-1',
+    user: { id: '12345' },
+    async update(payload) {
+      updates.push(payload);
+    },
+    async reply() {
+      throw new Error('should not reply');
+    },
+    async showModal() {
+      throw new Error('should not show modal');
+    },
+  });
+
+  assert.equal(session.runtimeMode, 'long');
+  assert.equal(session.runnerSessionId, 'sess-claude');
+  assert.deepEqual(closed, [{ key: 'thread-1', reason: 'runtime config changed' }]);
+  assert.match(updates[0].content, /当前项：runtime/);
+  assert.match(updates[0].content, /Claude runtime：long/);
 });
 
 test('createSettingsPanel shows parent channel as the inherited fast mode source for threads', () => {

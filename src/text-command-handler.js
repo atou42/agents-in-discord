@@ -40,6 +40,8 @@ export function createTextCommandHandler({
   formatLanguageConfigReport,
   formatFastModeConfigHelp = () => '',
   formatFastModeConfigReport = () => '',
+  formatRuntimeModeConfigHelp = () => '',
+  formatRuntimeModeConfigReport = () => '',
   formatProfileConfigHelp,
   formatProfileConfigReport,
   formatTimeoutConfigHelp,
@@ -58,6 +60,7 @@ export function createTextCommandHandler({
   parseOnboardingConfigAction,
   parseUiLanguageInput,
   parseFastModeAction = () => ({ type: 'status' }),
+  parseRuntimeModeAction = () => ({ type: 'status' }),
   parseSecurityProfileInput,
   parseTimeoutConfigAction,
   parseCompactConfigFromText,
@@ -65,6 +68,7 @@ export function createTextCommandHandler({
   parseReasoningEffortInput,
   getEffectiveSecurityProfile,
   resolveFastModeSetting = () => ({ enabled: false, supported: false, source: 'provider unsupported' }),
+  resolveRuntimeModeSetting = () => ({ mode: 'normal', supported: false, source: 'provider unsupported' }),
   resolveTimeoutSetting,
   describeConfigPolicy,
   isConfigKeyAllowed,
@@ -72,10 +76,18 @@ export function createTextCommandHandler({
   providerSupportsRawConfigOverrides = () => false,
   isReasoningEffortSupported,
   cancelChannelWork,
+  closeRuntimeSession = () => false,
   openWorkspaceBrowser,
   resolvePath,
   safeError,
 } = {}) {
+  const closeRuntimeForKey = (key, reason = 'runtime config changed') => {
+    try {
+      closeRuntimeSession(key, reason);
+    } catch {
+    }
+  };
+
   return async function handleCommand(message, key, content) {
     const [cmd, ...rest] = content.split(/\s+/);
     const arg = rest.join(' ').trim();
@@ -119,6 +131,7 @@ export function createTextCommandHandler({
           break;
         }
         const { previous } = commandActions.setProvider(session, requested);
+        closeRuntimeForKey(key);
         await safeReply(message, `✅ provider = \`${requested}\` (${getProviderDisplayName(requested)})${previous === requested ? '' : '，已清空旧 session 绑定'}`);
         break;
       }
@@ -206,6 +219,7 @@ export function createTextCommandHandler({
       case 'new': {
         const outcome = cancelChannelWork(key, `text_command:${String(cmd || '').trim().toLowerCase()}`);
         commandActions.startNewSession(session);
+        closeRuntimeForKey(key, 'new session');
         const lines = ['🆕 已切换到新会话。'];
         if (outcome.cancelledRunning) lines.push('当前运行中的任务已尝试取消。');
         if (outcome.clearedQueued > 0) lines.push(`已清空 ${outcome.clearedQueued} 个排队任务。`);
@@ -230,6 +244,7 @@ export function createTextCommandHandler({
         }
         if (action.type === 'clear') {
           const result = commandActions.clearWorkspaceDir(session, key);
+          closeRuntimeForKey(key);
           await safeReply(message, formatWorkspaceUpdateReport(key, session, result));
           return;
         }
@@ -252,6 +267,7 @@ export function createTextCommandHandler({
           return;
         }
         const result = commandActions.setWorkspaceDir(session, key, resolved);
+        closeRuntimeForKey(key);
         await safeReply(message, formatWorkspaceUpdateReport(key, session, result));
         break;
       }
@@ -272,6 +288,7 @@ export function createTextCommandHandler({
         }
         if (action.type === 'clear') {
           const result = commandActions.setDefaultWorkspaceDir(session, null);
+          closeRuntimeForKey(key);
           await safeReply(message, formatDefaultWorkspaceUpdateReport(key, session, result));
           return;
         }
@@ -294,6 +311,7 @@ export function createTextCommandHandler({
           return;
         }
         const result = commandActions.setDefaultWorkspaceDir(session, resolved);
+        closeRuntimeForKey(key);
         await safeReply(message, formatDefaultWorkspaceUpdateReport(key, session, result));
         break;
       }
@@ -336,6 +354,7 @@ export function createTextCommandHandler({
             ...notes,
           ].join('\n'),
         );
+        closeRuntimeForKey(key, 'resume session');
         break;
       }
 
@@ -359,6 +378,7 @@ export function createTextCommandHandler({
           return;
         }
         const { model } = commandActions.setModel(session, arg);
+        closeRuntimeForKey(key);
         await safeReply(message, `✅ model = ${model || '(provider default)'}`);
         break;
       }
@@ -384,6 +404,28 @@ export function createTextCommandHandler({
         break;
       }
 
+      case 'runtime': {
+        const provider = getSessionProvider(session);
+        const language = getSessionLanguage(session);
+        if (provider !== 'claude') {
+          await safeReply(message, formatRuntimeModeConfigReport(language, provider, { mode: 'normal', supported: false, source: 'provider unsupported' }, false));
+          break;
+        }
+        const action = parseRuntimeModeAction(arg || 'status');
+        if (!action || action.type === 'invalid') {
+          await safeReply(message, formatRuntimeModeConfigHelp(language, provider));
+          break;
+        }
+        if (action.type === 'status') {
+          await safeReply(message, formatRuntimeModeConfigReport(language, provider, resolveRuntimeModeSetting(session), false));
+          break;
+        }
+        commandActions.setRuntimeMode(session, action.mode);
+        closeRuntimeForKey(key);
+        await safeReply(message, formatRuntimeModeConfigReport(language, provider, resolveRuntimeModeSetting(session), true));
+        break;
+      }
+
       case 'effort': {
         const language = getSessionLanguage(session);
         const provider = getSessionProvider(session);
@@ -397,6 +439,7 @@ export function createTextCommandHandler({
           return;
         }
         const { effort } = commandActions.setReasoningEffort(session, parsed);
+        closeRuntimeForKey(key);
         await safeReply(message, `✅ reasoning effort = ${effort || '(provider default)'}`);
         break;
       }
@@ -474,12 +517,14 @@ export function createTextCommandHandler({
           return;
         }
         const { mode } = commandActions.setMode(session, arg.toLowerCase());
+        closeRuntimeForKey(key);
         await safeReply(message, `✅ mode = ${mode}`);
         break;
       }
 
       case 'reset': {
         commandActions.resetSession(session);
+        closeRuntimeForKey(key, 'reset session');
         await safeReply(message, '♻️ 已清空会话 + 额外配置。下条消息新开上下文。');
         break;
       }

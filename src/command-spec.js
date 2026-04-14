@@ -216,6 +216,19 @@ export function buildSlashCommandEntries({ botProvider = null } = {}) {
           ));
       },
     },
+    (!lockedProvider || lockedProvider === 'claude') && {
+      name: 'runtime',
+      description: '切换 Claude 接入方式（normal/long/status/default）',
+      configure(builder) {
+        return builder.addStringOption(o => o.setName('mode').setDescription('Claude runtime').setRequired(true)
+          .addChoices(
+            { name: 'normal', value: 'normal' },
+            { name: 'long', value: 'long' },
+            { name: 'status', value: 'status' },
+            { name: 'default', value: 'default' },
+          ));
+      },
+    },
     effortChoices.length && {
       name: 'effort',
       description: '设置 reasoning effort',

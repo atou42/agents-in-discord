@@ -235,6 +235,51 @@ test('createTextCommandHandler updates codex fast mode', async () => {
   assert.deepEqual(replies, ['codex:true:session override:true']);
 });
 
+test('createTextCommandHandler updates Claude runtime mode and closes current hot process', async () => {
+  const replies = [];
+  const closed = [];
+  const session = {
+    provider: 'claude',
+    language: 'zh',
+    runnerSessionId: 'sess-stays',
+    runtimeMode: null,
+  };
+
+  const handleCommand = createTextCommandHandler({
+    getSession: () => session,
+    getSessionProvider: (currentSession) => currentSession.provider,
+    getSessionLanguage: () => 'zh',
+    parseRuntimeModeAction: () => ({ type: 'set', mode: 'long' }),
+    resolveRuntimeModeSetting: (currentSession) => ({
+      mode: currentSession.runtimeMode || 'normal',
+      supported: true,
+      source: currentSession.runtimeMode ? 'session override' : 'env default',
+    }),
+    commandActions: {
+      setRuntimeMode(currentSession, mode) {
+        currentSession.runtimeMode = mode;
+        return { runtimeMode: mode };
+      },
+    },
+    closeRuntimeSession: (key, reason) => {
+      closed.push({ key, reason });
+      return true;
+    },
+    formatRuntimeModeConfigHelp: () => 'help',
+    formatRuntimeModeConfigReport: (_language, provider, setting, changed) => `${provider}:${setting.mode}:${setting.source}:${changed}`,
+    safeReply: async (_message, payload) => {
+      replies.push(payload);
+    },
+  });
+
+  await handleCommand(createMessage(), 'thread-1', '!runtime long');
+
+  assert.equal(session.runtimeMode, 'long');
+  assert.equal(session.runnerSessionId, 'sess-stays');
+  assert.deepEqual(closed, [{ key: 'thread-1', reason: 'runtime config changed' }]);
+  assert.deepEqual(replies, ['claude:long:session override:true']);
+});
+
 test('createTextCommandHandler reports fast mode unsupported on non-codex providers', async () => {
   const replies = [];
   const session = { provider: 'claude', language: 'zh' };

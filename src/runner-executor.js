@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createRunnerArgsBuilder, uniqueDirs } from './runner-args.js';
+import { createClaudeLongRunner } from './claude-long-runner.js';
 import {
   createRunnerEventParser,
 } from './runner-event-handlers.js';
@@ -28,6 +29,7 @@ export function createRunnerExecutor({
   resolveCompactStrategySetting,
   resolveCompactEnabledSetting,
   resolveNativeCompactTokenLimitSetting,
+  resolveRuntimeModeSetting = () => ({ mode: 'normal', supported: false, source: 'provider unsupported' }),
   normalizeTimeoutMs,
   safeError,
   stopChildProcess,
@@ -35,6 +37,9 @@ export function createRunnerExecutor({
   extractAgentMessageText,
   isFinalAnswerLikeAgentMessage,
   readGeminiSessionState = () => null,
+  claudeLongIdleMs = 15 * 60_000,
+  claudeLongMaxSessions = 8,
+  createClaudeLongRunnerFn = createClaudeLongRunner,
 } = {}) {
   const { buildSessionRunnerArgs } = createRunnerArgsBuilder({
     defaultModel,
@@ -52,8 +57,21 @@ export function createRunnerExecutor({
     extractAgentMessageText,
     isFinalAnswerLikeAgentMessage,
   });
+  const claudeLongRunner = createClaudeLongRunnerFn({
+    spawnEnv,
+    getProviderBin,
+    getSessionId,
+    resolveModelSetting,
+    resolveReasoningEffortSetting,
+    resolveTimeoutSetting,
+    normalizeTimeoutMs,
+    safeError,
+    stopChildProcess,
+    idleMs: claudeLongIdleMs,
+    maxSessions: claudeLongMaxSessions,
+  });
 
-  async function runProviderTask({ session, workspaceDir, prompt, onSpawn, wasCancelled, onEvent, onLog }) {
+  async function runProviderTask({ session, sessionKey = null, workspaceDir, prompt, onSpawn, wasCancelled, onEvent, onLog }) {
     ensureDir(workspaceDir);
 
     const provider = getSessionProvider(session);
@@ -62,6 +80,21 @@ export function createRunnerExecutor({
     const additionalWorkspaceDirs = normalizeProvider(provider) === 'claude'
       ? uniqueDirs([providerDefault.workspaceDir].filter((dir) => dir && dir !== workspaceDir))
       : [];
+
+    if (normalizeProvider(provider) === 'claude' && resolveRuntimeModeSetting(session).mode === 'long') {
+      return claudeLongRunner.runTask({
+        session,
+        sessionKey,
+        workspaceDir,
+        prompt,
+        additionalWorkspaceDirs,
+        onSpawn,
+        wasCancelled,
+        onEvent,
+        onLog,
+      });
+    }
+
     const args = buildSessionRunnerArgs({ provider, session, workspaceDir, prompt, additionalWorkspaceDirs });
     const timeoutMs = resolveTimeoutSetting(session).timeoutMs;
     const bin = getProviderBin(provider);
@@ -309,6 +342,9 @@ export function createRunnerExecutor({
     runProviderTask,
     runCodex: runProviderTask,
     buildSessionRunnerArgs,
+    closeRuntimeSession: (sessionKey, reason = 'closed') => claudeLongRunner.closeSession(sessionKey, reason),
+    closeAllRuntimeSessions: (reason = 'closed') => claudeLongRunner.closeAll(reason),
+    getClaudeLongSessions: () => claudeLongRunner.getSnapshot(),
   };
 }
 

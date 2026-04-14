@@ -70,6 +70,7 @@ export function createAppContext({
     resolveModelSetting: sessionSettings.resolveModelSetting,
     resolveReasoningEffortSetting: sessionSettings.resolveReasoningEffortSetting,
     resolveFastModeSetting: sessionSettings.resolveFastModeSetting,
+    resolveRuntimeModeSetting: sessionSettings.resolveRuntimeModeSetting,
     resolveTimeoutSetting: sessionSettings.resolveTimeoutSetting,
   });
   const workspaceRuntime = createWorkspaceRuntimeFn(workspaceRuntimeOptions);
@@ -117,6 +118,7 @@ export function createAppContext({
       resolveModelSetting: sessionSettings.resolveModelSetting,
       resolveReasoningEffortSetting: sessionSettings.resolveReasoningEffortSetting,
       resolveFastModeSetting: sessionSettings.resolveFastModeSetting,
+      resolveRuntimeModeSetting: sessionSettings.resolveRuntimeModeSetting,
       resolveTimeoutSetting: sessionSettings.resolveTimeoutSetting,
       resolveCompactStrategySetting: sessionSettings.resolveCompactStrategySetting,
       resolveCompactEnabledSetting: sessionSettings.resolveCompactEnabledSetting,
@@ -134,6 +136,7 @@ export function createAppContext({
       getSessionLanguage: sessionSettings.getSessionLanguage,
       resolveReasoningEffortSetting: sessionSettings.resolveReasoningEffortSetting,
       resolveFastModeSetting: sessionSettings.resolveFastModeSetting,
+      resolveRuntimeModeSetting: sessionSettings.resolveRuntimeModeSetting,
       resolveTimeoutSetting: sessionSettings.resolveTimeoutSetting,
       resolveTaskRetrySetting: sessionSettings.resolveTaskRetrySetting,
       resolveCompactStrategySetting: sessionSettings.resolveCompactStrategySetting,
@@ -186,7 +189,9 @@ export function createAppContext({
       resolveModelSetting: sessionSettings.resolveModelSetting,
       resolveReasoningEffortSetting: sessionSettings.resolveReasoningEffortSetting,
       resolveFastModeSetting: sessionSettings.resolveFastModeSetting,
+      resolveRuntimeModeSetting: sessionSettings.resolveRuntimeModeSetting,
       resolveCompactStrategySetting: sessionSettings.resolveCompactStrategySetting,
+      closeRuntimeSession: promptRuntime.closeRuntimeSession,
     },
     reportOptions: {
       ...reportOptions,
@@ -198,6 +203,7 @@ export function createAppContext({
       resolveReasoningEffortSetting: sessionSettings.resolveReasoningEffortSetting,
       resolveTimeoutSetting: sessionSettings.resolveTimeoutSetting,
       resolveFastModeSetting: sessionSettings.resolveFastModeSetting,
+      resolveRuntimeModeSetting: sessionSettings.resolveRuntimeModeSetting,
       getEffectiveSecurityProfile: sessionSettings.getEffectiveSecurityProfile,
       resolveCompactStrategySetting: sessionSettings.resolveCompactStrategySetting,
       resolveCompactEnabledSetting: sessionSettings.resolveCompactEnabledSetting,
@@ -244,10 +250,12 @@ export function createAppContext({
       resolveReasoningEffortSetting: sessionSettings.resolveReasoningEffortSetting,
       getRuntimeSnapshot: promptRuntime.getRuntimeSnapshot,
       resolveFastModeSetting: sessionSettings.resolveFastModeSetting,
+      resolveRuntimeModeSetting: sessionSettings.resolveRuntimeModeSetting,
       resolveSecurityContext: securityPolicy.resolveSecurityContext,
       resolveTimeoutSetting: sessionSettings.resolveTimeoutSetting,
       commandActions,
       cancelChannelWork: promptRuntime.cancelChannelWork,
+      closeRuntimeSession: promptRuntime.closeRuntimeSession,
       retryLastPrompt: promptRuntime.retryLastPrompt,
     },
     textCommandOptions: {
@@ -265,10 +273,12 @@ export function createAppContext({
       resolveReasoningEffortSetting: sessionSettings.resolveReasoningEffortSetting,
       getEffectiveSecurityProfile: sessionSettings.getEffectiveSecurityProfile,
       resolveFastModeSetting: sessionSettings.resolveFastModeSetting,
+      resolveRuntimeModeSetting: sessionSettings.resolveRuntimeModeSetting,
       resolveTimeoutSetting: sessionSettings.resolveTimeoutSetting,
       describeConfigPolicy: securityPolicy.describeConfigPolicy,
       isConfigKeyAllowed: securityPolicy.isConfigKeyAllowed,
       cancelChannelWork: promptRuntime.cancelChannelWork,
+      closeRuntimeSession: promptRuntime.closeRuntimeSession,
     },
   });
   if (typeof commandSurface.buildWorkspaceBusyPayload === 'function') {

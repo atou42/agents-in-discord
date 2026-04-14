@@ -60,6 +60,13 @@ function normalizeSessionMode(value, fallback = 'safe') {
   return fallback === 'dangerous' ? 'dangerous' : 'safe';
 }
 
+function normalizeSessionRuntimeMode(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const raw = String(value).trim().toLowerCase();
+  if (raw === 'normal' || raw === 'long') return raw;
+  return null;
+}
+
 function normalizeWorkspaceFavoritesMap(value, normalizeProvider) {
   const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   const out = {};
@@ -180,6 +187,7 @@ export function createSessionStore({
         compactEnabled: null,
         compactThresholdTokens: null,
         nativeCompactTokenLimit: null,
+        runtimeMode: null,
         configOverrides: [],
         updatedAt: new Date().toISOString(),
       };
@@ -295,6 +303,10 @@ export function createSessionStore({
       session.nativeCompactTokenLimit = null;
       migrated = true;
     }
+    if (session.runtimeMode === undefined) {
+      session.runtimeMode = null;
+      migrated = true;
+    }
 
     const normalizedWorkspaceDir = normalizeWorkspaceDir(session.workspaceDir);
     if (session.workspaceDir !== normalizedWorkspaceDir) {
@@ -372,6 +384,11 @@ export function createSessionStore({
     const normalizedNativeCompactTokenLimit = normalizeSessionCompactTokenLimit(session.nativeCompactTokenLimit);
     if (session.nativeCompactTokenLimit !== normalizedNativeCompactTokenLimit) {
       session.nativeCompactTokenLimit = normalizedNativeCompactTokenLimit;
+      migrated = true;
+    }
+    const normalizedRuntimeMode = normalizeSessionRuntimeMode(session.runtimeMode);
+    if (session.runtimeMode !== normalizedRuntimeMode) {
+      session.runtimeMode = normalizedRuntimeMode;
       migrated = true;
     }
 

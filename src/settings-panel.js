@@ -8,6 +8,7 @@ const ALL_SECTIONS = Object.freeze([
   'provider',
   'model',
   'fast',
+  'runtime',
   'effort',
   'compact',
   'language',
@@ -61,6 +62,12 @@ function formatFastModeLabel(enabled, language) {
     : (language === 'en' ? 'off' : '关闭');
 }
 
+function formatRuntimeModeLabel(mode, language) {
+  return mode === 'long'
+    ? (language === 'en' ? 'long (hot session)' : 'long（热会话）')
+    : (language === 'en' ? 'normal (per request)' : 'normal（每轮启动）');
+}
+
 function formatWorkspaceLabel(binding, language) {
   const workspaceDir = String(binding?.workspaceDir || '').trim();
   const source = formatSettingSourceLabel(binding?.source, language);
@@ -99,6 +106,7 @@ function formatSectionButtonLabel(section, language) {
     provider: { en: 'provider', zh: 'provider' },
     model: { en: 'model', zh: 'model' },
     fast: { en: 'fast', zh: 'fast' },
+    runtime: { en: 'runtime', zh: 'runtime' },
     effort: { en: 'effort', zh: 'effort' },
     compact: { en: 'compact', zh: 'compact' },
     language: { en: 'language', zh: '语言' },
@@ -174,11 +182,20 @@ export function createSettingsPanel({
   resolveModelSetting = (session) => ({ value: session?.model || '(provider default)', source: session?.model ? 'session override' : 'provider' }),
   resolveReasoningEffortSetting = (session) => ({ value: session?.effort || '(provider default)', source: session?.effort ? 'session override' : 'provider' }),
   resolveFastModeSetting = () => ({ enabled: false, supported: false, source: 'provider unsupported' }),
+  resolveRuntimeModeSetting = () => ({ mode: 'normal', supported: false, source: 'provider unsupported' }),
   resolveCompactStrategySetting = () => ({ strategy: 'native', source: 'env default' }),
   commandActions = {},
+  closeRuntimeSession = () => false,
   openWorkspaceBrowser,
   slashRef = (name) => `/${name}`,
 } = {}) {
+  const closeRuntimeForKey = (key, reason = 'runtime config changed') => {
+    try {
+      closeRuntimeSession(key, reason);
+    } catch {
+    }
+  };
+
   function getAvailableSections(session) {
     const provider = getSessionProvider(session);
     const sections = ['overview'];
@@ -186,6 +203,7 @@ export function createSettingsPanel({
     if (!botProvider) sections.push('provider');
     sections.push('model');
     if (provider === 'codex') sections.push('fast');
+    if (provider === 'claude') sections.push('runtime');
     if (getSupportedReasoningEffortLevels(provider).length) sections.push('effort');
     sections.push('compact', 'language', 'mode', 'workspace');
     return sections;
@@ -210,6 +228,7 @@ export function createSettingsPanel({
     const modelSetting = resolveModelSetting(session);
     const effortSetting = resolveReasoningEffortSetting(session);
     const fastMode = resolveFastModeSetting(session);
+    const runtimeMode = resolveRuntimeModeSetting(session);
     const compact = resolveCompactStrategySetting(session);
     const workspace = getWorkspaceBinding(session, key) || { workspaceDir: null, source: 'unset' };
     const effortLevels = getSupportedReasoningEffortLevels(provider);
@@ -222,6 +241,7 @@ export function createSettingsPanel({
       defaults,
       codexDefaults,
       fastMode,
+      runtimeMode,
       compact,
       workspace,
       effortLevels,
@@ -237,7 +257,7 @@ export function createSettingsPanel({
     const available = getAvailableSections(session);
     const buttons = [];
 
-    for (const section of ['overview', 'defaults', 'provider', 'model', 'fast', 'effort', 'compact', 'language', 'mode', 'workspace']) {
+    for (const section of ['overview', 'defaults', 'provider', 'model', 'fast', 'runtime', 'effort', 'compact', 'language', 'mode', 'workspace']) {
       if (!available.includes(section)) continue;
       buttons.push(
         new ButtonBuilder()
@@ -371,6 +391,31 @@ export function createSettingsPanel({
         ];
       }
 
+      case 'runtime': {
+        const selected = snapshot.runtimeMode.source === 'session override'
+          ? snapshot.runtimeMode.mode
+          : 'follow';
+        const followLabel = snapshot.isThread
+          ? (snapshot.language === 'en' ? 'Follow parent/global' : '跟随父频道/全局')
+          : (snapshot.language === 'en' ? 'Follow default' : '跟随默认');
+        return [
+          new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId(buildSettingsComponentId('set', 'runtime', 'follow', userId))
+              .setLabel(followLabel)
+              .setStyle(selected === 'follow' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+            new ButtonBuilder()
+              .setCustomId(buildSettingsComponentId('set', 'runtime', 'normal', userId))
+              .setLabel('normal')
+              .setStyle(selected === 'normal' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+            new ButtonBuilder()
+              .setCustomId(buildSettingsComponentId('set', 'runtime', 'long', userId))
+              .setLabel('long')
+              .setStyle(selected === 'long' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+          ),
+        ];
+      }
+
       case 'effort': {
         const values = [...snapshot.effortLevels, 'default'];
         return chunk(values, 5).map((rowValues) => new ActionRowBuilder().addComponents(
@@ -479,6 +524,10 @@ export function createSettingsPanel({
           : (snapshot.isThread
             ? 'Fast mode 仅对 Codex 生效。选择“跟随父频道/全局”表示当前 thread 不再覆盖，优先继承父频道设置，其次继承 `~/.codex/config.toml`；若未显式写 `[features].fast_mode = false`，默认保持开启。'
             : 'Fast mode 仅对 Codex 生效。选择“跟随全局”表示当前频道不再覆盖，改为继承 `~/.codex/config.toml`；若未显式写 `[features].fast_mode = false`，默认保持开启。');
+      case 'runtime':
+        return snapshot.language === 'en'
+          ? 'Claude runtime controls how this channel talks to Claude Code. `normal` keeps the old request path. `long` keeps a hot process per thread and resumes the same bound session id.'
+          : 'Claude runtime 决定这个频道如何接入 Claude Code。`normal` 保留原来的请求方式。`long` 为每个 thread 保留热进程，并继续使用同一个绑定 session id。';
       case 'effort':
         return snapshot.language === 'en'
           ? 'Reasoning effort options are provider-specific. "default" clears this channel override.'
@@ -544,6 +593,11 @@ export function createSettingsPanel({
             : (snapshot.language === 'en'
               ? '• fast mode: n/a (Codex only)'
               : '• fast mode：不适用（仅 Codex）'),
+          snapshot.runtimeMode.supported
+            ? (snapshot.language === 'en'
+              ? `• Claude runtime: ${formatRuntimeModeLabel(snapshot.runtimeMode.mode, snapshot.language)} (${formatSettingSourceLabel(snapshot.runtimeMode.source, snapshot.language)})`
+              : `• Claude runtime：${formatRuntimeModeLabel(snapshot.runtimeMode.mode, snapshot.language)}（${formatSettingSourceLabel(snapshot.runtimeMode.source, snapshot.language)}）`)
+            : null,
           snapshot.effortLevels.length
             ? (snapshot.language === 'en'
               ? `• effort: ${formatValueLabel(snapshot.effortValue, '(provider default)', snapshot.language)} (${formatSettingSourceLabel(snapshot.effortSource, snapshot.language)})`
@@ -675,6 +729,7 @@ export function createSettingsPanel({
 
       if (parsed.target === 'model' && parsed.value === 'default') {
         commandActions.setModel?.(session, 'default');
+        closeRuntimeForKey(key);
         await interaction.update(buildSettingsPayload({
           key,
           session,
@@ -719,6 +774,7 @@ export function createSettingsPanel({
 
       if (parsed.target === 'workspace' && parsed.value === 'clear') {
         const result = commandActions.clearWorkspaceDir?.(session, key);
+        closeRuntimeForKey(key);
         await interaction.update(buildSettingsPayload({
           key,
           session,
@@ -735,20 +791,27 @@ export function createSettingsPanel({
     if (parsed.kind === 'set') {
       if (parsed.target === 'provider' && !botProvider) {
         commandActions.setProvider?.(session, parsed.value);
+        closeRuntimeForKey(key);
       } else if (parsed.target === 'language') {
         commandActions.setLanguage?.(session, parsed.value);
       } else if (parsed.target === 'mode') {
         commandActions.setMode?.(session, parsed.value);
+        closeRuntimeForKey(key);
       } else if (parsed.target === 'default_fast') {
         const next = parsed.value === 'default' ? null : parsed.value === 'on';
         commandActions.setGlobalFastModeDefault?.(session, next);
       } else if (parsed.target === 'fast') {
         const next = parsed.value === 'follow' ? null : parsed.value === 'on';
         commandActions.setFastMode?.(session, next);
+      } else if (parsed.target === 'runtime') {
+        const next = parsed.value === 'follow' ? null : parsed.value;
+        commandActions.setRuntimeMode?.(session, next);
+        closeRuntimeForKey(key);
       } else if (parsed.target === 'default_effort') {
         commandActions.setGlobalReasoningEffortDefault?.(session, parsed.value);
       } else if (parsed.target === 'effort') {
         commandActions.setReasoningEffort?.(session, parsed.value);
+        closeRuntimeForKey(key);
       } else if (parsed.target === 'compact') {
         commandActions.setCompactStrategy?.(session, parsed.value === 'follow' ? null : parsed.value);
       }
@@ -796,6 +859,7 @@ export function createSettingsPanel({
     if (parsed.target === 'model') {
       const rawValue = String(interaction.fields.getTextInputValue(MODEL_INPUT_ID) || '').trim();
       commandActions.setModel?.(session, rawValue);
+      closeRuntimeForKey(key);
       await interaction.reply(buildSettingsPayload({
         key,
         session,

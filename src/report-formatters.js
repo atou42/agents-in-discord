@@ -38,6 +38,7 @@ export function createReportFormatters({
   resolveSecurityContext = () => ({ mentionOnly: false, maxQueuePerChannel: 0 }),
   resolveTimeoutSetting = () => ({ timeoutMs: 0, source: 'env default' }),
   resolveFastModeSetting = () => ({ enabled: false, supported: false, source: 'provider unsupported' }),
+  resolveRuntimeModeSetting = () => ({ mode: 'normal', supported: false, source: 'provider unsupported' }),
   getEffectiveSecurityProfile = () => ({ profile: 'team', source: 'env default' }),
   resolveCompactStrategySetting = () => ({ strategy: 'native', source: 'env default' }),
   resolveCompactEnabledSetting = () => ({ enabled: true, source: 'env default' }),
@@ -141,6 +142,12 @@ export function createReportFormatters({
     return enabled
       ? (language === 'en' ? 'on' : '开启')
       : (language === 'en' ? 'off' : '关闭');
+  }
+
+  function formatRuntimeModeLabel(mode, language = 'en') {
+    return mode === 'long'
+      ? (language === 'en' ? 'long (hot session)' : 'long（热会话）')
+      : (language === 'en' ? 'normal (per request)' : 'normal（每轮启动）');
   }
 
   function formatPercent(value) {
@@ -345,6 +352,7 @@ export function createReportFormatters({
     const cliHealth = getCliHealth(provider);
     const security = resolveSecurityContext(channel, session);
     const fastMode = resolveFastModeSetting(session);
+    const runtimeMode = resolveRuntimeModeSetting(session);
     const compactSetting = resolveCompactStrategySetting(session);
     const compactEnabled = resolveCompactEnabledSetting(session);
     const compactThreshold = resolveCompactThresholdSetting(session);
@@ -369,6 +377,7 @@ export function createReportFormatters({
         `• mode: ${modeDesc}`,
         `• effort: ${defaultEffort}`,
         fastMode.supported ? `• fast mode: ${formatFastModeLabel(fastMode.enabled, lang)} (${formatSettingSourceLabel(fastMode.source, lang)})` : null,
+        runtimeMode.supported ? `• Claude runtime: ${formatRuntimeModeLabel(runtimeMode.mode, lang)} (${formatSettingSourceLabel(runtimeMode.source, lang)})` : null,
         ...workspaceLines,
         `• compact strategy: ${describeCompactStrategy(compactSetting.strategy, lang)} (${formatSettingSourceLabel(compactSetting.source, lang)})`,
         `• compact enabled: ${compactEnabled.enabled ? 'on' : 'off'} (${formatSettingSourceLabel(compactEnabled.source, lang)})`,
@@ -392,6 +401,7 @@ export function createReportFormatters({
       `• mode: ${modeDesc}`,
       `• effort: ${defaultEffort}`,
       fastMode.supported ? `• fast mode: ${formatFastModeLabel(fastMode.enabled, lang)}（${formatSettingSourceLabel(fastMode.source, lang)}）` : null,
+      runtimeMode.supported ? `• Claude runtime: ${formatRuntimeModeLabel(runtimeMode.mode, lang)}（${formatSettingSourceLabel(runtimeMode.source, lang)}）` : null,
       ...workspaceLines,
       `• compact strategy: ${describeCompactStrategy(compactSetting.strategy, lang)}（${formatSettingSourceLabel(compactSetting.source, lang)}）`,
       `• compact enabled: ${compactEnabled.enabled ? 'on' : 'off'}（${formatSettingSourceLabel(compactEnabled.source, lang)}）`,
@@ -543,6 +553,7 @@ export function createReportFormatters({
     const security = resolveSecurityContext(channel, session);
     const timeoutSetting = resolveTimeoutSetting(session);
     const fastMode = resolveFastModeSetting(session);
+    const runtimeMode = resolveRuntimeModeSetting(session);
     const securitySetting = getEffectiveSecurityProfile(session);
     const compactSetting = resolveCompactStrategySetting(session);
     const compactEnabled = resolveCompactEnabledSetting(session);
@@ -583,6 +594,7 @@ export function createReportFormatters({
       `• ALLOWED_USER_IDS: ${allowedUserIds ? `${allowedUserIds.size} configured` : '(all users)'}`,
       `• runner timeout: ${formatTimeoutLabel(timeoutSetting.timeoutMs)} (${timeoutSetting.source})`,
       fastMode.supported ? `• fast mode: ${formatFastModeLabel(fastMode.enabled)} (${fastMode.source})` : null,
+      runtimeMode.supported ? `• Claude runtime: ${formatRuntimeModeLabel(runtimeMode.mode)} (${runtimeMode.source})` : null,
       `• compact strategy: ${describeCompactStrategy(compactSetting.strategy)} (${compactSetting.source})`,
       `• compact enabled: ${compactEnabled.enabled ? 'on' : 'off'} (${compactEnabled.source})`,
       `• compact token limit: ${compactThreshold.tokens} (${compactThreshold.source})`,
@@ -718,6 +730,47 @@ export function createReportFormatters({
     ].join('\n');
   }
 
+  function formatRuntimeModeConfigHelp(language, provider = 'claude') {
+    if (provider !== 'claude') {
+      return language === 'en'
+        ? `Current provider ${getProviderDisplayName(provider)} does not support Claude runtime mode.`
+        : `当前 provider ${getProviderDisplayName(provider)} 不支持 Claude runtime mode。`;
+    }
+    if (language === 'en') {
+      return [
+        'Usage: `!runtime <normal|long|status|default>`',
+        `Slash: \`${slashRef('runtime')} <normal|long|status|default>\``,
+        '`normal` keeps the old one-process-per-request path. `long` keeps one hot Claude process per thread and releases it after the idle window.',
+      ].join('\n');
+    }
+    return [
+      '用法：`!runtime <normal|long|status|default>`',
+      `Slash：\`${slashRef('runtime')} <normal|long|status|default>\``,
+      '`normal` 保留原来的每轮启动方式。`long` 会让每个 thread 保留一个热 Claude 进程，空闲到期后释放。',
+    ].join('\n');
+  }
+
+  function formatRuntimeModeConfigReport(language, provider, runtimeModeSetting, changed = false) {
+    if (!runtimeModeSetting?.supported) {
+      return language === 'en'
+        ? `⚠️ Current provider ${getProviderDisplayName(provider)} does not support Claude runtime mode.`
+        : `⚠️ 当前 provider ${getProviderDisplayName(provider)} 不支持 Claude runtime mode。`;
+    }
+    const label = `${formatRuntimeModeLabel(runtimeModeSetting.mode, language)} (${formatSettingSourceLabel(runtimeModeSetting.source, language)})`;
+    if (language === 'en') {
+      return [
+        changed ? '✅ Claude runtime updated' : 'ℹ️ Claude runtime',
+        `• status: ${label}`,
+        '• note: switching mode keeps the bound session id; any hot process in this thread is restarted on the next run.',
+      ].join('\n');
+    }
+    return [
+      changed ? '✅ Claude runtime 已更新' : 'ℹ️ 当前 Claude runtime',
+      `• 状态：${label}`,
+      '• 说明：切换方式不会清掉绑定的 session id；当前 thread 的热进程会在下次运行时按新配置重启。',
+    ].join('\n');
+  }
+
   function formatLanguageConfigHelp(language) {
     if (language === 'en') {
       return [
@@ -841,6 +894,7 @@ export function createReportFormatters({
         '**Model & Runtime**',
         '• `!model <name|default>` — set model override',
         provider === 'codex' ? `• \`${slashRef('fast')} <on|off|status|default>\` / \`!fast <...>\` — toggle Codex Fast mode for this channel` : null,
+        provider === 'claude' ? `• \`${slashRef('runtime')} <normal|long|status|default>\` / \`!runtime <...>\` — switch Claude runtime mode for this channel` : null,
         reasoningLevels.length
           ? `• \`!effort <${[...reasoningLevels, 'default'].join('|')}>\` — reasoning effort`
           : `• reasoning effort — not exposed by current provider (${getProviderDisplayName(provider)})`,
@@ -894,6 +948,7 @@ export function createReportFormatters({
       '**模型 & 执行**',
       '• `!model <name|default>` — 切换模型（如 gpt-5.3-codex, o3）',
       provider === 'codex' ? `• \`${slashRef('fast')} <on|off|status|default>\` / \`!fast <...>\` — 切换当前频道的 Codex Fast mode` : null,
+      provider === 'claude' ? `• \`${slashRef('runtime')} <normal|long|status|default>\` / \`!runtime <...>\` — 切换当前频道的 Claude 接入方式` : null,
       reasoningLevels.length
         ? `• \`!effort <${[...reasoningLevels, 'default'].join('|')}>\` — reasoning effort`
         : `• reasoning effort — 当前 provider (${getProviderDisplayName(provider)}) 未暴露`,
@@ -1022,6 +1077,8 @@ export function createReportFormatters({
     formatLanguageConfigReport,
     formatFastModeConfigHelp,
     formatFastModeConfigReport,
+    formatRuntimeModeConfigHelp,
+    formatRuntimeModeConfigReport,
     formatProfileConfigHelp,
     formatProfileConfigReport,
     formatTimeoutConfigHelp,
