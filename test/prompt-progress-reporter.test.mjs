@@ -368,6 +368,45 @@ test('createPromptProgressReporterFactory derives Claude commentary and tool pro
   assert.match(finalCard, /done: Show current working directory/);
 });
 
+test('createPromptProgressReporterFactory does not let Claude system noise hide API errors', async () => {
+  const harness = createHarness({
+    session: { provider: 'claude' },
+    factoryOptions: {
+      presentation: createRealPresentation(),
+      progressProcessLines: 5,
+    },
+  });
+
+  await harness.reporter.start();
+  harness.channelState.activeRun.phase = 'exec';
+
+  harness.reporter.onEvent({
+    type: 'system',
+    subtype: 'compact_boundary',
+    content: 'Conversation compacted',
+  });
+  assert.equal(harness.channelState.activeRun.lastProgressText, 'Waiting for workspace lock: /repo/demo');
+
+  harness.reporter.onEvent({
+    type: 'assistant',
+    isApiErrorMessage: true,
+    message: {
+      type: 'message',
+      role: 'assistant',
+      content: [{
+        type: 'text',
+        text: 'API Error: 429 {"error":{"code":"1302","message":"您的账户已达到速率限制，请您控制请求频率"},"request_id":"req_123"}',
+      }],
+    },
+  });
+
+  assert.equal(harness.channelState.activeRun.lastProgressText, 'API error 429: 您的账户已达到速率限制，请您控制请求频率');
+  await new Promise((resolve) => setImmediate(resolve));
+  const runningCard = harness.edits[harness.edits.length - 1].content;
+  assert.match(runningCard, /latest activity: API error 429: 您的账户已达到速率限制，请您控制请求频率/);
+  assert.doesNotMatch(runningCard, /latest activity: system/);
+});
+
 test('createPromptProgressReporterFactory renders codex subagent lifecycle events on the live card', async () => {
   const harness = createHarness({
     factoryOptions: {

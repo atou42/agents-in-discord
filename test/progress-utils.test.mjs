@@ -535,6 +535,80 @@ test('extractRawProgressTextFromEvent reads Claude assistant commentary messages
   assert.equal(raw, '正在比对 Claude 与 Codex 的事件格式。');
 });
 
+test('summarizeCodexEvent renders Claude API 429 errors as readable latest activity', () => {
+  const ev = {
+    type: 'assistant',
+    isApiErrorMessage: true,
+    message: {
+      type: 'message',
+      role: 'assistant',
+      content: [{
+        type: 'text',
+        text: 'API Error: 429 {"error":{"code":"1302","message":"您的账户已达到速率限制，请您控制请求频率"},"request_id":"req_123"}',
+      }],
+    },
+  };
+
+  const summary = summarizeCodexEvent(ev, { previewChars: 180 });
+  assert.equal(summary, 'API error 429: 您的账户已达到速率限制，请您控制请求频率');
+});
+
+test('extractRawProgressTextFromEvent renders Claude API 429 errors as readable activity text', () => {
+  const ev = {
+    type: 'assistant',
+    isApiErrorMessage: true,
+    message: {
+      type: 'message',
+      role: 'assistant',
+      content: [{
+        type: 'text',
+        text: 'API Error: 429 {"error":{"code":"1302","message":"您的账户已达到速率限制，请您控制请求频率"},"request_id":"req_123"}',
+      }],
+    },
+  };
+
+  const raw = extractRawProgressTextFromEvent(ev);
+  assert.equal(raw, 'API error 429: 您的账户已达到速率限制，请您控制请求频率');
+});
+
+test('summarizeCodexEvent renders Claude system api_error events as readable latest activity', () => {
+  const ev = {
+    type: 'system',
+    subtype: 'api_error',
+    error: {
+      status: 429,
+      error: {
+        error: {
+          code: '1302',
+          message: '您的账户已达到速率限制，请您控制请求频率',
+        },
+      },
+    },
+  };
+
+  const summary = summarizeCodexEvent(ev, { previewChars: 180 });
+  assert.equal(summary, 'API error 429: 您的账户已达到速率限制，请您控制请求频率');
+});
+
+test('extractRawProgressTextFromEvent renders Claude system api_error events as readable activity text', () => {
+  const ev = {
+    type: 'system',
+    subtype: 'api_error',
+    error: {
+      status: 429,
+      error: {
+        error: {
+          code: '1302',
+          message: '您的账户已达到速率限制，请您控制请求频率',
+        },
+      },
+    },
+  };
+
+  const raw = extractRawProgressTextFromEvent(ev);
+  assert.equal(raw, 'API error 429: 您的账户已达到速率限制，请您控制请求频率');
+});
+
 test('extractRawProgressTextFromEvent ignores Claude final answer from session file assistant events', () => {
   const ev = {
     type: 'assistant',

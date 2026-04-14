@@ -101,6 +101,37 @@ function sanitizeDiscordDisplayText(value) {
   return String(value || '').replace(/\|\|/g, '｜｜');
 }
 
+function isLowSignalLatestStep(value) {
+  const normalized = normalizeActivityKey(value);
+  if (!normalized) return true;
+  if (normalized === 'received event') return true;
+  if (normalized === 'system') return true;
+  if (normalized === 'turn started') return true;
+  if (normalized === 'agent message started') return true;
+  if (normalized === 'agent message delta') return true;
+  if (normalized === 'message start') return true;
+  if (normalized === 'message stop') return true;
+  if (normalized === 'content block start') return true;
+  if (normalized === 'content block stop') return true;
+  if (normalized === 'task started, waiting for the first event') return true;
+  if (normalized === '任务已开始，等待首个事件') return true;
+  if (normalized.startsWith('waiting for workspace lock')) return true;
+  if (normalized.startsWith('等待 workspace 锁')) return true;
+  return false;
+}
+
+function shouldPromoteLatestStep(nextStep, currentStep) {
+  const next = String(nextStep || '').trim();
+  if (!next || isLowSignalLatestStep(next)) return false;
+  if (!next.startsWith('agent message')) return true;
+
+  const normalized = normalizeActivityKey(next);
+  if (normalized.includes('api error')) return true;
+  if (normalized.includes('rate limit')) return true;
+  if (normalized.includes('429')) return true;
+  return !currentStep || isLowSignalLatestStep(currentStep);
+}
+
 function parseProgressJsonMaybe(value) {
   const text = String(value || '').trim();
   if (!text) return null;
@@ -721,9 +752,9 @@ export function createPromptProgressReporterFactory({
       if (isDuplicateProgressEvent(dedupeKey)) return;
 
       events += 1;
-      if (safeSummaryStep && !safeSummaryStep.startsWith('agent message')) {
+      if (shouldPromoteLatestStep(safeSummaryStep, latestStep)) {
         latestStep = safeSummaryStep;
-      } else if (!latestStep) {
+      } else if (!latestStep && safeSummaryStep) {
         latestStep = safeSummaryStep;
       }
       for (const rawActivity of safeRawActivities) {

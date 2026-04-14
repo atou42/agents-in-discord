@@ -514,6 +514,8 @@ export function summarizeCodexEvent(ev, options = {}) {
 
   const type = normalizeEventType(rawType);
   const payload = extractEventPayload(ev);
+  const apiErrorSummary = extractApiErrorSummary(ev, payload, opts);
+  if (apiErrorSummary) return apiErrorSummary;
 
   if (type === 'event_msg' && payload && typeof payload === 'object') {
     const nestedType = normalizeWhitespace(payload.type || '');
@@ -729,6 +731,64 @@ function extractStopReason(ev, payload) {
   return '';
 }
 
+function extractApiErrorSummary(ev, payload, options = {}) {
+  const previewChars = Math.max(60, Number(options.previewChars || DEFAULT_PREVIEW_CHARS));
+  const type = normalizeEventType(ev?.type || '');
+  const subtype = normalizeEventType(ev?.subtype || '');
+  const role = normalizeEventType(ev?.role || payload?.role || '');
+  if (type === 'system' && subtype === 'api_error') {
+    const statusCode = normalizeWhitespace(
+      ev?.error?.status
+      || ev?.error?.error?.status
+      || ev?.error?.error?.error?.status,
+    );
+    const detail = normalizeWhitespace(
+      ev?.error?.error?.error?.message
+      || ev?.error?.error?.message
+      || ev?.error?.message
+      || '',
+    );
+    const prefix = statusCode ? `API error ${statusCode}` : 'API error';
+    if (!detail) return prefix;
+    return `${prefix}: ${truncate(detail, previewChars)}`;
+  }
+  if (!['assistant', 'assistant_message', 'message', 'result', 'error'].includes(type) && role !== 'assistant') {
+    return '';
+  }
+
+  const text = pickFirstRawText([
+    payload?.message,
+    payload?.text,
+    payload?.output_text,
+    payload?.input_text,
+    ev?.message,
+    ev?.text,
+  ]) || pickFirstRawTextFromContent(payload?.content || ev?.content);
+  const normalized = normalizeWhitespace(text);
+  if (!/^api error\s*:/i.test(normalized)) return '';
+
+  const match = normalized.match(/^api error\s*:\s*(\d{3})\s*(.*)$/i);
+  const statusCode = match?.[1] || '';
+  const remainder = String(match?.[2] || '').trim();
+
+  let detail = remainder;
+  if (remainder.startsWith('{')) {
+    const parsed = parseJsonMaybe(remainder);
+    if (parsed && typeof parsed === 'object') {
+      detail = normalizeWhitespace(
+        parsed?.error?.message
+        || parsed?.message
+        || parsed?.error_description
+        || remainder,
+      );
+    }
+  }
+
+  const prefix = statusCode ? `API error ${statusCode}` : 'API error';
+  if (!detail) return prefix;
+  return `${prefix}: ${truncate(detail, previewChars)}`;
+}
+
 function isLowSignalProcessText(text) {
   const normalized = normalizeWhitespace(text);
   if (!normalized) return true;
@@ -745,6 +805,8 @@ export function extractRawProgressTextFromEvent(ev) {
   const type = normalizeEventType(ev.type || '');
   const payload = extractEventPayload(ev);
   const item = ev.item && typeof ev.item === 'object' ? ev.item : null;
+  const apiErrorSummary = extractApiErrorSummary(ev, payload);
+  if (apiErrorSummary) return apiErrorSummary;
 
   if (type === 'event_msg' && payload && typeof payload === 'object') {
     const nestedType = normalizeEventType(payload.type || '');
