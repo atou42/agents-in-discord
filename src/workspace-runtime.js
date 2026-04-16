@@ -34,7 +34,12 @@ export function createWorkspaceRuntime({
   lockRoot,
   ensureDir,
   pollIntervalMs = 600,
+  malformedLockStaleMs = 30_000,
 } = {}) {
+  const normalizedMalformedLockStaleMs = Number.isFinite(Number(malformedLockStaleMs))
+    ? Math.max(0, Number(malformedLockStaleMs))
+    : 30_000;
+
   function getLockFilePath(workspaceDir) {
     const key = normalizeWorkspaceKey(workspaceDir);
     return {
@@ -49,9 +54,28 @@ export function createWorkspaceRuntime({
       if (!fs.existsSync(lockFile)) return { workspaceKey, lockFile, owner: null };
       const raw = fs.readFileSync(lockFile, 'utf8');
       const owner = JSON.parse(raw);
-      return { workspaceKey, lockFile, owner };
+      if (!owner || typeof owner !== 'object') {
+        return { workspaceKey, lockFile, owner: null, malformed: true };
+      }
+      return { workspaceKey, lockFile, owner, malformed: false };
     } catch {
-      return { workspaceKey, lockFile, owner: null };
+      return { workspaceKey, lockFile, owner: null, malformed: true };
+    }
+  }
+
+  function archiveMalformedLock(lockFile) {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const archiveFile = `${lockFile}.corrupt-${timestamp}-${process.pid}`;
+    fs.renameSync(lockFile, archiveFile);
+    return archiveFile;
+  }
+
+  function getLockAgeMs(lockFile) {
+    try {
+      const stat = fs.statSync(lockFile);
+      return Date.now() - stat.mtimeMs;
+    } catch {
+      return null;
     }
   }
 
@@ -60,13 +84,6 @@ export function createWorkspaceRuntime({
     const onWait = typeof options.onWait === 'function' ? options.onWait : null;
     const { workspaceKey, lockFile } = getLockFilePath(workspaceDir);
     const token = randomUUID();
-    const lockBody = {
-      token,
-      pid: process.pid,
-      workspaceDir: workspaceKey,
-      acquiredAt: new Date().toISOString(),
-      ...owner,
-    };
 
     ensureDir(lockRoot);
     let waitNotified = false;
@@ -85,7 +102,27 @@ export function createWorkspaceRuntime({
 
       try {
         fd = fs.openSync(lockFile, 'wx');
-        fs.writeFileSync(fd, `${JSON.stringify(lockBody, null, 2)}\n`, 'utf8');
+        const lockBody = {
+          token,
+          pid: process.pid,
+          workspaceDir: workspaceKey,
+          acquiredAt: new Date().toISOString(),
+          ...owner,
+        };
+        try {
+          fs.writeFileSync(fd, `${JSON.stringify(lockBody, null, 2)}\n`, 'utf8');
+        } catch (writeErr) {
+          try {
+            fs.closeSync(fd);
+          } catch {
+          }
+          fd = null;
+          try {
+            fs.unlinkSync(lockFile);
+          } catch {
+          }
+          throw writeErr;
+        }
         return {
           acquired: true,
           aborted: false,
@@ -119,6 +156,16 @@ export function createWorkspaceRuntime({
 
       const existing = readLock(workspaceKey);
       const existingOwner = existing.owner;
+      if (existing.malformed) {
+        const ageMs = getLockAgeMs(lockFile);
+        if (ageMs !== null && ageMs >= normalizedMalformedLockStaleMs) {
+          try {
+            archiveMalformedLock(lockFile);
+            continue;
+          } catch {
+          }
+        }
+      }
       if (existingOwner?.pid && !isProcessAlive(existingOwner.pid)) {
         try {
           fs.unlinkSync(lockFile);

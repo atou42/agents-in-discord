@@ -6,6 +6,14 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+## [0.11.4] - 2026-04-16
+
+### Added
+- Added Claude long-runner lifecycle logging for spawn, reuse, result, idle close, process close, and turn start events.
+
+### Fixed
+- Workspace locks now clean up partial files if writing the lock body fails, archive stale malformed locks before retrying, and record acquisition time when the lock is actually acquired.
+
 ## [0.10.2] - 2026-03-31
 
 ### Fixed
