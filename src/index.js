@@ -43,6 +43,7 @@ import {
 } from './provider-runtime-surface.js';
 import {
   buildSpawnEnv,
+  createCachedProviderRateLimitReader,
   formatCliHealth,
   getCodexAccountRateLimits,
   getCliHealth as getCliHealthBase,
@@ -87,10 +88,18 @@ import {
   resolvePath,
 } from './provider-default-workspace.js';
 import {
+  createCodexProfileStore,
+} from './codex-profile-store.js';
+import {
+  createReplyDeliveryModeStore,
+} from './reply-delivery-mode.js';
+import {
   describeCompactStrategy,
   formatLanguageLabel,
+  formatReplyDeliveryModeLabel,
   formatSecurityProfileLabel,
   normalizeCompactStrategy,
+  normalizeReplyDeliveryMode,
   normalizeSessionCompactEnabled,
   normalizeSessionCompactStrategy,
   normalizeSessionCompactTokenLimit,
@@ -122,6 +131,7 @@ import {
   createDiscordClient,
   normalizeSlashPrefix,
   readCodexDefaults,
+  readCodexProfileCatalog,
   renderMissingDiscordTokenHint,
   writeCodexDefaults,
 } from './runtime-bootstrap.js';
@@ -260,6 +270,23 @@ const {
   sharedDefaultWorkspaceDir: SHARED_DEFAULT_WORKSPACE_DIR,
   providerDefaultWorkspaceOverrides: PROVIDER_DEFAULT_WORKSPACE_OVERRIDES,
 });
+const {
+  resolve: resolveReplyDeliveryDefault,
+  set: setReplyDeliveryDefault,
+} = createReplyDeliveryModeStore({
+  env: process.env,
+  envFilePath: ENV_FILE,
+  defaultMode: normalizeReplyDeliveryMode(process.env.DEFAULT_REPLY_DELIVERY_MODE, 'card_mention'),
+});
+const {
+  resolve: resolveDefaultCodexProfile,
+  set: setDefaultCodexProfile,
+} = createCodexProfileStore({
+  env: process.env,
+  envFilePath: ENV_FILE,
+  defaultProfile: process.env.CODEX__DEFAULT_PROFILE || null,
+  readCodexProfileCatalog,
+});
 const DEFAULT_PROVIDER = BOT_PROVIDER || normalizeProvider(process.env.DEFAULT_PROVIDER || process.env.CLI_PROVIDER || 'codex');
 const DEFAULT_MODEL = process.env.DEFAULT_MODEL || null;
 const DEFAULT_MODE = (process.env.DEFAULT_MODE || 'safe').toLowerCase() === 'dangerous' ? 'dangerous' : 'safe';
@@ -314,7 +341,7 @@ const MODEL_AUTO_COMPACT_TOKEN_LIMIT = toInt(
   MAX_INPUT_TOKENS_BEFORE_COMPACT,
 );
 const CLAUDE_RUNTIME_MODE = normalizeSessionRuntimeMode(
-  process.env.CLAUDE__RUNTIME_MODE || process.env.CLAUDE_RUNTIME_MODE || 'long',
+  process.env.CLAUDE__RUNTIME_MODE || process.env.CLAUDE_RUNTIME_MODE || 'normal',
 ) || 'normal';
 const CLAUDE_LONG_IDLE_MS = normalizeIntervalMs(
   process.env.CLAUDE__LONG_IDLE_MS || process.env.CLAUDE_LONG_IDLE_MS,
@@ -339,10 +366,12 @@ const getCliHealth = (provider = DEFAULT_PROVIDER) => getCliHealthBase(provider,
   spawnEnv: SPAWN_ENV,
   safeError,
 });
-const getProviderRateLimits = (provider = DEFAULT_PROVIDER) => getCodexAccountRateLimits(provider, {
-  codexBin: CODEX_BIN,
-  spawnEnv: SPAWN_ENV,
-  safeError,
+const getProviderRateLimits = createCachedProviderRateLimitReader({
+  readRateLimits: (provider = DEFAULT_PROVIDER) => getCodexAccountRateLimits(provider, {
+    codexBin: CODEX_BIN,
+    spawnEnv: SPAWN_ENV,
+    safeError,
+  }),
 });
 
 ensureDir(DATA_DIR);
@@ -383,8 +412,13 @@ const appContext = createAppContext({
     compactOnThreshold: COMPACT_ON_THRESHOLD,
     maxInputTokensBeforeCompact: MAX_INPUT_TOKENS_BEFORE_COMPACT,
     modelAutoCompactTokenLimit: MODEL_AUTO_COMPACT_TOKEN_LIMIT,
+    defaultReplyDeliveryMode: resolveReplyDeliveryDefault().mode,
+    readDefaultReplyDeliveryMode: () => resolveReplyDeliveryDefault().mode,
+    defaultCodexProfile: resolveDefaultCodexProfile().profile,
+    readDefaultCodexProfile: resolveDefaultCodexProfile,
     defaultModel: DEFAULT_MODEL,
     readCodexDefaults,
+    readCodexProfileCatalog,
     normalizeProvider,
     getSupportedCompactStrategies,
   },
@@ -419,6 +453,7 @@ const appContext = createAppContext({
     normalizeSessionCompactStrategy,
     normalizeSessionCompactEnabled,
     normalizeSessionCompactTokenLimit,
+    normalizeReplyDeliveryMode,
     resolveDefaultWorkspace: resolveProviderDefaultWorkspace,
   },
   commandActionsOptions: {
@@ -433,6 +468,11 @@ const appContext = createAppContext({
     formatRecentSessionsLookup,
     resolveProviderDefaultWorkspace,
     setProviderDefaultWorkspace,
+    resolveDefaultCodexProfile,
+    setDefaultCodexProfile,
+    resolveReplyDeliveryDefault,
+    setReplyDeliveryDefault,
+    readCodexProfileCatalog,
     getProviderShortName,
     listRecentSessions: ({ provider = DEFAULT_PROVIDER, workspaceDir = '', limit = 10 } = {}) => listRecentProviderSessions({
       provider,
@@ -711,6 +751,7 @@ console.log([
   `• ENABLE_CONFIG_CMD=${ENABLE_CONFIG_CMD}`,
   `• CONFIG_ALLOWLIST=${appContext.core.securityPolicy.describeConfigPolicy()}`,
   `• DEFAULT_UI_LANGUAGE=${DEFAULT_UI_LANGUAGE}`,
+  `• DEFAULT_REPLY_DELIVERY_MODE=${formatReplyDeliveryModeLabel(resolveReplyDeliveryDefault().mode, DEFAULT_UI_LANGUAGE)}`,
   `• ONBOARDING_ENABLED_DEFAULT=${ONBOARDING_ENABLED_BY_DEFAULT}`,
 ].join('\n'));
 

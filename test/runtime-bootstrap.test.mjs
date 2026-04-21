@@ -9,6 +9,7 @@ import {
   createDiscordClient,
   normalizeSlashPrefix,
   readCodexDefaults,
+  readCodexProfileCatalog,
   renderMissingDiscordTokenHint,
   writeCodexDefaults,
 } from '../src/runtime-bootstrap.js';
@@ -157,6 +158,32 @@ test('writeCodexDefaults trims string inputs and clears blank string values', ()
   const raw = fs.readFileSync(configPath, 'utf-8');
   assert.match(raw, /^model = "gpt-5\.4"$/m);
   assert.doesNotMatch(raw, /^model_reasoning_effort = /m);
+});
+
+test('readCodexProfileCatalog reads named codex profiles from config.toml', () => {
+  const rootDir = makeTempRoot();
+  const homeDir = path.join(rootDir, 'home');
+  const configDir = path.join(homeDir, '.codex');
+  fs.mkdirSync(configDir, { recursive: true });
+  const configPath = path.join(configDir, 'config.toml');
+
+  fs.writeFileSync(configPath, [
+    'model = "gpt-5.4"',
+    '',
+    '[profiles.default_work]',
+    'model = "gpt-5.4"',
+    '',
+    '[profiles."vision qa"]',
+    'model = "gpt-5.4-mini"',
+    '',
+    '[profiles.default_work]',
+    'model = "o3"',
+  ].join('\n'));
+
+  assert.deepEqual(readCodexProfileCatalog({ env: { HOME: homeDir } }), {
+    profiles: ['default_work', 'vision qa'],
+    configPath,
+  });
 });
 
 test('normalizeSlashPrefix trims strips and truncates invalid input', () => {

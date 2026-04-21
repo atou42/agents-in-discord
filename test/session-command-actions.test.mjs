@@ -348,6 +348,43 @@ test('createSessionCommandActions updates global codex defaults without mutating
   assert.deepEqual(session, { provider: 'codex', model: null, effort: null, fastMode: null });
 });
 
+test('createSessionCommandActions validates codex profiles before saving session or global defaults', () => {
+  let saveCount = 0;
+  const session = { provider: 'codex', codexProfile: null };
+  const actions = createSessionCommandActions({
+    saveDb: () => {
+      saveCount += 1;
+    },
+    ensureWorkspace: () => '/tmp/workspace',
+    clearSessionId: () => {},
+    getSessionId: () => null,
+    setSessionId: () => {},
+    getSessionProvider: (currentSession) => currentSession.provider || 'codex',
+    getProviderShortName: () => 'Codex',
+    readCodexProfileCatalog: () => ({
+      profiles: ['work', 'review'],
+      configPath: '/tmp/codex-config.toml',
+    }),
+    resolveDefaultCodexProfile: () => ({ profile: 'review', source: 'env default' }),
+    setDefaultCodexProfile: (profile) => ({ profile, source: 'env default' }),
+    resolveTimeoutSetting: () => ({ timeoutMs: 60000, source: 'session override' }),
+    listRecentSessions: () => [],
+    humanAge: () => '0s',
+  });
+
+  assert.deepEqual(actions.setCodexProfile(session, 'work'), { codexProfile: 'work' });
+  assert.equal(session.codexProfile, 'work');
+  assert.equal(saveCount, 1);
+
+  assert.deepEqual(actions.setGlobalCodexProfileDefault(session, 'default'), {
+    profile: 'review',
+    source: 'env default',
+  });
+
+  assert.throws(() => actions.setCodexProfile(session, 'missing'), /unknown Codex profile: missing/);
+  assert.throws(() => actions.setGlobalCodexProfileDefault(session, 'missing'), /unknown Codex profile: missing/);
+});
+
 test('createSessionCommandActions normalizes blank and spaced model/effort overrides', () => {
   let saveCount = 0;
   const session = { provider: 'codex', model: 'gpt-5.4', effort: 'high' };

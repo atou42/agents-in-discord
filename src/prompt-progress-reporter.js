@@ -525,6 +525,7 @@ export function createPromptProgressReporterFactory({
   now = () => Date.now(),
   setIntervalFn = setInterval,
   clearIntervalFn = clearInterval,
+  onStreamProcessMessage = null,
 } = {}) {
   const {
     summarizeCodexEvent = () => '',
@@ -550,6 +551,7 @@ export function createPromptProgressReporterFactory({
     language = defaultUiLanguage,
     processLines = progressProcessLines,
     initialLatestStep = '',
+    onStreamProcessMessage: onStreamProcessMessageForRun = onStreamProcessMessage,
   } = {}) {
     const lang = normalizeUiLanguage(language);
     const processLineLimit = Math.max(1, Math.min(5, Number(processLines || progressProcessLines)));
@@ -706,6 +708,15 @@ export function createPromptProgressReporterFactory({
       const next = pendingActivities.shift();
       if (!next) return false;
       appendRecentActivity(recentActivities, next);
+      if (typeof onStreamProcessMessageForRun === 'function') {
+        try {
+          Promise.resolve(
+            onStreamProcessMessageForRun(next, { message, session, channelState, language: lang }),
+          ).catch(() => {});
+        } catch {
+          // ignore stream failures
+        }
+      }
       lastActivityPushAt = currentTime;
       return true;
     };

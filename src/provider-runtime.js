@@ -19,6 +19,11 @@ function truncateError(text, max = 220) {
   return truncate(String(text || '').replace(/\s+/g, ' ').trim(), max);
 }
 
+function cloneJsonLike(value) {
+  if (!value || typeof value !== 'object') return value;
+  return JSON.parse(JSON.stringify(value));
+}
+
 export function buildSpawnEnv(env) {
   const out = { ...env };
   const home = out.HOME || out.USERPROFILE || '';
@@ -277,4 +282,44 @@ export async function getCodexAccountRateLimits(provider = 'codex', {
       },
     });
   });
+}
+
+export function createCachedProviderRateLimitReader({
+  readRateLimits = async () => null,
+  now = () => Date.now(),
+} = {}) {
+  const cache = new Map();
+
+  return async function readProviderRateLimitsWithCache(provider = 'codex') {
+    const normalizedProvider = normalizeProvider(provider);
+    let live;
+    try {
+      live = await readRateLimits(provider);
+    } catch (err) {
+      live = {
+        ok: false,
+        error: String(err?.message || err || 'unknown error'),
+      };
+    }
+
+    if (live?.ok !== false && live) {
+      cache.set(normalizedProvider, {
+        cachedAt: now(),
+        payload: cloneJsonLike(live),
+      });
+      return live;
+    }
+
+    const cached = cache.get(normalizedProvider);
+    if (!cached?.payload) return live;
+
+    return {
+      ...cloneJsonLike(cached.payload),
+      ok: true,
+      stale: true,
+      staleReason: String(live?.error || 'unknown error'),
+      cachedAt: cached.cachedAt,
+      cacheAgeMs: Math.max(0, now() - cached.cachedAt),
+    };
+  };
 }

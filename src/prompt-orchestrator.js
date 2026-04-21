@@ -32,6 +32,7 @@ export function createPromptOrchestrator({
   resolveCompactStrategySetting,
   resolveCompactEnabledSetting,
   resolveCompactThresholdSetting,
+  resolveReplyDeliverySetting = () => ({ mode: 'card_mention', source: 'env default' }),
   formatWorkspaceBusyReport,
   buildWorkspaceBusyPayload = ({ session, workspaceDir, owner }) => ({
     content: formatWorkspaceBusyReport(session, workspaceDir, owner),
@@ -239,6 +240,29 @@ export function createPromptOrchestrator({
     result.notes.unshift(...notes);
   }
 
+  function shouldMentionOnTerminalReply(mode) {
+    return mode === 'card_mention' || mode === 'stream_mention';
+  }
+
+  function shouldStreamProcessMessages(mode) {
+    return mode === 'stream_mention' || mode === 'stream_only';
+  }
+
+  function applyTerminalMention(message, payload, mode) {
+    if (!shouldMentionOnTerminalReply(mode)) return payload;
+    const userId = String(message?.author?.id || '').trim();
+    if (!userId) return payload;
+    const prefix = `<@${userId}> `;
+    if (typeof payload === 'string') return `${prefix}${payload}`;
+    if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+      return {
+        ...payload,
+        content: `${prefix}${String(payload.content || '')}`,
+      };
+    }
+    return payload;
+  }
+
   async function handlePrompt(message, key, prompt, channelState) {
     if (channelState.cancelRequested) {
       return { ok: false, cancelled: true };
@@ -249,6 +273,7 @@ export function createPromptOrchestrator({
     const startingLastInputTokens = session.lastInputTokens;
     const workspaceDir = ensureWorkspace(session, key);
     const language = normalizeUiLanguage(getSessionLanguage(session));
+    const replyDelivery = resolveReplyDeliverySetting(session);
     const taskRetryPolicy = normalizeTaskRetryPolicy(resolveTaskRetrySetting(session));
     const waitingForWorkspaceText = language === 'en'
       ? `Waiting for workspace lock: ${workspaceDir}`
@@ -262,6 +287,9 @@ export function createPromptOrchestrator({
       session,
       language,
       initialLatestStep: waitingForWorkspaceText,
+      onStreamProcessMessage: shouldStreamProcessMessages(replyDelivery.mode)
+        ? async (text) => safeChannelSend(message, text)
+        : null,
     });
 
     await message.channel.sendTyping();
@@ -503,7 +531,7 @@ export function createPromptOrchestrator({
       if (!result.ok) {
         if (result.cancelled) {
           progressOutcome = { ok: false, cancelled: true, timedOut: false, error: result.error || 'cancelled' };
-          await safeReply(message, '🛑 当前任务已中断。');
+          await safeReply(message, applyTerminalMention(message, '🛑 当前任务已中断。', replyDelivery.mode));
           return { ok: false, cancelled: true };
         }
 
@@ -543,7 +571,7 @@ export function createPromptOrchestrator({
         };
         await safeReply(
           message,
-          withRetryAction(failText, message?.author?.id || null),
+          applyTerminalMention(message, withRetryAction(failText, message?.author?.id || null), replyDelivery.mode),
         );
         return { ok: false, cancelled: false };
       }
@@ -552,12 +580,12 @@ export function createPromptOrchestrator({
       const parts = splitForDiscord(body, resultChunkChars);
 
       if (parts.length === 0) {
-        await safeReply(message, '✅ 完成（无可展示文本输出）。');
+        await safeReply(message, applyTerminalMention(message, '✅ 完成（无可展示文本输出）。', replyDelivery.mode));
         progressOutcome = { ok: true, cancelled: false, timedOut: false, error: '' };
         return { ok: true, cancelled: false };
       }
 
-      await safeReply(message, parts[0]);
+      await safeReply(message, applyTerminalMention(message, parts[0], replyDelivery.mode));
       for (let i = 1; i < parts.length; i += 1) {
         await safeChannelSend(message, parts[i]);
       }

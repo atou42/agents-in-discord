@@ -36,6 +36,7 @@ function createHarness(overrides = {}) {
   let currentNow = 10_000;
   const sent = [];
   const edits = [];
+  const streamed = [];
   const intervals = [];
   const cleared = [];
   const channelState = {
@@ -124,12 +125,16 @@ function createHarness(overrides = {}) {
     clearIntervalFn: (handle) => {
       cleared.push(handle);
     },
+    onStreamProcessMessage: async (text) => {
+      streamed.push(text);
+    },
     ...overrides.factoryOptions,
   });
 
   return {
     sent,
     edits,
+    streamed,
     intervals,
     cleared,
     channelState,
@@ -216,6 +221,27 @@ test('createPromptProgressReporterFactory dedupes repeated events and drains buf
   assert.match(finalCard, /process: rg test/);
   assert.match(finalCard, /done: Inspect code/);
   assert.match(finalCard, /done: Patch orchestrator/);
+});
+
+test('createPromptProgressReporterFactory can stream deduped process messages while keeping the progress card', async () => {
+  const harness = createHarness();
+
+  await harness.reporter.start();
+  harness.channelState.activeRun.phase = 'exec';
+
+  harness.reporter.onEvent({
+    summaryStep: 'Inspecting repo',
+    rawActivity: '我先检查一下这个仓库的入口文件。',
+  });
+  harness.reporter.onEvent({
+    summaryStep: 'Inspecting repo',
+    rawActivity: '我先检查一下这个仓库的入口文件。',
+  });
+  harness.advance(1200);
+  harness.intervals.find((handle) => handle.ms === 1000)?.fn();
+
+  assert.deepEqual(harness.streamed, ['我先检查一下这个仓库的入口文件。']);
+  assert.match(harness.edits.at(-1).content, /process: 我先检查一下这个仓库的入口文件。/);
 });
 
 test('createPromptProgressReporterFactory ignores stderr when disabled and keeps stdout progress', async () => {

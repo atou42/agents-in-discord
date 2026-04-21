@@ -1,5 +1,6 @@
 import { formatWorkspaceBusyReport as formatWorkspaceBusyReportBase } from './workspace-busy-report.js';
 import { getProviderCommandAlias } from './command-spec.js';
+import { formatCodexProfileLabel, formatReplyDeliveryModeLabel } from './session-settings.js';
 
 const REASONING_LEVEL_DISPLAY_ORDER = Object.freeze(['xhigh', 'high', 'medium', 'low']);
 
@@ -32,6 +33,7 @@ export function createReportFormatters({
   getSupportedReasoningEffortLevels = () => ['xhigh', 'high', 'medium', 'low'],
   getProviderDefaults = () => ({ model: '(unknown)', effort: '(unknown)', source: 'provider' }),
   resolveModelSetting = (session) => ({ value: session?.model || '(unknown)', source: session?.model ? 'session override' : 'provider' }),
+  resolveCodexProfileSetting = () => ({ value: null, source: 'provider default', valid: true, isExplicit: false, supported: false }),
   resolveReasoningEffortSetting = (session) => ({ value: session?.effort || '(unknown)', source: session?.effort ? 'session override' : 'provider' }),
   getCliHealth = () => ({ ok: false, error: 'unavailable' }),
   getRuntimeSnapshot = () => ({ running: false, queued: 0 }),
@@ -39,6 +41,7 @@ export function createReportFormatters({
   resolveTimeoutSetting = () => ({ timeoutMs: 0, source: 'env default' }),
   resolveFastModeSetting = () => ({ enabled: false, supported: false, source: 'provider unsupported' }),
   resolveRuntimeModeSetting = () => ({ mode: 'normal', supported: false, source: 'provider unsupported' }),
+  resolveReplyDeliverySetting = () => ({ mode: 'card_mention', source: 'env default' }),
   getEffectiveSecurityProfile = () => ({ profile: 'team', source: 'env default' }),
   resolveCompactStrategySetting = () => ({ strategy: 'native', source: 'env default' }),
   resolveCompactEnabledSetting = () => ({ enabled: true, source: 'env default' }),
@@ -128,6 +131,17 @@ export function createReportFormatters({
       return `\`${value}\` (${formatSettingSourceLabel(source, language)})`;
     }
     return `\`${value}\`（${formatSettingSourceLabel(source, language)}）`;
+  }
+
+  function formatResolvedCodexProfileLabel(setting, language = 'en') {
+    if (!setting?.supported) return null;
+    const base = language === 'en'
+      ? `${formatCodexProfileLabel(setting.value, language)} (${formatSettingSourceLabel(setting.source, language)})`
+      : `${formatCodexProfileLabel(setting.value, language)}（${formatSettingSourceLabel(setting.source, language)}）`;
+    if (setting.valid !== false) return base;
+    return language === 'en'
+      ? `${base} [invalid: ${setting.error || 'unknown'}]`
+      : `${base}【无效：${setting.error || '未知'}】`;
   }
 
   function formatProgressSettingValue(setting, fallback, language = 'en') {
@@ -235,7 +249,18 @@ export function createReportFormatters({
       ];
     }
 
+    const staleLine = rateLimitReport.stale
+      ? (() => {
+        const reason = String(rateLimitReport.staleReason || 'unknown error').replace(/\s+/g, ' ').trim();
+        const age = humanAge(Number(rateLimitReport.cacheAgeMs) || 0, language);
+        return language === 'en'
+          ? `• Codex quota: live query unavailable (${reason}); showing cached snapshot from ${age} ago`
+          : `• Codex 额度: 实时查询失败（${reason}），显示 ${age} 前缓存`;
+      })()
+      : null;
+
     return [
+      staleLine,
       formatRateLimitWindowLine('5h', snapshot.primary, language),
       formatRateLimitWindowLine('weekly', snapshot.secondary, language),
     ].filter(Boolean);
@@ -372,6 +397,7 @@ export function createReportFormatters({
     const provider = getSessionProvider(session);
     const defaults = getProviderDefaults(provider);
     const modelSetting = resolveModelSetting(session);
+    const codexProfileSetting = resolveCodexProfileSetting(session);
     const effortSetting = resolveReasoningEffortSetting(session);
     const cliHealth = getCliHealth(provider);
     const security = resolveSecurityContext(channel, session);
@@ -381,6 +407,7 @@ export function createReportFormatters({
     const compactEnabled = resolveCompactEnabledSetting(session);
     const compactThreshold = resolveCompactThresholdSetting(session);
     const nativeLimit = resolveNativeCompactTokenLimitSetting(session);
+    const replyDelivery = resolveReplyDeliverySetting(session);
     const modeDesc = session?.mode === 'dangerous'
       ? (lang === 'en' ? 'dangerous (no sandbox, full access)' : 'dangerous（无沙盒，全权限）')
       : (lang === 'en' ? 'safe (sandboxed, no network)' : 'safe（沙盒隔离，无网络）');
@@ -397,6 +424,7 @@ export function createReportFormatters({
         '🧭 **Current Status**',
         `• provider: \`${provider}\` (${getProviderDisplayName(provider)})`,
         runtimeSummary ? `• runtime profile: ${runtimeSummary}` : null,
+        provider === 'codex' ? `• codex profile: ${formatResolvedCodexProfileLabel(codexProfileSetting, lang)}` : null,
         `• model: ${defaultModel}`,
         `• mode: ${modeDesc}`,
         `• effort: ${defaultEffort}`,
@@ -404,6 +432,7 @@ export function createReportFormatters({
         runtimeMode.supported ? `• Claude runtime: ${formatRuntimeModeLabel(runtimeMode.mode, lang)} (${formatSettingSourceLabel(runtimeMode.source, lang)})` : null,
         ...workspaceLines,
         `• compact strategy: ${describeCompactStrategy(compactSetting.strategy, lang)} (${formatSettingSourceLabel(compactSetting.source, lang)})`,
+        `• reply delivery: ${formatReplyDeliveryModeLabel(replyDelivery.mode, lang)} (${formatSettingSourceLabel(replyDelivery.source, lang)})`,
         `• compact enabled: ${compactEnabled.enabled ? 'on' : 'off'} (${formatSettingSourceLabel(compactEnabled.source, lang)})`,
         `• compact token limit: ${compactThreshold.tokens} (${formatSettingSourceLabel(compactThreshold.source, lang)})`,
         `• ${nativeCompact.label}: ${nativeCompact.value}`,
@@ -421,6 +450,7 @@ export function createReportFormatters({
       '🧭 **当前状态**',
       `• provider: \`${provider}\` (${getProviderDisplayName(provider)})`,
       runtimeSummary ? `• runtime 能力面: ${runtimeSummary}` : null,
+      provider === 'codex' ? `• Codex profile：${formatResolvedCodexProfileLabel(codexProfileSetting, lang)}` : null,
       `• model: ${defaultModel}`,
       `• mode: ${modeDesc}`,
       `• effort: ${defaultEffort}`,
@@ -428,6 +458,7 @@ export function createReportFormatters({
       runtimeMode.supported ? `• Claude runtime: ${formatRuntimeModeLabel(runtimeMode.mode, lang)}（${formatSettingSourceLabel(runtimeMode.source, lang)}）` : null,
       ...workspaceLines,
       `• compact strategy: ${describeCompactStrategy(compactSetting.strategy, lang)}（${formatSettingSourceLabel(compactSetting.source, lang)}）`,
+      `• 回复方式：${formatReplyDeliveryModeLabel(replyDelivery.mode, lang)}（${formatSettingSourceLabel(replyDelivery.source, lang)}）`,
       `• compact enabled: ${compactEnabled.enabled ? 'on' : 'off'}（${formatSettingSourceLabel(compactEnabled.source, lang)}）`,
       `• compact token limit: ${compactThreshold.tokens}（${formatSettingSourceLabel(compactThreshold.source, lang)}）`,
       `• ${nativeCompact.label}: ${nativeCompact.value}`,
@@ -582,6 +613,7 @@ export function createReportFormatters({
     const timeoutSetting = resolveTimeoutSetting(session);
     const fastMode = resolveFastModeSetting(session);
     const runtimeMode = resolveRuntimeModeSetting(session);
+    const codexProfileSetting = resolveCodexProfileSetting(session);
     const securitySetting = getEffectiveSecurityProfile(session);
     const compactSetting = resolveCompactStrategySetting(session);
     const compactEnabled = resolveCompactEnabledSetting(session);
@@ -612,6 +644,7 @@ export function createReportFormatters({
       nativeCompactSurface ? `• runtime native compact: ${nativeCompactSurface}` : null,
       rawConfigSurface ? `• runtime raw config: ${rawConfigSurface}` : null,
       reasoningSurface ? `• runtime reasoning: ${reasoningSurface}` : null,
+      provider === 'codex' ? `• codex profile: ${formatResolvedCodexProfileLabel(codexProfileSetting)}` : null,
       `• security profile: ${formatSecurityProfileDisplay(security)}`,
       `• profile setting: ${formatSecurityProfileLabel(securitySetting.profile)} (${securitySetting.source})`,
       `• mention only: ${security.mentionOnly ? 'on' : 'off'}`,

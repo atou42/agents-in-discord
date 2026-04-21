@@ -31,6 +31,14 @@ function normalizeOptionalRuntimeMode(value) {
   throw new Error(`invalid Claude runtime mode: ${value}`);
 }
 
+function normalizeOptionalReplyDeliveryMode(value) {
+  const text = normalizeOptionalOverride(value);
+  if (text === null) return null;
+  const raw = text.toLowerCase();
+  if (['card_mention', 'stream_mention', 'card_only', 'stream_only'].includes(raw)) return raw;
+  throw new Error(`invalid reply delivery mode: ${value}`);
+}
+
 function normalizeSessionKey(value) {
   const text = String(value || '').trim();
   return text || null;
@@ -60,6 +68,11 @@ export function createSessionCommandActions({
   resolveGeminiProjectRootBySessionId = () => null,
   resolveProviderDefaultWorkspace = () => ({ workspaceDir: null, source: 'unset', envKey: null }),
   setProviderDefaultWorkspace = () => ({ workspaceDir: null, source: 'unset', envKey: null }),
+  resolveReplyDeliveryDefault = () => ({ mode: 'card_mention', source: 'env default' }),
+  setReplyDeliveryDefault = () => ({ mode: 'card_mention', source: 'env default' }),
+  readCodexProfileCatalog = () => ({ profiles: [], configPath: '' }),
+  resolveDefaultCodexProfile = () => ({ profile: null, source: 'env default' }),
+  setDefaultCodexProfile = () => ({ profile: null, source: 'env default' }),
   readCodexDefaults = () => ({
     model: null,
     modelConfigured: false,
@@ -91,6 +104,16 @@ export function createSessionCommandActions({
   listRecentSessions,
   humanAge,
 } = {}) {
+  function validateCodexProfile(value) {
+    const normalized = normalizeOptionalOverride(value);
+    if (normalized === null) return null;
+    const catalog = readCodexProfileCatalog() || {};
+    const profiles = Array.isArray(catalog.profiles) ? catalog.profiles : [];
+    if (profiles.includes(normalized)) return normalized;
+    const configPath = String(catalog.configPath || '~/.codex/config.toml');
+    throw new Error(`unknown Codex profile: ${normalized} (not found in ${configPath})`);
+  }
+
   function resolveStrictProviderSessionWorkspace(provider, sessionId) {
     if (!providerRequiresWorkspaceBoundSession(provider)) return null;
     const normalizedSessionId = normalizeSessionKey(sessionId);
@@ -140,6 +163,12 @@ export function createSessionCommandActions({
     return { model: session.model };
   }
 
+  function setCodexProfile(session, profile) {
+    session.codexProfile = validateCodexProfile(profile);
+    saveDb();
+    return { codexProfile: session.codexProfile };
+  }
+
   function setReasoningEffort(session, effort) {
     session.effort = normalizeOptionalEffortOverride(effort);
     saveDb();
@@ -156,6 +185,12 @@ export function createSessionCommandActions({
     session.runtimeMode = normalizeOptionalRuntimeMode(mode);
     saveDb();
     return { runtimeMode: session.runtimeMode };
+  }
+
+  function setReplyDeliveryMode(session, mode) {
+    session.replyDeliveryMode = normalizeOptionalReplyDeliveryMode(mode);
+    saveDb();
+    return { replyDeliveryMode: session.replyDeliveryMode };
   }
 
   function setGlobalModelDefault(_session, value) {
@@ -177,6 +212,16 @@ export function createSessionCommandActions({
       fastMode: enabled,
     });
     return { defaults };
+  }
+
+  function setGlobalCodexProfileDefault(_session, profile) {
+    const normalized = validateCodexProfile(profile) ?? resolveDefaultCodexProfile().profile;
+    return setDefaultCodexProfile(normalized);
+  }
+
+  function setGlobalReplyDeliveryModeDefault(_session, mode) {
+    const normalizedMode = normalizeOptionalReplyDeliveryMode(mode) || resolveReplyDeliveryDefault().mode;
+    return setReplyDeliveryDefault(normalizedMode);
   }
 
   function setCompactStrategy(session, strategy) {
@@ -414,12 +459,16 @@ export function createSessionCommandActions({
     setTimeoutMs,
     setProvider,
     setModel,
+    setCodexProfile,
     setReasoningEffort,
     setFastMode,
     setRuntimeMode,
+    setReplyDeliveryMode,
     setGlobalModelDefault,
+    setGlobalCodexProfileDefault,
     setGlobalReasoningEffortDefault,
     setGlobalFastModeDefault,
+    setGlobalReplyDeliveryModeDefault,
     setCompactStrategy,
     applyCompactConfig,
     setMode,

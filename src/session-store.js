@@ -105,6 +105,7 @@ export function createSessionStore({
   normalizeSessionCompactStrategy,
   normalizeSessionCompactEnabled,
   normalizeSessionCompactTokenLimit,
+  normalizeReplyDeliveryMode = () => null,
   resolveDefaultWorkspace = () => ({ workspaceDir: null, source: 'unset', envKey: null }),
 } = {}) {
   let db = loadDb(dataFile);
@@ -183,6 +184,8 @@ export function createSessionStore({
         parentChannelId: null,
         securityProfile: null,
         timeoutMs: null,
+        codexProfile: null,
+        replyDeliveryMode: null,
         compactStrategy: null,
         compactEnabled: null,
         compactThresholdTokens: null,
@@ -251,6 +254,10 @@ export function createSessionStore({
       session.effort = null;
       migrated = true;
     }
+    if (session.codexProfile === undefined) {
+      session.codexProfile = null;
+      migrated = true;
+    }
     if (session.configOverrides === undefined) {
       session.configOverrides = [];
       migrated = true;
@@ -285,6 +292,10 @@ export function createSessionStore({
     }
     if (session.fastMode === undefined) {
       session.fastMode = null;
+      migrated = true;
+    }
+    if (session.replyDeliveryMode === undefined) {
+      session.replyDeliveryMode = null;
       migrated = true;
     }
     if (session.compactStrategy === undefined) {
@@ -352,6 +363,11 @@ export function createSessionStore({
     const normalizedFastMode = normalizeSessionFastMode(session.fastMode);
     if (session.fastMode !== normalizedFastMode) {
       session.fastMode = normalizedFastMode;
+      migrated = true;
+    }
+    const normalizedReplyDeliveryMode = normalizeReplyDeliveryMode(session.replyDeliveryMode);
+    if (session.replyDeliveryMode !== normalizedReplyDeliveryMode) {
+      session.replyDeliveryMode = normalizedReplyDeliveryMode;
       migrated = true;
     }
     if ('lastPrompt' in session) {

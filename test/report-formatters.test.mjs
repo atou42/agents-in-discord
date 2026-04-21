@@ -52,6 +52,15 @@ function createFormatters(overrides = {}) {
       value: session?.model || session?.inheritedModel || 'gpt-5-codex',
       source: session?.modelSource || (session?.model ? 'session override' : 'config.toml'),
     }),
+    resolveCodexProfileSetting: (session) => ({
+      value: session?.codexProfile || session?.inheritedCodexProfile || null,
+      source: session?.codexProfileSource
+        || (session?.codexProfile ? 'session override' : (session?.inheritedCodexProfile ? 'parent channel' : 'provider default')),
+      supported: session?.provider !== 'claude' && session?.provider !== 'gemini',
+      valid: session?.codexProfileValid !== false,
+      isExplicit: Boolean(session?.codexProfile || session?.inheritedCodexProfile),
+      error: session?.codexProfileError || null,
+    }),
     resolveReasoningEffortSetting: (session) => ({
       value: session?.effort || session?.inheritedEffort || 'high',
       source: session?.effortSource || (session?.effort ? 'session override' : 'config.toml'),
@@ -84,6 +93,11 @@ function createFormatters(overrides = {}) {
     resolveCompactEnabledSetting: () => ({ enabled: true, source: 'env default' }),
     resolveCompactThresholdSetting: () => ({ tokens: 272_000, source: 'session override' }),
     resolveNativeCompactTokenLimitSetting: () => ({ tokens: 320_000, source: 'session threshold fallback' }),
+    resolveReplyDeliverySetting: (session) => ({
+      mode: session?.replyDeliveryMode || session?.inheritedReplyDeliveryMode || 'card_only',
+      source: session?.replyDeliverySource
+        || (session?.replyDeliveryMode ? 'session override' : 'env default'),
+    }),
     getWorkspaceBinding: (session, key) => ({
       workspaceDir: session?.workspaceDir || `/repo/${key}`,
       source: session?.workspaceDir ? 'thread override' : 'provider default',
@@ -199,6 +213,40 @@ test('createReportFormatters.formatStatusReport shows parent-channel inherited m
   assert.match(report, /workspace: `\/repo\/parent` \(parent channel\)/);
 });
 
+test('createReportFormatters.formatStatusReport shows codex profile and invalid state', () => {
+  const formatters = createFormatters();
+  const session = {
+    provider: 'codex',
+    language: 'en',
+    mode: 'safe',
+    inheritedCodexProfile: 'work',
+    codexProfileSource: 'parent channel',
+    codexProfileValid: false,
+    codexProfileError: 'missing in /tmp/codex-config.toml',
+    parentChannelId: 'channel-1',
+  };
+
+  const report = formatters.formatStatusReport('thread-1', session, { id: 'thread-1' });
+
+  assert.match(report, /codex profile: `work` \(parent channel\) \[invalid: missing in \/tmp\/codex-config\.toml\]/);
+});
+
+test('createReportFormatters.formatStatusReport shows reply delivery with inheritance source', () => {
+  const formatters = createFormatters();
+  const session = {
+    provider: 'codex',
+    language: 'zh',
+    mode: 'safe',
+    inheritedReplyDeliveryMode: 'stream_mention',
+    replyDeliverySource: 'parent channel',
+    parentChannelId: 'channel-1',
+  };
+
+  const report = formatters.formatStatusReport('thread-1', session, { id: 'thread-1' });
+
+  assert.match(report, /回复方式：发送过程消息，完成时触发 @（父频道默认）/);
+});
+
 test('createReportFormatters.formatStatusReportWithLiveData shows Codex 5h and weekly quota', async () => {
   const formatters = createFormatters({
     getProviderRateLimits: async () => ({
@@ -236,6 +284,34 @@ test('createReportFormatters.formatStatusReportWithLiveData shows Codex quota qu
   }, { id: 'channel-1' });
 
   assert.match(report, /Codex quota: unavailable \(login required\)/);
+});
+
+test('createReportFormatters.formatStatusReportWithLiveData labels stale Codex quota snapshots', async () => {
+  const formatters = createFormatters({
+    getProviderRateLimits: async () => ({
+      ok: true,
+      stale: true,
+      staleReason: 'network timeout',
+      cacheAgeMs: 120000,
+      rateLimits: {
+        limitId: 'codex',
+        primary: { usedPercent: 9, windowDurationMins: 300, resetsAt: 1776169989 },
+        secondary: { usedPercent: 55, windowDurationMins: 10080, resetsAt: 1776756789 },
+      },
+      rateLimitsByLimitId: null,
+    }),
+    humanAge: (ms) => `${Math.round(ms / 1000)}s`,
+  });
+
+  const report = await formatters.formatStatusReportWithLiveData('thread-1', {
+    provider: 'codex',
+    mode: 'dangerous',
+    language: 'en',
+  }, { id: 'channel-1' });
+
+  assert.match(report, /Codex quota: live query unavailable \(network timeout\); showing cached snapshot from 120s ago/);
+  assert.match(report, /Codex 5h quota: 91% remaining \(used 9%, resets \d{4}-\d{2}-\d{2} \d{2}:\d{2}\)/);
+  assert.match(report, /Codex weekly quota: 45% remaining \(used 55%, resets \d{4}-\d{2}-\d{2} \d{2}:\d{2}\)/);
 });
 
 test('createReportFormatters.formatProgressReport returns localized idle hint', () => {

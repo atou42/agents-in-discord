@@ -76,6 +76,7 @@ function createOrchestrator(overrides = {}) {
     resolveCompactStrategySetting: () => ({ strategy: 'hard', source: 'env default' }),
     resolveCompactEnabledSetting: () => ({ enabled: true, source: 'env default' }),
     resolveCompactThresholdSetting: () => ({ tokens: 200_000, source: 'env default' }),
+    resolveReplyDeliverySetting: () => ({ mode: 'card_only', source: 'env default' }),
     formatWorkspaceBusyReport: () => 'busy',
     formatTimeoutLabel: (timeoutMs) => `${timeoutMs}ms`,
     setActiveRun: (channelState, message, prompt, child = null, phase = 'exec') => {
@@ -183,6 +184,81 @@ test('createPromptOrchestrator.handlePrompt runs task updates session and replie
     type: 'finish',
     outcome: { ok: true, cancelled: false, timedOut: false, error: '' },
   });
+});
+
+test('createPromptOrchestrator.handlePrompt stages native codex images and cleans them up', async () => {
+  const cleanupCalls = [];
+  const runTaskCalls = [];
+  const harness = createOrchestrator({
+    prepareNativeInputs: async () => ({
+      inputImages: ['/tmp/native-a.jpg', '/tmp/native-b.png'],
+      promptNote: '说明：图片附件已作为原生图片输入附带。',
+      notes: [],
+      cleanup: async () => {
+        cleanupCalls.push('cleanup');
+      },
+    }),
+    runTask: async (options) => {
+      runTaskCalls.push(options);
+      options.onSpawn?.({ pid: 999 });
+      return {
+        ok: true,
+        cancelled: false,
+        timedOut: false,
+        error: '',
+        logs: [],
+        notes: [],
+        reasonings: [],
+        messages: ['done'],
+        finalAnswerMessages: ['final answer'],
+        threadId: 'sess-1',
+        usage: { input_tokens: 111 },
+      };
+    },
+  });
+  const { orchestrator } = harness;
+  const message = {
+    id: 'msg-image',
+    attachments: new Map([
+      ['1', { name: 'img.jpg', contentType: 'image/jpeg', url: 'https://example.com/img.jpg' }],
+    ]),
+    channel: {
+      async sendTyping() {},
+      async send() {},
+    },
+  };
+  const channelState = { queue: [], cancelRequested: false, activeRun: null };
+
+  const outcome = await orchestrator.handlePrompt(message, 'thread-1', 'describe image', channelState);
+
+  assert.deepEqual(outcome, { ok: true, cancelled: false });
+  assert.equal(runTaskCalls.length, 1);
+  assert.deepEqual(runTaskCalls[0].inputImages, ['/tmp/native-a.jpg', '/tmp/native-b.png']);
+  assert.match(runTaskCalls[0].prompt, /原生图片输入/);
+  assert.deepEqual(cleanupCalls, ['cleanup']);
+});
+
+test('createPromptOrchestrator.handlePrompt can mention the requester on terminal reply', async () => {
+  const harness = createOrchestrator({
+    resolveReplyDeliverySetting: () => ({ mode: 'card_mention', source: 'session override' }),
+  });
+  const { replyLog, orchestrator } = harness;
+  const message = {
+    id: 'msg-mention',
+    author: { id: 'user-mention' },
+    channel: {
+      async sendTyping() {},
+      async send(payload) {
+        replyLog.push(payload);
+      },
+    },
+  };
+  const channelState = { queue: [], cancelRequested: false, activeRun: null };
+
+  const outcome = await orchestrator.handlePrompt(message, 'thread-1', 'do work', channelState);
+
+  assert.deepEqual(outcome, { ok: true, cancelled: false });
+  assert.match(replyLog[0], /^<@user-mention>\s+/);
 });
 
 test('createPromptOrchestrator.handlePrompt adds retry button after final failure', async () => {

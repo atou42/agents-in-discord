@@ -14,6 +14,40 @@ export function formatLanguageLabel(language) {
   return language === 'en' ? 'en (English)' : 'zh (中文)';
 }
 
+const REPLY_DELIVERY_MODE_LABELS = Object.freeze({
+  card_mention: {
+    en: 'Only update the progress card, trigger @ when done',
+    zh: '只更新进度卡，完成时触发 @',
+  },
+  stream_mention: {
+    en: 'Send process messages, trigger @ when done',
+    zh: '发送过程消息，完成时触发 @',
+  },
+  card_only: {
+    en: 'Only update the progress card, do not trigger @ when done',
+    zh: '只更新进度卡，完成时不触发 @',
+  },
+  stream_only: {
+    en: 'Send process messages, do not trigger @ when done',
+    zh: '发送过程消息，完成时不触发 @',
+  },
+});
+
+export function normalizeReplyDeliveryMode(value, fallback = null) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return fallback;
+  if (Object.prototype.hasOwnProperty.call(REPLY_DELIVERY_MODE_LABELS, raw)) {
+    return raw;
+  }
+  return fallback;
+}
+
+export function formatReplyDeliveryModeLabel(mode, language = 'zh') {
+  const normalized = normalizeReplyDeliveryMode(mode, 'card_mention');
+  return REPLY_DELIVERY_MODE_LABELS[normalized]?.[language === 'en' ? 'en' : 'zh']
+    || REPLY_DELIVERY_MODE_LABELS.card_mention[language === 'en' ? 'en' : 'zh'];
+}
+
 export function parseSecurityProfileInput(value) {
   const raw = String(value || '').trim().toLowerCase();
   if (!raw) return null;
@@ -27,6 +61,19 @@ export function normalizeSessionSecurityProfile(value) {
 
 export function formatSecurityProfileLabel(profile) {
   return parseSecurityProfileInput(profile) || 'team';
+}
+
+export function normalizeCodexProfile(value) {
+  const text = String(value ?? '').trim();
+  return text || null;
+}
+
+export function formatCodexProfileLabel(profile, language = 'zh') {
+  const value = normalizeCodexProfile(profile);
+  if (!value) {
+    return language === 'en' ? '(provider default)' : '（provider 默认）';
+  }
+  return `\`${value}\``;
 }
 
 export function normalizeSessionFastMode(value) {
@@ -243,10 +290,14 @@ export function createSessionSettings({
   taskRetryBaseDelayMs = 1000,
   taskRetryMaxDelayMs = 8000,
   compactStrategy = 'native',
-  claudeRuntimeMode = 'long',
+  claudeRuntimeMode = 'normal',
   compactOnThreshold = true,
   maxInputTokensBeforeCompact = 250000,
   modelAutoCompactTokenLimit = maxInputTokensBeforeCompact,
+  defaultReplyDeliveryMode = 'card_mention',
+  readDefaultReplyDeliveryMode = () => defaultReplyDeliveryMode,
+  defaultCodexProfile = null,
+  readDefaultCodexProfile = () => ({ profile: defaultCodexProfile, source: 'env default' }),
   defaultModel = null,
   readCodexDefaults = () => ({
     model: null,
@@ -256,6 +307,7 @@ export function createSessionSettings({
     fastMode: true,
     fastModeConfigured: false,
   }),
+  readCodexProfileCatalog = () => ({ profiles: [], configPath: '' }),
   normalizeProvider = (provider) => String(provider || '').trim().toLowerCase() || 'codex',
   getSupportedCompactStrategies = () => ['hard', 'native', 'off'],
   getParentSession = () => null,
@@ -461,6 +513,81 @@ export function createSessionSettings({
     };
   }
 
+  function resolveCodexProfileSetting(session) {
+    const provider = normalizeProvider(session?.provider);
+    if (provider !== 'codex') {
+      return {
+        value: null,
+        source: 'provider unsupported',
+        supported: false,
+        isExplicit: false,
+        valid: false,
+        availableProfiles: [],
+        configPath: null,
+        error: null,
+      };
+    }
+
+    const catalog = readCodexProfileCatalog() || {};
+    const availableProfiles = Array.isArray(catalog.profiles) ? catalog.profiles : [];
+    const configPath = String(catalog.configPath || '').trim() || null;
+    const validate = (value, source, isExplicit) => {
+      const normalized = normalizeCodexProfile(value);
+      if (!normalized) {
+        return {
+          value: null,
+          source,
+          supported: true,
+          isExplicit,
+          valid: true,
+          availableProfiles,
+          configPath,
+          error: null,
+        };
+      }
+      if (availableProfiles.includes(normalized)) {
+        return {
+          value: normalized,
+          source,
+          supported: true,
+          isExplicit,
+          valid: true,
+          availableProfiles,
+          configPath,
+          error: null,
+        };
+      }
+      return {
+        value: normalized,
+        source,
+        supported: true,
+        isExplicit,
+        valid: false,
+        availableProfiles,
+        configPath,
+        error: `missing in ${configPath || '~/.codex/config.toml'}`,
+      };
+    };
+
+    const sessionProfile = normalizeCodexProfile(session?.codexProfile);
+    if (sessionProfile) {
+      return validate(sessionProfile, 'session override', true);
+    }
+
+    const parentSession = resolveParentSession(session);
+    const parentProfile = normalizeCodexProfile(readProviderScopedValue(parentSession, provider, 'codexProfile'));
+    if (parentProfile) {
+      return validate(parentProfile, 'parent channel', true);
+    }
+
+    const defaultProfile = normalizeCodexProfile(readDefaultCodexProfile()?.profile);
+    if (defaultProfile) {
+      return validate(defaultProfile, 'env default', true);
+    }
+
+    return validate(null, 'provider default', false);
+  }
+
   function resolveCompactStrategySetting(session) {
     const provider = normalizeProvider(session?.provider);
     const supportedStrategies = new Set(getSupportedCompactStrategies(provider));
@@ -519,6 +646,26 @@ export function createSessionSettings({
     return { tokens: maxInputTokensBeforeCompact, source: 'env default' };
   }
 
+  function resolveReplyDeliverySetting(session) {
+    const sessionMode = normalizeReplyDeliveryMode(session?.replyDeliveryMode);
+    if (sessionMode) {
+      return { mode: sessionMode, source: 'session override' };
+    }
+
+    if (session?.parentChannelId) {
+      const parentSession = resolveParentSession(session);
+      const parentMode = normalizeReplyDeliveryMode(parentSession?.replyDeliveryMode);
+      if (parentMode) {
+        return { mode: parentMode, source: 'parent channel' };
+      }
+    }
+
+    return {
+      mode: normalizeReplyDeliveryMode(readDefaultReplyDeliveryMode(), 'card_mention'),
+      source: 'env default',
+    };
+  }
+
   function resolveNativeCompactTokenLimitSetting(session) {
     const provider = normalizeProvider(session?.provider);
     const direct = normalizeSessionCompactTokenLimit(session?.nativeCompactTokenLimit);
@@ -550,23 +697,30 @@ export function createSessionSettings({
       const defaultModelValue = getDefaultModelValue();
       return {
         model: defaultModelValue || null,
+        profile: null,
+        profileConfigured: false,
         effort: null,
         fastMode: false,
         source: defaultModelValue ? 'env default' : 'provider',
       };
     }
     const codexDefaults = readCodexDefaults();
+    const codexProfile = readDefaultCodexProfile();
     const value = String(codexDefaults?.model ?? '').trim();
     const configured = codexDefaults?.modelConfigured ?? Boolean(value);
     if (configured && value) {
       return {
         ...codexDefaults,
+        profile: normalizeCodexProfile(codexProfile?.profile),
+        profileConfigured: Boolean(normalizeCodexProfile(codexProfile?.profile)),
         source: 'config.toml',
       };
     }
     const defaultModelValue = getDefaultModelValue();
     return {
       ...codexDefaults,
+      profile: normalizeCodexProfile(codexProfile?.profile),
+      profileConfigured: Boolean(normalizeCodexProfile(codexProfile?.profile)),
       model: defaultModelValue || codexDefaults?.model || null,
       modelConfigured: defaultModelValue ? true : codexDefaults?.modelConfigured,
       source: defaultModelValue ? 'env default' : 'config.toml',
@@ -581,6 +735,7 @@ export function createSessionSettings({
     getEffectiveSecurityProfile,
     resolveTimeoutSetting,
     resolveTaskRetrySetting,
+    resolveCodexProfileSetting,
     resolveModelSetting,
     resolveReasoningEffortSetting,
     resolveFastModeSetting,
@@ -589,6 +744,7 @@ export function createSessionSettings({
     resolveCompactEnabledSetting,
     resolveCompactThresholdSetting,
     resolveNativeCompactTokenLimitSetting,
+    resolveReplyDeliverySetting,
     getProviderDefaults,
   };
 }

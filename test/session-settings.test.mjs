@@ -4,8 +4,12 @@ import assert from 'node:assert/strict';
 import {
   createSessionSettings,
   describeCompactStrategy,
+  formatCodexProfileLabel,
   formatLanguageLabel,
+  formatReplyDeliveryModeLabel,
+  normalizeCodexProfile,
   normalizeCompactStrategy,
+  normalizeReplyDeliveryMode,
   normalizeSessionFastMode,
   normalizeSessionRuntimeMode,
   normalizeUiLanguage,
@@ -26,6 +30,9 @@ test('session-settings normalizes ui language labels and fallbacks', () => {
   assert.equal(settings.getSessionLanguage({}), 'en');
   assert.equal(formatLanguageLabel('en'), 'en (English)');
   assert.equal(formatLanguageLabel('zh'), 'zh (中文)');
+  assert.equal(normalizeCodexProfile(' work '), 'work');
+  assert.equal(formatCodexProfileLabel('work', 'en'), '`work`');
+  assert.equal(formatCodexProfileLabel(null, 'zh'), '（provider 默认）');
 });
 
 test('session-settings resolves timeout security profile and compact values with overrides', () => {
@@ -128,6 +135,7 @@ test('session-settings lets thread fast mode inherit the parent channel provider
         codexThreadId: null,
         lastInputTokens: null,
         model: 'gpt-5.4-turbo',
+        codexProfile: 'work',
         effort: 'medium',
         fastMode: true,
         compactStrategy: 'native',
@@ -176,6 +184,124 @@ test('session-settings lets thread fast mode inherit the parent channel provider
   }), {
     strategy: 'native',
     source: 'parent channel',
+  });
+  assert.deepEqual(settings.resolveCodexProfileSetting({
+    provider: 'codex',
+    parentChannelId: 'channel-1',
+    codexProfile: null,
+  }), {
+    value: 'work',
+    source: 'parent channel',
+    supported: true,
+    isExplicit: true,
+    valid: false,
+    availableProfiles: [],
+    configPath: null,
+    error: 'missing in ~/.codex/config.toml',
+  });
+});
+
+test('session-settings resolves codex profile from session global default and provider default', () => {
+  const parentSession = {
+    provider: 'codex',
+    providers: {
+      codex: {
+        runnerSessionId: null,
+        codexThreadId: null,
+        lastInputTokens: null,
+        model: null,
+        codexProfile: 'parent-work',
+        effort: null,
+        fastMode: null,
+        compactStrategy: null,
+        compactEnabled: null,
+        compactThresholdTokens: null,
+        nativeCompactTokenLimit: null,
+        runtimeMode: null,
+        configOverrides: [],
+      },
+    },
+  };
+  const settings = createSessionSettings({
+    getParentSession: () => parentSession,
+    readDefaultCodexProfile: () => ({ profile: 'global-work', source: 'env default' }),
+    readCodexProfileCatalog: () => ({
+      profiles: ['work', 'parent-work', 'global-work'],
+      configPath: '/tmp/codex-config.toml',
+    }),
+  });
+
+  assert.deepEqual(settings.resolveCodexProfileSetting({
+    provider: 'codex',
+    codexProfile: 'work',
+  }), {
+    value: 'work',
+    source: 'session override',
+    supported: true,
+    isExplicit: true,
+    valid: true,
+    availableProfiles: ['work', 'parent-work', 'global-work'],
+    configPath: '/tmp/codex-config.toml',
+    error: null,
+  });
+
+  assert.deepEqual(settings.resolveCodexProfileSetting({
+    provider: 'codex',
+    parentChannelId: 'channel-1',
+    codexProfile: null,
+  }), {
+    value: 'parent-work',
+    source: 'parent channel',
+    supported: true,
+    isExplicit: true,
+    valid: true,
+    availableProfiles: ['work', 'parent-work', 'global-work'],
+    configPath: '/tmp/codex-config.toml',
+    error: null,
+  });
+
+  const defaultSettings = createSessionSettings({
+    getParentSession: () => null,
+    readDefaultCodexProfile: () => ({ profile: 'global-work', source: 'env default' }),
+    readCodexProfileCatalog: () => ({
+      profiles: ['work', 'parent-work', 'global-work'],
+      configPath: '/tmp/codex-config.toml',
+    }),
+  });
+
+  assert.deepEqual(defaultSettings.resolveCodexProfileSetting({
+    provider: 'codex',
+    codexProfile: null,
+  }), {
+    value: 'global-work',
+    source: 'env default',
+    supported: true,
+    isExplicit: true,
+    valid: true,
+    availableProfiles: ['work', 'parent-work', 'global-work'],
+    configPath: '/tmp/codex-config.toml',
+    error: null,
+  });
+
+  const providerDefaultSettings = createSessionSettings({
+    readDefaultCodexProfile: () => ({ profile: null, source: 'env default' }),
+    readCodexProfileCatalog: () => ({
+      profiles: ['work'],
+      configPath: '/tmp/codex-config.toml',
+    }),
+  });
+
+  assert.deepEqual(providerDefaultSettings.resolveCodexProfileSetting({
+    provider: 'codex',
+  }), {
+    value: null,
+    source: 'provider default',
+    supported: true,
+    isExplicit: false,
+    valid: true,
+    availableProfiles: ['work'],
+    configPath: '/tmp/codex-config.toml',
+    error: null,
   });
 });
 
@@ -232,6 +358,55 @@ test('session-settings resolves Claude runtime mode from session, parent, and en
   });
 });
 
+test('session-settings defaults Claude runtime to normal dash-p mode', () => {
+  const settings = createSessionSettings({
+    normalizeProvider: (provider) => String(provider || '').trim().toLowerCase() || 'codex',
+  });
+
+  assert.deepEqual(settings.resolveRuntimeModeSetting({ provider: 'claude', runtimeMode: null }), {
+    mode: 'normal',
+    supported: true,
+    source: 'env default',
+  });
+});
+
+test('session-settings resolves reply delivery from session, parent channel, and env default', () => {
+  const parentSession = {
+    replyDeliveryMode: 'stream_mention',
+  };
+  const settings = createSessionSettings({
+    defaultReplyDeliveryMode: 'card_mention',
+    getParentSession: () => parentSession,
+    normalizeProvider: (provider) => String(provider || '').trim().toLowerCase() || 'codex',
+  });
+
+  assert.equal(normalizeReplyDeliveryMode('stream_only'), 'stream_only');
+  assert.equal(normalizeReplyDeliveryMode('weird'), null);
+  assert.equal(formatReplyDeliveryModeLabel('card_mention', 'zh'), '只更新进度卡，完成时触发 @');
+  assert.equal(formatReplyDeliveryModeLabel('stream_only', 'en'), 'Send process messages, do not trigger @ when done');
+
+  assert.deepEqual(settings.resolveReplyDeliverySetting({
+    replyDeliveryMode: 'card_only',
+    parentChannelId: 'channel-1',
+  }), {
+    mode: 'card_only',
+    source: 'session override',
+  });
+  assert.deepEqual(settings.resolveReplyDeliverySetting({
+    replyDeliveryMode: null,
+    parentChannelId: 'channel-1',
+  }), {
+    mode: 'stream_mention',
+    source: 'parent channel',
+  });
+  assert.deepEqual(settings.resolveReplyDeliverySetting({
+    replyDeliveryMode: null,
+  }), {
+    mode: 'card_mention',
+    source: 'env default',
+  });
+});
+
 test('session-settings parses compact, reasoning and workspace command inputs', () => {
   assert.deepEqual(parseCompactConfigAction('strategy', 'native'), {
     type: 'set_strategy',
@@ -280,12 +455,16 @@ test('session-settings provides compact descriptions and provider defaults', () 
   });
   assert.deepEqual(settings.getProviderDefaults('codex'), {
     model: 'gpt-5-codex',
+    profile: null,
+    profileConfigured: false,
     effort: 'high',
     fastMode: true,
     source: 'config.toml',
   });
   assert.deepEqual(settings.getProviderDefaults('gemini'), {
     model: null,
+    profile: null,
+    profileConfigured: false,
     effort: null,
     fastMode: false,
     source: 'provider',
@@ -315,6 +494,8 @@ test('session-settings uses DEFAULT_MODEL as the resolved provider model fallbac
   });
   assert.deepEqual(settings.getProviderDefaults('gemini'), {
     model: 'gpt-5.4',
+    profile: null,
+    profileConfigured: false,
     effort: null,
     fastMode: false,
     source: 'env default',

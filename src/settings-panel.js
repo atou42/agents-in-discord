@@ -1,16 +1,21 @@
+import { formatCodexProfileLabel, formatReplyDeliveryModeLabel } from './session-settings.js';
+
 const SETTINGS_COMPONENT_PREFIX = 'stg';
 const SETTINGS_MODAL_PREFIX = 'stgm';
 const MODEL_INPUT_ID = 'model_name';
+const CODEX_PROFILE_INPUT_ID = 'codex_profile_name';
 
 const ALL_SECTIONS = Object.freeze([
   'overview',
   'defaults',
   'provider',
+  'profile',
   'model',
   'fast',
   'runtime',
   'effort',
   'compact',
+  'reply',
   'language',
   'mode',
   'workspace',
@@ -104,17 +109,28 @@ function formatSectionButtonLabel(section, language) {
     overview: { en: 'overview', zh: '总览' },
     defaults: { en: 'defaults', zh: '默认' },
     provider: { en: 'provider', zh: 'provider' },
+    profile: { en: 'profile', zh: 'profile' },
     model: { en: 'model', zh: 'model' },
     fast: { en: 'fast', zh: 'fast' },
     runtime: { en: 'runtime', zh: 'runtime' },
     effort: { en: 'effort', zh: 'effort' },
     compact: { en: 'compact', zh: 'compact' },
+    reply: { en: 'reply', zh: '回复' },
     language: { en: 'language', zh: '语言' },
     mode: { en: 'mode', zh: 'mode' },
     workspace: { en: 'workspace', zh: 'workspace' },
     close: { en: 'close', zh: '关闭' },
   };
   return labels[section]?.[language] || section;
+}
+
+function formatReplyDeliveryButtonLabel(mode, language) {
+  const lang = language === 'en' ? 'en' : 'zh';
+  if (mode === 'card_mention') return lang === 'en' ? 'Card + @' : '进度卡 + @';
+  if (mode === 'stream_mention') return lang === 'en' ? 'Stream + @' : '过程消息 + @';
+  if (mode === 'card_only') return lang === 'en' ? 'Card only' : '仅进度卡';
+  if (mode === 'stream_only') return lang === 'en' ? 'Stream only' : '仅过程消息';
+  return mode;
 }
 
 function buildSettingsComponentId(kind, target, value, userId) {
@@ -175,6 +191,8 @@ export function createSettingsPanel({
   getSessionProvider = () => 'codex',
   getWorkspaceBinding = () => ({ workspaceDir: null, source: 'unset' }),
   getProviderDefaults = () => ({ model: '(provider default)', effort: '(provider default)', source: 'provider' }),
+  resolveCodexProfileSetting = () => ({ value: null, source: 'provider default', supported: false, valid: true, isExplicit: false }),
+  getDefaultCodexProfile = () => ({ profile: null, source: 'env default' }),
   getProviderDisplayName = (provider) => String(provider || ''),
   getSupportedReasoningEffortLevels = () => [],
   getProviderCompactCapabilities = () => ({ strategies: ['hard', 'native', 'off'] }),
@@ -184,6 +202,8 @@ export function createSettingsPanel({
   resolveFastModeSetting = () => ({ enabled: false, supported: false, source: 'provider unsupported' }),
   resolveRuntimeModeSetting = () => ({ mode: 'normal', supported: false, source: 'provider unsupported' }),
   resolveCompactStrategySetting = () => ({ strategy: 'native', source: 'env default' }),
+  resolveReplyDeliverySetting = () => ({ mode: 'card_mention', source: 'env default' }),
+  getReplyDeliveryDefault = () => ({ mode: 'card_mention', source: 'env default' }),
   commandActions = {},
   closeRuntimeSession = () => false,
   openWorkspaceBrowser,
@@ -201,11 +221,12 @@ export function createSettingsPanel({
     const sections = ['overview'];
     if (provider === 'codex') sections.push('defaults');
     if (!botProvider) sections.push('provider');
+    if (provider === 'codex') sections.push('profile');
     sections.push('model');
     if (provider === 'codex') sections.push('fast');
     if (provider === 'claude') sections.push('runtime');
     if (getSupportedReasoningEffortLevels(provider).length) sections.push('effort');
-    sections.push('compact', 'language', 'mode', 'workspace');
+    sections.push('compact', 'reply', 'language', 'mode', 'workspace');
     return sections;
   }
 
@@ -225,11 +246,15 @@ export function createSettingsPanel({
     const codexDefaults = provider === 'codex'
       ? (getProviderDefaults('codex') || {})
       : null;
+    const codexProfile = resolveCodexProfileSetting(session);
+    const codexProfileDefault = getDefaultCodexProfile(session);
     const modelSetting = resolveModelSetting(session);
     const effortSetting = resolveReasoningEffortSetting(session);
     const fastMode = resolveFastModeSetting(session);
     const runtimeMode = resolveRuntimeModeSetting(session);
     const compact = resolveCompactStrategySetting(session);
+    const replyDelivery = resolveReplyDeliverySetting(session);
+    const replyDefault = getReplyDeliveryDefault(session);
     const workspace = getWorkspaceBinding(session, key) || { workspaceDir: null, source: 'unset' };
     const effortLevels = getSupportedReasoningEffortLevels(provider);
 
@@ -240,9 +265,13 @@ export function createSettingsPanel({
       providerLabel: getProviderDisplayName(provider),
       defaults,
       codexDefaults,
+      codexProfile,
+      codexProfileDefault,
       fastMode,
       runtimeMode,
       compact,
+      replyDelivery,
+      replyDefault,
       workspace,
       effortLevels,
       modelValue: modelSetting?.value || defaults.model,
@@ -257,7 +286,7 @@ export function createSettingsPanel({
     const available = getAvailableSections(session);
     const buttons = [];
 
-    for (const section of ['overview', 'defaults', 'provider', 'model', 'fast', 'runtime', 'effort', 'compact', 'language', 'mode', 'workspace']) {
+    for (const section of ['overview', 'defaults', 'provider', 'profile', 'model', 'fast', 'runtime', 'effort', 'compact', 'reply', 'language', 'mode', 'workspace']) {
       if (!available.includes(section)) continue;
       buttons.push(
         new ButtonBuilder()
@@ -295,11 +324,22 @@ export function createSettingsPanel({
         if (snapshot.provider !== 'codex' || !snapshot.codexDefaults) return [];
 
         const modelUsesProviderDefault = !snapshot.codexDefaults.modelConfigured;
+        const profileUsesProviderDefault = !snapshot.codexDefaults.profileConfigured;
         const defaultFastSelected = !snapshot.codexDefaults.fastModeConfigured
           ? 'default'
           : (snapshot.codexDefaults.fastMode ? 'on' : 'off');
 
         return [
+          new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId(buildSettingsComponentId('act', 'default_profile', 'custom', userId))
+              .setLabel(snapshot.language === 'en' ? 'Set default profile' : '设置默认 profile')
+              .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+              .setCustomId(buildSettingsComponentId('act', 'default_profile', 'default', userId))
+              .setLabel(snapshot.language === 'en' ? 'Use provider default' : '使用 provider 默认')
+              .setStyle(profileUsesProviderDefault ? ButtonStyle.Primary : ButtonStyle.Secondary),
+          ),
           new ActionRowBuilder().addComponents(
             new ButtonBuilder()
               .setCustomId(buildSettingsComponentId('act', 'default_model', 'custom', userId))
@@ -334,6 +374,31 @@ export function createSettingsPanel({
               .setCustomId(buildSettingsComponentId('set', 'default_fast', 'off', userId))
               .setLabel(snapshot.language === 'en' ? 'Off' : '关闭')
               .setStyle(defaultFastSelected === 'off' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+          ),
+        ];
+      }
+
+      case 'profile': {
+        const selected = snapshot.codexProfile.source === 'session override'
+          ? snapshot.codexProfile.value
+          : 'follow';
+        const followLabel = snapshot.isThread
+          ? (snapshot.language === 'en' ? 'Follow parent/global' : '跟随父频道/全局')
+          : (snapshot.language === 'en' ? 'Follow global' : '跟随全局');
+        return [
+          new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId(buildSettingsComponentId('set', 'profile', 'follow', userId))
+              .setLabel(followLabel)
+              .setStyle(selected === 'follow' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+            new ButtonBuilder()
+              .setCustomId(buildSettingsComponentId('act', 'profile', 'custom', userId))
+              .setLabel(snapshot.language === 'en' ? 'Set custom profile' : '设置自定义 profile')
+              .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+              .setCustomId(buildSettingsComponentId('act', 'profile', 'clear', userId))
+              .setLabel(snapshot.language === 'en' ? 'Use provider default' : '使用 provider 默认')
+              .setStyle(!snapshot.codexProfile.isExplicit ? ButtonStyle.Primary : ButtonStyle.Secondary),
           ),
         ];
       }
@@ -452,6 +517,34 @@ export function createSettingsPanel({
         ];
       }
 
+      case 'reply': {
+        const currentSelected = snapshot.replyDelivery.source === 'session override'
+          ? snapshot.replyDelivery.mode
+          : 'follow';
+        const followLabel = snapshot.isThread
+          ? (snapshot.language === 'en' ? 'Follow parent/global' : '跟随父频道/全局')
+          : (snapshot.language === 'en' ? 'Follow global' : '跟随全局');
+        const replyModes = ['card_mention', 'stream_mention', 'card_only', 'stream_only'];
+        return [
+          new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId(buildSettingsComponentId('set', 'reply', 'follow', userId))
+              .setLabel(followLabel)
+              .setStyle(currentSelected === 'follow' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+            ...replyModes.map((mode) => new ButtonBuilder()
+              .setCustomId(buildSettingsComponentId('set', 'reply', mode, userId))
+              .setLabel(formatReplyDeliveryButtonLabel(mode, snapshot.language))
+              .setStyle(currentSelected === mode ? ButtonStyle.Primary : ButtonStyle.Secondary)),
+          ),
+          new ActionRowBuilder().addComponents(
+            ...replyModes.map((mode) => new ButtonBuilder()
+              .setCustomId(buildSettingsComponentId('set', 'default_reply', mode, userId))
+              .setLabel(formatReplyDeliveryButtonLabel(mode, snapshot.language))
+              .setStyle(snapshot.replyDefault.mode === mode ? ButtonStyle.Primary : ButtonStyle.Secondary)),
+          ),
+        ];
+      }
+
       case 'model':
         return [
           new ActionRowBuilder().addComponents(
@@ -512,6 +605,10 @@ export function createSettingsPanel({
         return snapshot.language === 'en'
           ? 'Provider switches the active runtime for this channel. Each provider keeps its own saved session/model/runtime overrides.'
           : 'provider 决定这个频道当前使用哪套 CLI 运行时。每个 provider 会保留自己独立的 session、model 和运行时覆盖。';
+      case 'profile':
+        return snapshot.language === 'en'
+          ? 'Codex profile decides which named profile this channel passes to Codex. Follow keeps inheritance. Provider default means no `--profile` flag is passed.'
+          : 'Codex profile 决定当前频道向 Codex 传哪个命名 profile。跟随表示继续继承。provider 默认表示不传 `--profile`。';
       case 'model':
         return snapshot.language === 'en'
           ? 'Set a custom model string with the modal, or clear the channel override and fall back to the provider default.'
@@ -536,6 +633,10 @@ export function createSettingsPanel({
         return snapshot.language === 'en'
           ? `This panel currently controls compact strategy only. For token limits or enabled/status details, keep using \`${compactSurface}\`.`
           : `这个面板当前只管理 compact strategy。若要设置 token limit 或查看更多细项，继续使用 \`${compactSurface}\`。`;
+      case 'reply':
+        return snapshot.language === 'en'
+          ? 'Choose whether the channel only updates the progress card or also sends process messages, and whether completion should trigger @.'
+          : '在这里决定当前频道只更新进度卡，还是会发送过程消息，以及完成时是否触发 @。';
       case 'language':
         return snapshot.language === 'en'
           ? 'This only changes the bot hint language for the current channel.'
@@ -567,6 +668,9 @@ export function createSettingsPanel({
             ? '• scope: `~/.codex/config.toml`'
             : '• 作用域：`~/.codex/config.toml`',
           snapshot.language === 'en'
+            ? `• profile default: ${formatCodexProfileLabel(snapshot.codexProfileDefault.profile, snapshot.language)} (${formatSettingSourceLabel(snapshot.codexProfileDefault.source, snapshot.language)})`
+            : `• profile 默认：${formatCodexProfileLabel(snapshot.codexProfileDefault.profile, snapshot.language)}（${formatSettingSourceLabel(snapshot.codexProfileDefault.source, snapshot.language)}）`,
+          snapshot.language === 'en'
             ? `• model default: ${formatCodexGlobalStringDefault(snapshot.codexDefaults.model, snapshot.codexDefaults.modelConfigured, snapshot.language)} (${formatSettingSourceLabel(snapshot.codexDefaults.modelConfigured ? 'config.toml' : 'provider default', snapshot.language)})`
             : `• model 默认：${formatCodexGlobalStringDefault(snapshot.codexDefaults.model, snapshot.codexDefaults.modelConfigured, snapshot.language)}（${formatSettingSourceLabel(snapshot.codexDefaults.modelConfigured ? 'config.toml' : 'provider default', snapshot.language)}）`,
           snapshot.language === 'en'
@@ -583,6 +687,11 @@ export function createSettingsPanel({
           snapshot.language === 'en'
             ? `• provider: \`${snapshot.provider}\` (${snapshot.providerLabel})`
             : `• provider：\`${snapshot.provider}\`（${snapshot.providerLabel}）`,
+          snapshot.provider === 'codex'
+            ? (snapshot.language === 'en'
+              ? `• codex profile: ${formatCodexProfileLabel(snapshot.codexProfile.value, snapshot.language)} (${formatSettingSourceLabel(snapshot.codexProfile.source, snapshot.language)}${snapshot.codexProfile.valid ? '' : `, invalid: ${snapshot.codexProfile.error}`})`
+              : `• Codex profile：${formatCodexProfileLabel(snapshot.codexProfile.value, snapshot.language)}（${formatSettingSourceLabel(snapshot.codexProfile.source, snapshot.language)}${snapshot.codexProfile.valid ? '' : `，无效：${snapshot.codexProfile.error}` }）`)
+            : null,
           snapshot.language === 'en'
             ? `• model: ${formatValueLabel(snapshot.modelValue, '(provider default)', snapshot.language)} (${formatSettingSourceLabel(snapshot.modelSource, snapshot.language)})`
             : `• model：${formatValueLabel(snapshot.modelValue, '（provider 默认）', snapshot.language)}（${formatSettingSourceLabel(snapshot.modelSource, snapshot.language)}）`,
@@ -608,6 +717,12 @@ export function createSettingsPanel({
           snapshot.language === 'en'
             ? `• compact: \`${snapshot.compact.strategy}\` (${formatSettingSourceLabel(snapshot.compact.source, snapshot.language)})`
             : `• compact：\`${snapshot.compact.strategy}\`（${formatSettingSourceLabel(snapshot.compact.source, snapshot.language)}）`,
+          snapshot.language === 'en'
+            ? `• reply delivery: ${formatReplyDeliveryModeLabel(snapshot.replyDelivery.mode, snapshot.language)} (${formatSettingSourceLabel(snapshot.replyDelivery.source, snapshot.language)})`
+            : `• 回复方式：${formatReplyDeliveryModeLabel(snapshot.replyDelivery.mode, snapshot.language)}（${formatSettingSourceLabel(snapshot.replyDelivery.source, snapshot.language)}）`,
+          snapshot.language === 'en'
+            ? `• default reply delivery: ${formatReplyDeliveryModeLabel(snapshot.replyDefault.mode, snapshot.language)} (${formatSettingSourceLabel(snapshot.replyDefault.source, snapshot.language)})`
+            : `• 默认回复方式：${formatReplyDeliveryModeLabel(snapshot.replyDefault.mode, snapshot.language)}（${formatSettingSourceLabel(snapshot.replyDefault.source, snapshot.language)}）`,
           snapshot.language === 'en'
             ? `• mode: \`${session?.mode || 'safe'}\``
             : `• mode：\`${session?.mode || 'safe'}\``,
@@ -674,6 +789,36 @@ export function createSettingsPanel({
       );
   }
 
+  function buildCodexProfileModal(session, userId, { useGlobalDefault = false } = {}) {
+    const language = normalizeUiLanguage(getSessionLanguage(session) || defaultUiLanguage);
+    const defaults = useGlobalDefault ? getDefaultCodexProfile(session) : null;
+    const input = new TextInputBuilder()
+      .setCustomId(CODEX_PROFILE_INPUT_ID)
+      .setLabel(useGlobalDefault
+        ? (language === 'en' ? 'Global Codex profile or default' : '全局 Codex profile 或 default')
+        : (language === 'en' ? 'Codex profile or default' : 'Codex profile 或 default'))
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder(useGlobalDefault
+        ? (language === 'en' ? 'e.g. work, review, default' : '例如 work、review、default')
+        : (language === 'en' ? 'e.g. work, review, default' : '例如 work、review、default'))
+      .setRequired(true)
+      .setMaxLength(120);
+    if (useGlobalDefault) {
+      if (defaults?.profile) input.setValue(defaults.profile);
+    } else if (session?.codexProfile) {
+      input.setValue(session.codexProfile);
+    }
+
+    return new ModalBuilder()
+      .setCustomId(buildSettingsModalId(useGlobalDefault ? 'default_profile' : 'profile', userId))
+      .setTitle(useGlobalDefault
+        ? (language === 'en' ? 'Set global Codex profile' : '设置全局 Codex profile')
+        : (language === 'en' ? 'Set Codex profile' : '设置 Codex profile'))
+      .addComponents(
+        new ActionRowBuilder().addComponents(input),
+      );
+  }
+
   async function handleSettingsPanelInteraction(interaction) {
     const parsed = parseSettingsComponentId(interaction.customId);
     if (!parsed) return false;
@@ -722,8 +867,18 @@ export function createSettingsPanel({
         return true;
       }
 
+      if (parsed.target === 'profile' && parsed.value === 'custom') {
+        await interaction.showModal(buildCodexProfileModal(session, interaction.user.id));
+        return true;
+      }
+
       if (parsed.target === 'default_model' && parsed.value === 'custom') {
         await interaction.showModal(buildModelModal(session, interaction.user.id, { useGlobalDefault: true }));
+        return true;
+      }
+
+      if (parsed.target === 'default_profile' && parsed.value === 'custom') {
+        await interaction.showModal(buildCodexProfileModal(session, interaction.user.id, { useGlobalDefault: true }));
         return true;
       }
 
@@ -750,6 +905,33 @@ export function createSettingsPanel({
           notice: language === 'en'
             ? '✅ Global default model cleared. Codex now follows the provider default.'
             : '✅ 已清除全局默认 model。Codex 现已回退到 provider 默认模型。',
+        }));
+        return true;
+      }
+
+      if (parsed.target === 'profile' && parsed.value === 'clear') {
+        commandActions.setCodexProfile?.(session, 'default');
+        closeRuntimeForKey(key);
+        await interaction.update(buildSettingsPayload({
+          key,
+          session,
+          userId: interaction.user.id,
+          activeSection: 'profile',
+          notice: language === 'en' ? '✅ Codex profile now follows the provider default.' : '✅ 当前 Codex profile 已改为跟随 provider 默认。',
+        }));
+        return true;
+      }
+
+      if (parsed.target === 'default_profile' && parsed.value === 'default') {
+        commandActions.setGlobalCodexProfileDefault?.(session, 'default');
+        await interaction.update(buildSettingsPayload({
+          key,
+          session,
+          userId: interaction.user.id,
+          activeSection: 'defaults',
+          notice: language === 'en'
+            ? '✅ Global default Codex profile cleared. Codex now follows the provider default.'
+            : '✅ 已清除全局默认 Codex profile。Codex 现已回退到 provider 默认。',
         }));
         return true;
       }
@@ -792,6 +974,9 @@ export function createSettingsPanel({
       if (parsed.target === 'provider' && !botProvider) {
         commandActions.setProvider?.(session, parsed.value);
         closeRuntimeForKey(key);
+      } else if (parsed.target === 'profile') {
+        commandActions.setCodexProfile?.(session, parsed.value === 'follow' ? null : parsed.value);
+        closeRuntimeForKey(key);
       } else if (parsed.target === 'language') {
         commandActions.setLanguage?.(session, parsed.value);
       } else if (parsed.target === 'mode') {
@@ -814,13 +999,21 @@ export function createSettingsPanel({
         closeRuntimeForKey(key);
       } else if (parsed.target === 'compact') {
         commandActions.setCompactStrategy?.(session, parsed.value === 'follow' ? null : parsed.value);
+      } else if (parsed.target === 'reply') {
+        commandActions.setReplyDeliveryMode?.(session, parsed.value === 'follow' ? null : parsed.value);
+      } else if (parsed.target === 'default_reply') {
+        commandActions.setGlobalReplyDeliveryModeDefault?.(session, parsed.value);
+      } else if (parsed.target === 'default_profile') {
+        commandActions.setGlobalCodexProfileDefault?.(session, parsed.value);
       }
 
       await interaction.update(buildSettingsPayload({
         key,
         session,
         userId: interaction.user.id,
-        activeSection: parsed.target.startsWith('default_') ? 'defaults' : parsed.target,
+        activeSection: parsed.target === 'default_reply'
+          ? 'reply'
+          : (parsed.target.startsWith('default_') ? 'defaults' : parsed.target),
       }));
       return true;
     }
@@ -883,6 +1076,37 @@ export function createSettingsPanel({
         notice: language === 'en'
           ? '✅ Global default model updated in `~/.codex/config.toml`.'
           : '✅ 已更新 `~/.codex/config.toml` 里的全局默认 model。',
+      }));
+      return true;
+    }
+
+    if (parsed.target === 'profile') {
+      const rawValue = String(interaction.fields.getTextInputValue(CODEX_PROFILE_INPUT_ID) || '').trim();
+      commandActions.setCodexProfile?.(session, rawValue);
+      closeRuntimeForKey(key);
+      await interaction.reply(buildSettingsPayload({
+        key,
+        session,
+        userId: interaction.user.id,
+        activeSection: 'profile',
+        flags: 64,
+        notice: language === 'en' ? '✅ Codex profile updated. This is the latest settings panel.' : '✅ Codex profile 已更新。这是最新的设置面板。',
+      }));
+      return true;
+    }
+
+    if (parsed.target === 'default_profile') {
+      const rawValue = String(interaction.fields.getTextInputValue(CODEX_PROFILE_INPUT_ID) || '').trim();
+      commandActions.setGlobalCodexProfileDefault?.(session, rawValue);
+      await interaction.reply(buildSettingsPayload({
+        key,
+        session,
+        userId: interaction.user.id,
+        activeSection: 'defaults',
+        flags: 64,
+        notice: language === 'en'
+          ? '✅ Global default Codex profile updated.'
+          : '✅ 已更新全局默认 Codex profile。',
       }));
       return true;
     }

@@ -151,6 +151,34 @@ export function readCodexDefaults({ env = process.env } = {}) {
   }
 }
 
+export function readCodexProfileCatalog({ env = process.env } = {}) {
+  try {
+    const configPath = resolveCodexConfigPath({ env });
+    const raw = fs.readFileSync(configPath, 'utf-8');
+    const profileNames = [];
+    const seen = new Set();
+    const profileHeaderPattern = /^\s*\[profiles\.(?:"([^"]+)"|([A-Za-z0-9_-]+))\]\s*$/gm;
+    let match = profileHeaderPattern.exec(raw);
+    while (match) {
+      const name = String(match[1] || match[2] || '').trim();
+      if (name && !seen.has(name)) {
+        seen.add(name);
+        profileNames.push(name);
+      }
+      match = profileHeaderPattern.exec(raw);
+    }
+    return {
+      profiles: profileNames,
+      configPath,
+    };
+  } catch {
+    return {
+      profiles: [],
+      configPath: resolveCodexConfigPath({ env }),
+    };
+  }
+}
+
 export function writeCodexDefaults({
   env = process.env,
   model = undefined,

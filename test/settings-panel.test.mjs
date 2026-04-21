@@ -132,6 +132,8 @@ function createPanel({ session, botProvider = null, openWorkspaceBrowser, comman
     }),
     getProviderDefaults: (provider) => ({
       model: provider === 'codex' ? (session?.globalDefaultModel ?? 'gpt-5.4') : '(provider default)',
+      profile: provider === 'codex' ? (session?.globalDefaultCodexProfile ?? null) : null,
+      profileConfigured: provider === 'codex' ? Boolean(session?.globalDefaultCodexProfile) : false,
       modelConfigured: provider === 'codex' ? (session?.globalDefaultModelConfigured ?? true) : false,
       effort: provider === 'codex' ? (session?.globalDefaultEffort ?? 'high') : '(provider default)',
       effortConfigured: provider === 'codex' ? (session?.globalDefaultEffortConfigured ?? true) : false,
@@ -150,6 +152,21 @@ function createPanel({ session, botProvider = null, openWorkspaceBrowser, comman
     resolveModelSetting: (currentSession) => ({
       value: currentSession?.model || currentSession?.inheritedModel || 'gpt-5.4',
       source: currentSession?.modelSource || (currentSession?.model ? 'session override' : 'config.toml'),
+    }),
+    resolveCodexProfileSetting: (currentSession) => ({
+      value: currentSession?.codexProfile || currentSession?.inheritedCodexProfile || null,
+      source: currentSession?.codexProfileSource
+        || (currentSession?.codexProfile ? 'session override' : (currentSession?.inheritedCodexProfile ? 'parent channel' : 'provider default')),
+      supported: currentSession?.provider !== 'claude' && currentSession?.provider !== 'gemini',
+      valid: currentSession?.codexProfileValid !== false,
+      isExplicit: Boolean(currentSession?.codexProfile || currentSession?.inheritedCodexProfile),
+      error: currentSession?.codexProfileError || null,
+      availableProfiles: ['work', 'review'],
+      configPath: '/tmp/codex-config.toml',
+    }),
+    getDefaultCodexProfile: () => ({
+      profile: session?.globalDefaultCodexProfile || null,
+      source: session?.globalDefaultCodexProfile ? 'env default' : 'provider default',
     }),
     resolveReasoningEffortSetting: (currentSession) => ({
       value: currentSession?.effort || currentSession?.inheritedEffort || 'high',
@@ -175,6 +192,15 @@ function createPanel({ session, botProvider = null, openWorkspaceBrowser, comman
       strategy: currentSession?.compactStrategy || 'native',
       source: currentSession?.compactStrategy ? 'session override' : 'env default',
     }),
+    resolveReplyDeliverySetting: (currentSession) => ({
+      mode: currentSession?.replyDeliveryMode || currentSession?.inheritedReplyDeliveryMode || 'card_only',
+      source: currentSession?.replyDeliverySource
+        || (currentSession?.replyDeliveryMode ? 'session override' : 'env default'),
+    }),
+    getReplyDeliveryDefault: () => ({
+      mode: session?.globalReplyDeliveryMode || 'card_mention',
+      source: session?.globalReplyDeliverySource || 'env default',
+    }),
     commandActions,
     openWorkspaceBrowser,
     slashRef: (base) => `/cx_${base}`,
@@ -186,6 +212,8 @@ test('createSettingsPanel opens an overview payload with key channel settings', 
     provider: 'codex',
     language: 'zh',
     mode: 'safe',
+    codexProfile: 'work',
+    codexProfileSource: 'session override',
     fastMode: null,
     model: null,
   };
@@ -202,6 +230,7 @@ test('createSettingsPanel opens an overview payload with key channel settings', 
   assert.equal(payload.flags, 64);
   assert.match(payload.content, /频道设置/);
   assert.match(payload.content, /provider：`codex`/);
+  assert.match(payload.content, /Codex profile：`work`（当前频道）/);
   assert.match(payload.content, /model：`gpt-5.4`/);
   assert.equal(payload.components.length, 3);
   const labels = payload.components.flatMap((row) => row.components.map((button) => button.data.label));
@@ -265,6 +294,50 @@ test('createSettingsPanel updates fast mode through button interaction', async (
   assert.equal(updates.length, 1);
   assert.match(updates[0].content, /当前项：fast/);
   assert.match(updates[0].content, /fast mode：开启（当前频道）/);
+});
+
+test('createSettingsPanel updates reply delivery and shows effective source', async () => {
+  const session = {
+    provider: 'codex',
+    language: 'zh',
+    mode: 'safe',
+    replyDeliveryMode: null,
+    globalReplyDeliveryMode: 'card_mention',
+  };
+  const updates = [];
+  const panel = createPanel({
+    session,
+    commandActions: {
+      setReplyDeliveryMode(currentSession, mode) {
+        currentSession.replyDeliveryMode = mode;
+        return { replyDeliveryMode: currentSession.replyDeliveryMode };
+      },
+      setGlobalReplyDeliveryModeDefault(_currentSession, mode) {
+        session.globalReplyDeliveryMode = mode;
+        return { mode };
+      },
+    },
+  });
+
+  await panel.handleSettingsPanelInteraction({
+    customId: 'stg:set:reply:stream_mention:12345',
+    channelId: 'thread-1',
+    user: { id: '12345' },
+    async update(payload) {
+      updates.push(payload);
+    },
+    async reply() {
+      throw new Error('should not reply');
+    },
+    async showModal() {
+      throw new Error('should not show modal');
+    },
+  });
+
+  assert.equal(session.replyDeliveryMode, 'stream_mention');
+  assert.match(updates[0].content, /当前项：reply/);
+  assert.match(updates[0].content, /回复方式：发送过程消息，完成时触发 @（当前频道）/);
+  assert.match(updates[0].content, /默认回复方式：只更新进度卡，完成时触发 @（环境默认）/);
 });
 
 test('createSettingsPanel updates Claude runtime mode and closes the hot process without clearing session id', async () => {
@@ -445,6 +518,55 @@ test('createSettingsPanel opens a global default model modal from the defaults s
   assert.equal(modals.length, 1);
   assert.equal(modals[0].data.customId, 'stgm:default_model:12345');
   assert.equal(modals[0].data.components[0].components[0].data.value, 'gpt-5.4');
+});
+
+test('createSettingsPanel opens codex profile modals from profile and defaults sections', async () => {
+  const session = {
+    provider: 'codex',
+    language: 'en',
+    mode: 'safe',
+    codexProfile: 'work',
+    globalDefaultCodexProfile: 'review',
+  };
+  const modals = [];
+  const panel = createPanel({ session });
+
+  await panel.handleSettingsPanelInteraction({
+    customId: 'stg:act:profile:custom:12345',
+    channelId: 'thread-1',
+    user: { id: '12345' },
+    async update() {
+      throw new Error('should not update');
+    },
+    async reply() {
+      throw new Error('should not reply');
+    },
+    async showModal(modal) {
+      modals.push(modal);
+    },
+  });
+
+  await panel.handleSettingsPanelInteraction({
+    customId: 'stg:act:default_profile:custom:12345',
+    channelId: 'thread-1',
+    user: { id: '12345' },
+    async update() {
+      throw new Error('should not update');
+    },
+    async reply() {
+      throw new Error('should not reply');
+    },
+    async showModal(modal) {
+      modals.push(modal);
+    },
+  });
+
+  assert.equal(modals.length, 2);
+  assert.equal(modals[0].data.customId, 'stgm:profile:12345');
+  assert.equal(modals[0].data.components[0].components[0].data.customId, 'codex_profile_name');
+  assert.equal(modals[0].data.components[0].components[0].data.value, 'work');
+  assert.equal(modals[1].data.customId, 'stgm:default_profile:12345');
+  assert.equal(modals[1].data.components[0].components[0].data.value, 'review');
 });
 
 test('createSettingsPanel applies model modal submit and replies with a refreshed panel', async () => {

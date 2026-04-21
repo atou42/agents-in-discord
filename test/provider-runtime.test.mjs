@@ -5,6 +5,7 @@ import { PassThrough } from 'node:stream';
 
 import {
   buildSpawnEnv,
+  createCachedProviderRateLimitReader,
   formatCliHealth,
   getCodexAccountRateLimits,
   getProviderBin,
@@ -93,4 +94,42 @@ test('getCodexAccountRateLimits reads official app-server rate limit response', 
   assert.deepEqual(spawnCalls, [
     { bin: '/bin/codex', args: ['app-server', '--listen', 'stdio://'] },
   ]);
+});
+
+test('createCachedProviderRateLimitReader returns stale snapshot when live query fails after success', async () => {
+  let now = 1000;
+  let calls = 0;
+  const reader = createCachedProviderRateLimitReader({
+    now: () => now,
+    readRateLimits: async () => {
+      calls += 1;
+      if (calls === 1) {
+        return {
+          ok: true,
+          rateLimits: {
+            limitId: 'codex',
+            primary: { usedPercent: 11, windowDurationMins: 300, resetsAt: 1776169989 },
+            secondary: { usedPercent: 22, windowDurationMins: 10080, resetsAt: 1776756789 },
+          },
+        };
+      }
+      return {
+        ok: false,
+        error: 'network timeout',
+      };
+    },
+  });
+
+  const live = await reader('codex');
+  assert.equal(live.ok, true);
+  assert.equal(live.stale, undefined);
+
+  now = 61_000;
+  const stale = await reader('codex');
+  assert.equal(stale.ok, true);
+  assert.equal(stale.stale, true);
+  assert.equal(stale.staleReason, 'network timeout');
+  assert.equal(stale.cachedAt, 1000);
+  assert.equal(stale.cacheAgeMs, 60_000);
+  assert.equal(stale.rateLimits.primary.usedPercent, 11);
 });

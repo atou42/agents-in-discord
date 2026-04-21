@@ -209,6 +209,7 @@ test('createRunnerArgsBuilder uses inherited model and effort settings', () => {
     normalizeProvider: (value) => value,
     getSessionId: () => null,
     resolveModelSetting: () => ({ value: 'gpt-5.4', source: 'parent channel' }),
+    resolveCodexProfileSetting: () => ({ value: 'work', source: 'parent channel', valid: true, isExplicit: true }),
     resolveReasoningEffortSetting: () => ({ value: 'high', source: 'parent channel' }),
     resolveFastModeSetting: () => ({ enabled: false, source: 'config.toml' }),
     resolveCompactStrategySetting: () => ({ strategy: 'hard' }),
@@ -233,6 +234,8 @@ test('createRunnerArgsBuilder uses inherited model and effort settings', () => {
     '--full-auto',
     '-C',
     '/tmp/workspace',
+    '--profile',
+    'work',
     '-m',
     'gpt-5.4',
     '-c',
@@ -241,6 +244,32 @@ test('createRunnerArgsBuilder uses inherited model and effort settings', () => {
     'features.fast_mode=false',
     'inspect',
   ]);
+});
+
+test('createRunnerArgsBuilder throws when the effective codex profile is invalid', () => {
+  const { buildSessionRunnerArgs } = createRunnerArgsBuilder({
+    defaultModel: 'gpt-5-codex',
+    normalizeProvider: (value) => value,
+    getSessionId: () => null,
+    resolveCodexProfileSetting: () => ({
+      value: 'missing-profile',
+      source: 'session override',
+      valid: false,
+      isExplicit: true,
+      error: 'missing in /tmp/codex-config.toml',
+    }),
+    resolveFastModeSetting: () => ({ enabled: false, source: 'config.toml' }),
+    resolveCompactStrategySetting: () => ({ strategy: 'hard' }),
+    resolveCompactEnabledSetting: () => ({ enabled: false }),
+    resolveNativeCompactTokenLimitSetting: () => ({ tokens: 0 }),
+  });
+
+  assert.throws(() => buildSessionRunnerArgs({
+    provider: 'codex',
+    session: { mode: 'safe', configOverrides: [] },
+    workspaceDir: '/tmp/workspace',
+    prompt: 'inspect',
+  }), /invalid Codex profile: missing-profile/);
 });
 
 test('createRunnerArgsBuilder explicitly disables fast mode when config.toml resolves to off', () => {
@@ -277,4 +306,37 @@ test('createRunnerArgsBuilder explicitly disables fast mode when config.toml res
     'features.fast_mode=false',
     'inspect',
   ]);
+});
+
+test('createRunnerArgsBuilder uses claude dash-p for normal runtime args', () => {
+  const { buildSessionRunnerArgs } = createRunnerArgsBuilder({
+    defaultModel: null,
+    normalizeProvider: (value) => value,
+    getSessionId: () => null,
+    resolveModelSetting: () => ({ value: null, source: 'provider' }),
+    resolveReasoningEffortSetting: () => ({ value: 'high', source: 'session override' }),
+    resolveFastModeSetting: () => ({ enabled: false, source: 'provider unsupported' }),
+    resolveCompactStrategySetting: () => ({ strategy: 'hard' }),
+    resolveCompactEnabledSetting: () => ({ enabled: false }),
+    resolveNativeCompactTokenLimitSetting: () => ({ tokens: 0 }),
+  });
+
+  const args = buildSessionRunnerArgs({
+    provider: 'claude',
+    session: {
+      provider: 'claude',
+      mode: 'dangerous',
+      runnerSessionId: null,
+    },
+    workspaceDir: '/tmp/workspace',
+    prompt: 'hello',
+  });
+
+  assert.equal(args[0], '-p');
+  assert.equal(args.includes('--print'), false);
+  assert.equal(args.includes('--effort'), true);
+  assert.equal(args.includes('high'), true);
+  assert.equal(args.includes('--dangerously-skip-permissions'), true);
+  assert.equal(args.at(-2), '--');
+  assert.equal(args.at(-1), 'hello');
 });

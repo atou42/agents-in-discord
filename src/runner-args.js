@@ -21,6 +21,7 @@ export function createRunnerArgsBuilder({
   normalizeProvider = (value) => String(value || '').trim().toLowerCase(),
   getSessionId = () => null,
   resolveModelSetting = () => ({ value: defaultModel, source: 'provider' }),
+  resolveCodexProfileSetting = () => ({ value: null, source: 'provider default', valid: true, isExplicit: false }),
   resolveReasoningEffortSetting = () => ({ value: null, source: 'provider' }),
   resolveFastModeSetting = () => ({ enabled: false, source: 'provider unsupported' }),
   resolveCompactStrategySetting = () => ({ strategy: 'native' }),
@@ -56,6 +57,7 @@ export function createRunnerArgsBuilder({
 
     const sessionId = getSessionId(session);
     const model = resolveModelSetting(session).value || defaultModel;
+    const codexProfile = resolveCodexProfileSetting(session);
     const effort = resolveReasoningEffortSetting(session).value;
     const fastMode = resolveFastModeSetting(session);
     const extraConfigs = session.configOverrides || [];
@@ -67,6 +69,12 @@ export function createRunnerArgsBuilder({
       || fastMode.enabled === false;
 
     const common = [];
+    if (codexProfile?.isExplicit) {
+      if (!codexProfile.valid) {
+        throw new Error(`invalid Codex profile: ${codexProfile.value} (${codexProfile.error || 'unknown error'})`);
+      }
+      if (codexProfile.value) common.push('--profile', codexProfile.value);
+    }
     if (model) common.push('-m', model);
     if (effort) common.push('-c', `model_reasoning_effort="${effort}"`);
     if (shouldPassFastMode) {
