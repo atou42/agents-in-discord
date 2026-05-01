@@ -265,6 +265,91 @@ test('createTextCommandHandler rejects fork for non-codex providers', async () =
   assert.match(replies[0], /原生 fork 只支持 Codex/);
 });
 
+test('createTextCommandHandler sets Codex goal from free text', async () => {
+  const replies = [];
+  const calls = [];
+  const session = { provider: 'codex', language: 'zh', runnerSessionId: 'thread-1' };
+  const handleCommand = createTextCommandHandler({
+    getSession: () => session,
+    getSessionId: (currentSession) => currentSession.runnerSessionId,
+    getSessionProvider: (currentSession) => currentSession.provider,
+    getSessionLanguage: () => 'zh',
+    async setCodexThreadGoal(options) {
+      calls.push(options);
+      return {
+        goal: {
+          threadId: options.threadId,
+          objective: options.objective,
+          status: options.status,
+          tokenBudget: options.tokenBudget ?? null,
+          tokensUsed: 0,
+          timeUsedSeconds: 0,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      };
+    },
+    safeReply: async (_message, payload) => {
+      replies.push(payload);
+    },
+  });
+
+  await handleCommand(createMessage(), 'thread-1', '!goal ship Discord goal command');
+
+  assert.deepEqual(calls, [{
+    threadId: 'thread-1',
+    objective: 'ship Discord goal command',
+    status: 'active',
+  }]);
+  assert.match(replies[0], /goal 已设置/);
+  assert.match(replies[0], /ship Discord goal command/);
+});
+
+test('createTextCommandHandler clears Codex goal', async () => {
+  const replies = [];
+  const calls = [];
+  const session = { provider: 'codex', language: 'zh', runnerSessionId: 'thread-1' };
+  const handleCommand = createTextCommandHandler({
+    getSession: () => session,
+    getSessionId: (currentSession) => currentSession.runnerSessionId,
+    getSessionProvider: (currentSession) => currentSession.provider,
+    getSessionLanguage: () => 'zh',
+    async clearCodexThreadGoal(options) {
+      calls.push(options);
+      return { removed: true };
+    },
+    safeReply: async (_message, payload) => {
+      replies.push(payload);
+    },
+  });
+
+  await handleCommand(createMessage(), 'thread-1', '!goal clear');
+
+  assert.deepEqual(calls, [{ threadId: 'thread-1' }]);
+  assert.equal(replies[0], '✅ goal 已清除。');
+});
+
+test('createTextCommandHandler rejects invalid Codex goal budget before app-server call', async () => {
+  const replies = [];
+  const session = { provider: 'codex', language: 'zh', runnerSessionId: 'thread-1' };
+  const handleCommand = createTextCommandHandler({
+    getSession: () => session,
+    getSessionId: (currentSession) => currentSession.runnerSessionId,
+    getSessionProvider: (currentSession) => currentSession.provider,
+    getSessionLanguage: () => 'zh',
+    async setCodexThreadGoal() {
+      throw new Error('should not call app-server');
+    },
+    safeReply: async (_message, payload) => {
+      replies.push(payload);
+    },
+  });
+
+  await handleCommand(createMessage(), 'thread-1', '!goal budget -1');
+
+  assert.match(replies[0], /token budget/);
+});
+
 test('createTextCommandHandler shows Claude model examples on Claude provider', async () => {
   const replies = [];
   const session = { provider: 'claude', language: 'zh' };

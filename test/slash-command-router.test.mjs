@@ -361,6 +361,93 @@ test('createSlashCommandRouter rejects fork for non-codex providers', async () =
   assert.match(state.replies[0].content, /原生 fork 只支持 Codex/);
 });
 
+test('createSlashCommandRouter sets a Codex goal through app-server', async () => {
+  const goalCalls = [];
+  const state = createRouterState({
+    getSessionId: () => 'thread-1',
+    async setCodexThreadGoal(options) {
+      goalCalls.push(options);
+      return {
+        goal: {
+          threadId: options.threadId,
+          objective: options.objective,
+          status: options.status,
+          tokenBudget: options.tokenBudget,
+          tokensUsed: 0,
+          timeUsedSeconds: 0,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      };
+    },
+  });
+
+  const handled = await state.router({
+    interaction: createInteraction('cx_goal', {
+      action: 'set',
+      objective: 'ship Discord goal command',
+      token_budget: '90000',
+    }),
+    commandName: 'goal',
+    respond: async (payload) => {
+      state.replies.push(payload);
+    },
+  });
+
+  assert.equal(handled, true);
+  assert.deepEqual(goalCalls, [{
+    threadId: 'thread-1',
+    objective: 'ship Discord goal command',
+    status: 'active',
+    tokenBudget: 90000,
+  }]);
+  assert.match(state.replies[0].content, /goal 已设置/);
+  assert.match(state.replies[0].content, /ship Discord goal command/);
+});
+
+test('createSlashCommandRouter rejects Codex goal without a bound session', async () => {
+  const state = createRouterState({
+    getSessionId: () => null,
+    async setCodexThreadGoal() {
+      throw new Error('should not call app-server');
+    },
+  });
+
+  const handled = await state.router({
+    interaction: createInteraction('cx_goal', {
+      action: 'set',
+      objective: 'ship Discord goal command',
+    }),
+    commandName: 'goal',
+    respond: async (payload) => {
+      state.replies.push(payload);
+    },
+  });
+
+  assert.equal(handled, true);
+  assert.match(state.replies[0].content, /还没有绑定 Codex session/);
+});
+
+test('createSlashCommandRouter rejects goal for non-codex providers', async () => {
+  const state = createRouterState({
+    async getCodexThreadGoal() {
+      throw new Error('should not call app-server');
+    },
+  });
+  state.session.provider = 'claude';
+
+  const handled = await state.router({
+    interaction: createInteraction('cx_goal', { action: 'status' }),
+    commandName: 'goal',
+    respond: async (payload) => {
+      state.replies.push(payload);
+    },
+  });
+
+  assert.equal(handled, true);
+  assert.match(state.replies[0].content, /goal 只支持 Codex/);
+});
+
 test('createSlashCommandRouter routes abort alias to cancel handler', async () => {
   const state = createRouterState();
 

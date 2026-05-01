@@ -292,6 +292,25 @@ export function buildSlashCommandEntries({ botProvider = null } = {}) {
           .addStringOption(o => o.setName('prompt').setDescription('可选：创建 fork 后在新 thread 里立即执行的任务').setRequired(false));
       },
     },
+    (!lockedProvider || lockedProvider === 'codex') && {
+      name: 'goal',
+      description: '管理当前 Codex session 的持久目标',
+      configure(builder) {
+        return builder
+          .addStringOption(o => o.setName('action').setDescription('goal 操作').setRequired(true)
+            .addChoices(
+              { name: 'status', value: 'status' },
+              { name: 'set', value: 'set' },
+              { name: 'pause', value: 'pause' },
+              { name: 'resume', value: 'resume' },
+              { name: 'done', value: 'done' },
+              { name: 'clear', value: 'clear' },
+              { name: 'budget', value: 'budget' },
+            ))
+          .addStringOption(o => o.setName('objective').setDescription('set 时填写目标').setRequired(false))
+          .addStringOption(o => o.setName('token_budget').setDescription('token 预算，如 120000；clear 清除预算').setRequired(false));
+      },
+    },
     {
       name: 'queue',
       description: '查看当前频道的任务队列状态',

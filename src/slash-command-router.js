@@ -8,6 +8,11 @@ import {
   formatCodexForkResult,
   normalizeForkSessionId,
 } from './codex-fork-flow.js';
+import {
+  executeCodexGoalAction,
+  formatCodexGoalResult,
+  parseCodexGoalSlashInput,
+} from './codex-goal-flow.js';
 
 const ACTION_BUTTON_PREFIX = 'cmd';
 const ACTION_BUTTON_COMMANDS = new Set(getActionButtonCommandNames());
@@ -109,6 +114,9 @@ export function createSlashCommandRouter({
   closeRuntimeSession = () => false,
   retryLastPrompt,
   forkCodexThread,
+  getCodexThreadGoal,
+  setCodexThreadGoal,
+  clearCodexThreadGoal,
   enqueuePrompt,
   resolveSecurityContext,
   openWorkspaceBrowser,
@@ -525,6 +533,36 @@ export function createSlashCommandRouter({
     } catch (err) {
       await respond({
         content: `❌ Codex fork 失败：${safeError(err)}`,
+        flags: 64,
+      });
+    }
+  });
+
+  registerSlashHandlers(handlers, ['goal'], async ({ interaction, session, respond }) => {
+    const language = getSessionLanguage(session);
+    const provider = getSessionProvider(session);
+    const action = parseCodexGoalSlashInput({
+      action: interaction.options.getString('action') || 'status',
+      objective: interaction.options.getString('objective') || '',
+      tokenBudget: interaction.options.getString('token_budget') || '',
+    });
+    try {
+      const result = await executeCodexGoalAction({
+        action,
+        session,
+        provider,
+        getSessionId,
+        getCodexThreadGoal,
+        setCodexThreadGoal,
+        clearCodexThreadGoal,
+      });
+      await respond({
+        content: formatCodexGoalResult(result, language),
+        flags: 64,
+      });
+    } catch (err) {
+      await respond({
+        content: `❌ Codex goal 失败：${safeError(err)}`,
         flags: 64,
       });
     }

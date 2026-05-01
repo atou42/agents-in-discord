@@ -9,6 +9,11 @@ import {
   normalizeForkSessionId,
   parseForkTextInput,
 } from './codex-fork-flow.js';
+import {
+  executeCodexGoalAction,
+  formatCodexGoalResult,
+  parseCodexGoalTextInput,
+} from './codex-goal-flow.js';
 
 function isExistingDirectory(dir) {
   try {
@@ -93,6 +98,9 @@ export function createTextCommandHandler({
   cancelChannelWork,
   closeRuntimeSession = () => false,
   forkCodexThread,
+  getCodexThreadGoal,
+  setCodexThreadGoal,
+  clearCodexThreadGoal,
   enqueuePrompt,
   resolveSecurityContext,
   openWorkspaceBrowser,
@@ -422,6 +430,27 @@ export function createTextCommandHandler({
           await safeReply(message, formatCodexForkResult(result, language));
         } catch (err) {
           await safeReply(message, `❌ Codex fork 失败：${safeError(err)}`);
+        }
+        break;
+      }
+
+      case 'goal': {
+        const language = getSessionLanguage(session);
+        const provider = getSessionProvider(session);
+        const action = parseCodexGoalTextInput(arg || 'status');
+        try {
+          const result = await executeCodexGoalAction({
+            action,
+            session,
+            provider,
+            getSessionId,
+            getCodexThreadGoal,
+            setCodexThreadGoal,
+            clearCodexThreadGoal,
+          });
+          await safeReply(message, formatCodexGoalResult(result, language));
+        } catch (err) {
+          await safeReply(message, `❌ Codex goal 失败：${safeError(err)}`);
         }
         break;
       }

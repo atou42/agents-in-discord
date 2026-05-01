@@ -84,6 +84,7 @@ test('buildSlashCommands includes workspace commands and aliases', () => {
   assert.ok(names.includes('cx_setdefaultdir'));
   assert.ok(names.includes('cx_new'));
   assert.ok(names.includes('cx_fork'));
+  assert.ok(names.includes('cx_goal'));
   assert.ok(names.includes('cx_settings'));
   assert.ok(names.includes('cx_abort'));
   assert.ok(names.includes('cx_project_sessions'));

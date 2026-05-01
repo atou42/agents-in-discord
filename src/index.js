@@ -138,7 +138,10 @@ import {
   writeCodexDefaults,
 } from './runtime-bootstrap.js';
 import {
+  clearCodexThreadGoal,
   forkCodexThread,
+  getCodexThreadGoal,
+  setCodexThreadGoal,
 } from './codex-app-server.js';
 import {
   extractInputTokensFromUsage,
@@ -677,6 +680,9 @@ const appContext = createAppContext({
       parseCompactConfigAction,
       resolvePath,
       forkCodexThread: (options) => forkCodexThread({ ...options, codexBin: CODEX_BIN, env: SPAWN_ENV }),
+      getCodexThreadGoal: (options) => getCodexThreadGoal({ ...options, codexBin: CODEX_BIN, env: SPAWN_ENV }),
+      setCodexThreadGoal: (options) => setCodexThreadGoal({ ...options, codexBin: CODEX_BIN, env: SPAWN_ENV }),
+      clearCodexThreadGoal: (options) => clearCodexThreadGoal({ ...options, codexBin: CODEX_BIN, env: SPAWN_ENV }),
       safeError,
     },
     textCommandOptions: {
@@ -702,6 +708,9 @@ const appContext = createAppContext({
       isReasoningEffortSupported,
       resolvePath,
       forkCodexThread: (options) => forkCodexThread({ ...options, codexBin: CODEX_BIN, env: SPAWN_ENV }),
+      getCodexThreadGoal: (options) => getCodexThreadGoal({ ...options, codexBin: CODEX_BIN, env: SPAWN_ENV }),
+      setCodexThreadGoal: (options) => setCodexThreadGoal({ ...options, codexBin: CODEX_BIN, env: SPAWN_ENV }),
+      clearCodexThreadGoal: (options) => clearCodexThreadGoal({ ...options, codexBin: CODEX_BIN, env: SPAWN_ENV }),
       safeError,
     },
   },
