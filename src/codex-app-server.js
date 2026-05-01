@@ -64,6 +64,51 @@ function buildThreadForkParams({
   return params;
 }
 
+function appendEnabledFeatureArgs(args, features = []) {
+  for (const feature of features) {
+    const name = normalizeText(feature);
+    if (!name) continue;
+    args.push('--enable', name);
+  }
+  return args;
+}
+
+function buildThreadGoalSetParams(options = {}) {
+  const {
+    threadId,
+    objective,
+    status,
+    tokenBudget,
+  } = options;
+  const normalizedThreadId = normalizeText(threadId);
+  if (!normalizedThreadId) {
+    throw new Error('threadId is required for Codex goal');
+  }
+  const params = { threadId: normalizedThreadId };
+  if (objective !== undefined && objective !== null) {
+    const normalizedObjective = normalizeText(objective);
+    if (!normalizedObjective) {
+      throw new Error('objective is required for Codex goal');
+    }
+    params.objective = normalizedObjective;
+  }
+  if (status !== undefined && status !== null) {
+    params.status = String(status || '').trim();
+  }
+  if (Object.prototype.hasOwnProperty.call(options, 'tokenBudget')) {
+    params.tokenBudget = tokenBudget;
+  }
+  return params;
+}
+
+function buildThreadGoalParams({ threadId } = {}) {
+  const normalizedThreadId = normalizeText(threadId);
+  if (!normalizedThreadId) {
+    throw new Error('threadId is required for Codex goal');
+  }
+  return { threadId: normalizedThreadId };
+}
+
 export function createCodexAppServerClient({
   codexBin = 'codex',
   env = process.env,
@@ -71,11 +116,13 @@ export function createCodexAppServerClient({
   timeoutMs = 10_000,
   clientInfo = { name: 'agents-in-discord', version: '0' },
   capabilities = { experimentalApi: true },
+  enabledFeatures = [],
 } = {}) {
   const bin = normalizeText(codexBin) || 'codex';
 
   async function request(method, params = {}) {
-    const child = spawnFn(bin, ['app-server', '--listen', 'stdio://'], {
+    const args = appendEnabledFeatureArgs(['app-server', '--listen', 'stdio://'], enabledFeatures);
+    const child = spawnFn(bin, args, {
       env,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -196,12 +243,48 @@ export function createCodexAppServerClient({
     };
   }
 
+  async function getThreadGoal(options = {}) {
+    return request('thread/goal/get', buildThreadGoalParams(options));
+  }
+
+  async function setThreadGoal(options = {}) {
+    return request('thread/goal/set', buildThreadGoalSetParams(options));
+  }
+
+  async function clearThreadGoal(options = {}) {
+    return request('thread/goal/clear', buildThreadGoalParams(options));
+  }
+
   return {
+    clearThreadGoal,
+    getThreadGoal,
     request,
     forkThread,
+    setThreadGoal,
   };
 }
 
 export async function forkCodexThread(options = {}) {
   return createCodexAppServerClient(options).forkThread(options);
+}
+
+function createGoalClient(options = {}) {
+  const enabledFeatures = new Set(options.enabledFeatures || []);
+  enabledFeatures.add('goals');
+  return createCodexAppServerClient({
+    ...options,
+    enabledFeatures: [...enabledFeatures],
+  });
+}
+
+export async function getCodexThreadGoal(options = {}) {
+  return createGoalClient(options).getThreadGoal(options);
+}
+
+export async function setCodexThreadGoal(options = {}) {
+  return createGoalClient(options).setThreadGoal(options);
+}
+
+export async function clearCodexThreadGoal(options = {}) {
+  return createGoalClient(options).clearThreadGoal(options);
 }
