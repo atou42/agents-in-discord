@@ -189,7 +189,11 @@ test('createTextCommandHandler creates native Codex fork from text command', asy
   const childSession = { provider: 'codex', language: 'zh' };
   const childThread = {
     id: 'fork-channel-1',
+    setNameCalls: [],
     async join() {},
+    async setName(name, reason) {
+      this.setNameCalls.push({ name, reason });
+    },
     async send() {},
   };
   const threadCreates = [];
@@ -234,13 +238,15 @@ test('createTextCommandHandler creates native Codex fork from text command', asy
         },
       },
     },
-  }, 'channel-1', '!fork continue here');
+  }, 'channel-1', '!fork My fork thread');
 
   assert.equal(parentSession.runnerSessionId, 'parent-1');
   assert.equal(childSession.runnerSessionId, 'fork-session-1');
   assert.equal(childSession.forkedFromSessionId, 'parent-1');
   assert.equal(threadCreates.length, 1);
-  assert.deepEqual(queuedPrompts, [{ key: 'fork-channel-1', content: 'continue here' }]);
+  assert.equal(threadCreates[0].name, 'My fork thread');
+  assert.deepEqual(childThread.setNameCalls, []);
+  assert.deepEqual(queuedPrompts, []);
   assert.match(replies[0], /已创建 Codex fork：<#fork-channel-1>/);
 });
 

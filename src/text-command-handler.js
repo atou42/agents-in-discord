@@ -453,14 +453,14 @@ export function createTextCommandHandler({
           return;
         }
         const parsed = parseForkTextInput(arg);
-        const parentSessionId = parsed.sessionId || normalizeForkSessionId(getSessionId(session));
+        const parentSessionId = normalizeForkSessionId(getSessionId(session));
         try {
           const result = await createCodexForkThread({
             key,
             session,
             source: message,
             parentSessionId,
-            prompt: parsed.prompt,
+            threadName: parsed.threadName,
             provider,
             getRuntimeSnapshot,
             getSession,

@@ -6,6 +6,13 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+## [0.12.5] - 2026-05-03
+
+### Changed
+- Simplified Codex fork input to one optional Discord thread name; leaving it blank keeps generated fork naming.
+
+## [0.12.4] - 2026-05-03
+
 ### Changed
 - Made Discord extra info cache-first by removing per-message IDs from the default template and keeping `{msg}` templates out of provider system-prompt layers.
 

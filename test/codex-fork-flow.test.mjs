@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   createCodexForkThread,
   formatCodexForkResult,
+  parseForkTextInput,
 } from '../src/codex-fork-flow.js';
 
 function createForkSource() {
@@ -56,6 +57,55 @@ test('createCodexForkThread creates Discord thread before native fork and delete
     'forkCodexThread',
     'delete:Codex fork failed before session binding',
   ]);
+});
+
+test('createCodexForkThread uses an optional requested Discord thread name', async () => {
+  const childSession = {};
+  const threadCreates = [];
+  const setNameCalls = [];
+  const result = await createCodexForkThread({
+    key: 'parent-channel',
+    source: {
+      ...createForkSource(),
+      channel: {
+        id: 'parent-channel',
+        threads: {
+          async create(options) {
+            threadCreates.push(options);
+            return {
+              id: 'child-channel',
+              async join() {},
+              async setName(name, reason) {
+                setNameCalls.push({ name, reason });
+              },
+              async send() {},
+            };
+          },
+        },
+      },
+    },
+    parentSessionId: 'parent-session',
+    threadName: '  Custom   Fork   ',
+    getSession: () => childSession,
+    commandActions: {
+      bindForkedSession(currentSession, binding) {
+        currentSession.runnerSessionId = binding.sessionId;
+        return binding;
+      },
+    },
+    async forkCodexThread() {
+      return { threadId: 'fork-session' };
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(threadCreates[0].name, 'Custom Fork');
+  assert.deepEqual(setNameCalls, []);
+});
+
+test('parseForkTextInput treats its only argument as the requested thread name', () => {
+  assert.deepEqual(parseForkTextInput('  Demo   fork  '), { threadName: 'Demo fork' });
+  assert.deepEqual(parseForkTextInput(''), { threadName: '' });
 });
 
 test('formatCodexForkResult makes prompt enqueue failure explicit', async () => {

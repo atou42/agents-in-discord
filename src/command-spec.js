@@ -304,11 +304,9 @@ export function buildSlashCommandEntries({ botProvider = null } = {}) {
     },
     (!lockedProvider || lockedProvider === 'codex') && {
       name: 'fork',
-      description: '用 Codex 原生 fork 创建一个新的 Discord thread',
+      description: '用 Codex 原生 fork 创建一个新的 Discord thread，可选指定 thread 名',
       configure(builder) {
-        return builder
-          .addStringOption(o => o.setName('session_id').setDescription('Codex session UUID；留空使用当前频道绑定').setRequired(false))
-          .addStringOption(o => o.setName('prompt').setDescription('可选：创建 fork 后在新 thread 里立即执行的任务').setRequired(false));
+        return builder.addStringOption(o => o.setName('name').setDescription('可选：新 thread 名；留空自动生成').setRequired(false));
       },
     },
     (!lockedProvider || lockedProvider === 'codex') && {

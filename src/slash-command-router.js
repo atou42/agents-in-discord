@@ -609,16 +609,15 @@ export function createSlashCommandRouter({
       return;
     }
 
-    const requestedSessionId = normalizeForkSessionId(interaction.options.getString('session_id'));
-    const parentSessionId = requestedSessionId || normalizeForkSessionId(getSessionId(session));
-    const prompt = interaction.options.getString('prompt') || '';
+    const parentSessionId = normalizeForkSessionId(getSessionId(session));
+    const threadName = interaction.options.getString('name') || '';
     try {
       const result = await createCodexForkThread({
         key,
         session,
         source: interaction,
         parentSessionId,
-        prompt,
+        threadName,
         provider,
         getRuntimeSnapshot,
         getSession,

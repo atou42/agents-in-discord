@@ -281,7 +281,11 @@ test('createSlashCommandRouter creates native Codex fork in a new thread and pre
   const childThread = {
     id: 'fork-channel-1',
     name: 'fork',
+    setNameCalls: [],
     async join() {},
+    async setName(name, reason) {
+      this.setNameCalls.push({ name, reason });
+    },
     async send(payload) {
       queuedPrompts.push({ kind: 'send', payload });
     },
@@ -311,7 +315,7 @@ test('createSlashCommandRouter creates native Codex fork in a new thread and pre
     },
     resolveSecurityContext: () => ({ profile: 'team' }),
   });
-  const interaction = createInteraction('cx_fork', { prompt: 'continue on the branch' });
+  const interaction = createInteraction('cx_fork', { name: 'design branch' });
   interaction.channel = {
     id: 'channel-1',
     threads: {
@@ -336,11 +340,9 @@ test('createSlashCommandRouter creates native Codex fork in a new thread and pre
   assert.equal(childSession.forkedFromSessionId, 'parent-1');
   assert.equal(childSession.forkedFromChannelId, 'channel-1');
   assert.equal(threadCreates.length, 1);
-  assert.match(threadCreates[0].name, /codex fork/);
-  assert.equal(queuedPrompts.length, 1);
-  assert.equal(queuedPrompts[0].key, 'fork-channel-1');
-  assert.equal(queuedPrompts[0].content, 'continue on the branch');
-  assert.deepEqual(queuedPrompts[0].securityContext, { profile: 'team' });
+  assert.equal(threadCreates[0].name, 'design branch');
+  assert.deepEqual(childThread.setNameCalls, []);
+  assert.equal(queuedPrompts.length, 0);
   assert.match(state.replies[0].content, /已创建 Codex fork：<#fork-channel-1>/);
   assert.match(state.replies[0].content, /fork-session-1/);
 });

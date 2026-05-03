@@ -1,8 +1,11 @@
-const UUID_LIKE_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export function normalizeForkSessionId(value) {
   const text = String(value || '').trim();
   return text || null;
+}
+
+export function normalizeForkThreadName(value) {
+  const text = String(value || '').trim().replace(/\s+/g, ' ');
+  return text ? text.slice(0, 100) : '';
 }
 
 function shortenId(value) {
@@ -12,19 +15,7 @@ function shortenId(value) {
 }
 
 export function parseForkTextInput(input) {
-  const text = String(input || '').trim();
-  if (!text) return { sessionId: null, prompt: '' };
-  const [first, ...rest] = text.split(/\s+/);
-  if (UUID_LIKE_PATTERN.test(first)) {
-    return {
-      sessionId: first,
-      prompt: rest.join(' ').trim(),
-    };
-  }
-  return {
-    sessionId: null,
-    prompt: text,
-  };
+  return { threadName: normalizeForkThreadName(input) };
 }
 
 export function formatForkThreadName({ forkedSessionId, parentSessionId } = {}) {
@@ -46,13 +37,14 @@ export function canCreateDiscordForkThread(source) {
   return Boolean(resolveThreadCreateChannel(source?.channel));
 }
 
-async function createDiscordForkThread(source, { parentSessionId, forkedSessionId } = {}) {
+async function createDiscordForkThread(source, { parentSessionId, forkedSessionId, threadName = '' } = {}) {
   const targetChannel = resolveThreadCreateChannel(source?.channel);
   if (!targetChannel) {
     throw new Error('当前频道不支持创建 Discord thread，无法放置 fork。');
   }
+  const requestedName = normalizeForkThreadName(threadName);
   const thread = await targetChannel.threads.create({
-    name: formatForkThreadName({ forkedSessionId, parentSessionId }),
+    name: requestedName || formatForkThreadName({ forkedSessionId, parentSessionId }),
     autoArchiveDuration: 1440,
     reason: `Codex fork from ${parentSessionId}`,
   });
@@ -91,6 +83,7 @@ export async function createCodexForkThread({
   session,
   source,
   parentSessionId,
+  threadName = '',
   prompt = '',
   provider = 'codex',
   getRuntimeSnapshot = () => ({ running: false, queued: 0 }),
@@ -125,6 +118,7 @@ export async function createCodexForkThread({
   const childThread = await createThread(source, {
     parentSessionId: normalizedParentSessionId,
     forkedSessionId: null,
+    threadName,
   });
   if (!childThread?.id) {
     throw new Error('Discord thread creation did not return a thread id');
@@ -150,7 +144,7 @@ export async function createCodexForkThread({
     }
     throw new Error('Codex fork did not return a session id');
   }
-  if (typeof childThread.setName === 'function') {
+  if (!normalizeForkThreadName(threadName) && typeof childThread.setName === 'function') {
     try {
       await childThread.setName(
         formatForkThreadName({ parentSessionId: normalizedParentSessionId, forkedSessionId }),
