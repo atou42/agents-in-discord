@@ -386,8 +386,11 @@ const PROJECT_UPGRADE_INITIAL_DELAY_MS = normalizeIntervalMs(
 const PROJECT_UPGRADE_NOTIFY_CHANNEL_IDS = parseCsvSet(
   process.env.AGENTS_IN_DISCORD_UPGRADE_NOTIFY_CHANNEL_IDS || [...ALLOWED_CHANNEL_IDS].join(','),
 );
+const PROJECT_UPGRADE_ADMIN_USER_IDS = parseCsvSet(
+  process.env.AGENTS_IN_DISCORD_UPGRADE_ADMIN_USER_IDS || '',
+);
 const PROJECT_UPGRADE_RESTART_TARGET = String(
-  process.env.AGENTS_IN_DISCORD_UPGRADE_RESTART_TARGET || BOT_PROVIDER || 'all',
+  process.env.AGENTS_IN_DISCORD_UPGRADE_RESTART_TARGET || 'all',
 ).trim() || 'all';
 const PROJECT_UPGRADE_RESTART_COMMAND = process.env.AGENTS_IN_DISCORD_UPGRADE_RESTART_COMMAND
   || (process.platform === 'win32'
@@ -420,6 +423,16 @@ const projectUpgradeManager = createProjectUpgradeManager({
   envFilePath: ENV_FILE,
   restartCommand: PROJECT_UPGRADE_RESTART_COMMAND,
 });
+const canManageProjectUpgrade = (userId) => (
+  PROJECT_UPGRADE_ADMIN_USER_IDS.size > 0
+  && PROJECT_UPGRADE_ADMIN_USER_IDS.has(String(userId || '').trim())
+);
+const getProjectUpgradeStatus = (options = {}) => (
+  projectUpgradeManager.getCachedStatus({
+    refresh: Boolean(options.refresh),
+    maxAgeMs: PROJECT_UPGRADE_CHECK_INTERVAL_MS,
+  })
+);
 
 ensureDir(DATA_DIR);
 ensureDir(WORKSPACE_ROOT);
@@ -684,7 +697,7 @@ const appContext = createAppContext({
       getSupportedReasoningEffortLevels,
       getCliHealth,
       getProviderRateLimits,
-      getProjectUpgradeStatus: (options = {}) => projectUpgradeManager.check(options),
+      getProjectUpgradeStatus,
       getCodexThreadGoal: (options) => getCodexThreadGoal({ ...options, codexBin: CODEX_BIN, env: SPAWN_ENV }),
       formatCliHealth,
       formatLanguageLabel,
@@ -726,8 +739,9 @@ const appContext = createAppContext({
       parseTimeoutConfigAction,
       parseCompactConfigAction,
       parseExtraInfoConfigAction,
-      getProjectUpgradeStatus: (options = {}) => projectUpgradeManager.check(options),
+      getProjectUpgradeStatus: (options = {}) => projectUpgradeManager.getCachedStatus({ refresh: options.fetch !== false }),
       setProjectUpgradeMode: projectUpgradeManager.setMode,
+      canManageProjectUpgrade,
       applyProjectUpgrade: () => projectUpgradeManager.apply({
         restart: false,
         requireIdle: () => {
@@ -769,8 +783,9 @@ const appContext = createAppContext({
       parseTimeoutConfigAction,
       parseCompactConfigFromText,
       parseExtraInfoConfigFromText,
-      getProjectUpgradeStatus: (options = {}) => projectUpgradeManager.check(options),
+      getProjectUpgradeStatus: (options = {}) => projectUpgradeManager.getCachedStatus({ refresh: options.fetch !== false }),
       setProjectUpgradeMode: projectUpgradeManager.setMode,
+      canManageProjectUpgrade,
       applyProjectUpgrade: () => projectUpgradeManager.apply({
         restart: false,
         requireIdle: () => {
@@ -848,6 +863,8 @@ const projectUpgradeScheduler = createProjectUpgradeScheduler({
   getRuntimeSnapshots: () => appContext.promptRuntime.getAllRuntimeSnapshots(),
   requestRestart: () => projectUpgradeManager.requestRestart(),
   stateFile: path.join(DATA_DIR, 'project-upgrade-notices.json'),
+  heartbeatDir: path.join(DATA_DIR, 'project-upgrade-heartbeats'),
+  heartbeatId: `${BOT_PROVIDER || 'shared'}-${process.pid}`,
   logger: console,
 });
 

@@ -16,17 +16,23 @@ export function createProjectUpgradeScheduler({
   getRuntimeSnapshots = () => [],
   requestRestart = () => false,
   stateFile = '',
+  heartbeatDir = '',
+  heartbeatId = `${process.pid}`,
+  heartbeatIntervalMs = 10_000,
+  heartbeatMaxAgeMs = 90_000,
   logger = console,
   setTimer = setTimeout,
   clearTimer = clearTimeout,
 } = {}) {
   let timer = null;
+  let heartbeatTimer = null;
   let running = false;
   let stopped = false;
 
   function start() {
     if (!manager || timer) return stop;
     stopped = false;
+    startHeartbeat();
     schedule(initialDelayMs);
     return stop;
   }
@@ -34,7 +40,9 @@ export function createProjectUpgradeScheduler({
   function stop() {
     stopped = true;
     if (timer) clearTimer(timer);
+    if (heartbeatTimer) clearTimer(heartbeatTimer);
     timer = null;
+    heartbeatTimer = null;
   }
 
   function schedule(delayMs = intervalMs) {
@@ -86,23 +94,28 @@ export function createProjectUpgradeScheduler({
     const state = readState();
     const key = status.remoteHead || `${status.remoteVersion || ''}:${status.remoteShort || ''}`;
     if (!key || state.lastNotified === key) return;
-    await notifyAll(formatProjectUpgradeReport(status, 'zh'));
-    writeState({ ...state, lastNotified: key, lastNotifiedAt: new Date().toISOString() });
+    const sent = await notifyAll(formatProjectUpgradeReport(status, 'zh'));
+    if (sent > 0) writeState({ ...state, lastNotified: key, lastNotifiedAt: new Date().toISOString() });
   }
 
   async function notifyAll(content) {
     const ids = [...new Set(notifyChannelIds.map((id) => String(id || '').trim()).filter(Boolean))];
-    if (!ids.length) return;
+    if (!ids.length) return 0;
     const client = getClient();
-    if (!client?.channels?.fetch) return;
-    await Promise.all(ids.map(async (id) => {
+    if (!client?.channels?.fetch) return 0;
+    const results = await Promise.all(ids.map(async (id) => {
       try {
         const channel = await client.channels.fetch(id);
-        if (channel?.send) await channel.send({ content });
+        if (channel?.send) {
+          await channel.send({ content });
+          return true;
+        }
       } catch (err) {
         logger.warn?.(`project upgrade notify failed for ${id}: ${String(err?.message || err)}`);
       }
+      return false;
     }));
+    return results.filter(Boolean).length;
   }
 
   function hasActiveWork() {
@@ -111,12 +124,69 @@ export function createProjectUpgradeScheduler({
 
   function checkIdle() {
     const snapshots = getRuntimeSnapshots() || [];
+    const peerHeartbeats = readPeerHeartbeats();
+    const busyHeartbeat = peerHeartbeats.find((item) => item.busy);
+    if (busyHeartbeat) {
+      return {
+        ok: false,
+        error: `bot has running or queued work in ${busyHeartbeat.id || 'another process'}`,
+      };
+    }
     const busy = snapshots.find((item) => item?.running || Number(item?.queued || 0) > 0);
     if (!busy) return { ok: true };
     return {
       ok: false,
       error: `bot has running or queued work in ${busy.key || 'a channel'}`,
     };
+  }
+
+  function startHeartbeat() {
+    if (!heartbeatDir || heartbeatTimer) return;
+    const beat = () => {
+      writeHeartbeat();
+      heartbeatTimer = setTimer(beat, Math.max(1000, Number(heartbeatIntervalMs) || 10_000));
+      heartbeatTimer.unref?.();
+    };
+    beat();
+  }
+
+  function writeHeartbeat() {
+    if (!heartbeatDir) return;
+    const snapshots = getRuntimeSnapshots() || [];
+    const busy = snapshots.some((item) => item?.running || Number(item?.queued || 0) > 0);
+    const body = {
+      id: heartbeatId,
+      pid: process.pid,
+      busy,
+      updatedAt: Date.now(),
+    };
+    try {
+      fs.mkdirSync(heartbeatDir, { recursive: true });
+      fs.writeFileSync(path.join(heartbeatDir, `${sanitizeFileName(heartbeatId)}.json`), `${JSON.stringify(body, null, 2)}\n`, 'utf8');
+    } catch (err) {
+      logger.warn?.(`project upgrade heartbeat failed: ${String(err?.message || err)}`);
+    }
+  }
+
+  function readPeerHeartbeats() {
+    if (!heartbeatDir) return [];
+    let entries = [];
+    try {
+      entries = fs.readdirSync(heartbeatDir);
+    } catch {
+      return [];
+    }
+    const now = Date.now();
+    return entries.filter((name) => name.endsWith('.json')).map((name) => {
+      try {
+        const item = JSON.parse(fs.readFileSync(path.join(heartbeatDir, name), 'utf8'));
+        const age = now - Number(item.updatedAt || 0);
+        if (age < 0 || age > heartbeatMaxAgeMs) return null;
+        return item;
+      } catch {
+        return null;
+      }
+    }).filter(Boolean);
   }
 
   function readState() {
@@ -143,4 +213,8 @@ export function createProjectUpgradeScheduler({
     stop,
     tick,
   };
+}
+
+function sanitizeFileName(value) {
+  return String(value || '').trim().replace(/[^a-zA-Z0-9_.-]+/g, '_') || 'unknown';
 }
