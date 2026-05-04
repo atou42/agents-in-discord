@@ -5,6 +5,7 @@ import { createTextCommandHandler } from '../src/text-command-handler.js';
 
 function createMessage() {
   return {
+    author: { id: 'user-1' },
     channel: { id: 'channel-1' },
   };
 }
@@ -66,6 +67,30 @@ test('createTextCommandHandler awaits async status reports', async () => {
   await handleCommand(createMessage(), 'thread-1', '!status');
 
   assert.deepEqual(replies, ['status-with-live-quota']);
+});
+
+test('createTextCommandHandler blocks project upgrade apply for non-admin users', async () => {
+  const replies = [];
+  const session = { provider: 'codex' };
+  let applyCalls = 0;
+
+  const handleCommand = createTextCommandHandler({
+    getSession: () => session,
+    getSessionLanguage: () => 'zh',
+    canManageProjectUpgrade: () => false,
+    applyProjectUpgrade: async () => {
+      applyCalls += 1;
+      return { ok: true, changed: true };
+    },
+    safeReply: async (_message, payload) => {
+      replies.push(payload);
+    },
+  });
+
+  await handleCommand(createMessage(), 'thread-1', '!upgrade apply');
+
+  assert.equal(applyCalls, 0);
+  assert.deepEqual(replies, ['❌ 只有项目升级管理员可以执行升级。']);
 });
 
 test('createTextCommandHandler switches to a fresh session without retry hint', async () => {

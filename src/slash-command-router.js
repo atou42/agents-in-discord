@@ -144,6 +144,7 @@ export function createSlashCommandRouter({
   setProjectUpgradeMode = null,
   applyProjectUpgrade = null,
   requestProjectUpgradeRestart = null,
+  canManageProjectUpgrade = () => true,
   providerSupportsCompactConfigAction = () => true,
   cancelChannelWork,
   closeRuntimeSession = () => false,
@@ -706,6 +707,10 @@ export function createSlashCommandRouter({
       mode: interaction.options.getString('mode') || '',
     });
     if (action.type === 'set_mode') {
+      if (!canManageProjectUpgrade(interaction.user?.id)) {
+        await respond({ content: '❌ 只有项目升级管理员可以修改升级模式。', flags: 64 });
+        return;
+      }
       if (typeof setProjectUpgradeMode !== 'function') {
         await respond({ content: '❌ 当前环境未启用项目升级设置。', flags: 64 });
         return;
@@ -717,6 +722,10 @@ export function createSlashCommandRouter({
       return;
     }
     if (action.type === 'apply') {
+      if (!canManageProjectUpgrade(interaction.user?.id)) {
+        await respond({ content: '❌ 只有项目升级管理员可以执行升级。', flags: 64 });
+        return;
+      }
       if (typeof applyProjectUpgrade !== 'function') {
         await respond({ content: '❌ 当前环境未启用项目升级。', flags: 64 });
         return;

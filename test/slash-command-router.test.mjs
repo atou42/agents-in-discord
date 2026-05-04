@@ -600,6 +600,32 @@ test('createSlashCommandRouter awaits async status reports', async () => {
   }]);
 });
 
+test('createSlashCommandRouter blocks project upgrade mode changes for non-admin users', async () => {
+  let modeCalls = 0;
+  const state = createRouterState({
+    canManageProjectUpgrade: () => false,
+    setProjectUpgradeMode: () => {
+      modeCalls += 1;
+      return { mode: 'auto' };
+    },
+  });
+
+  const handled = await state.router({
+    interaction: createInteraction('cx_upgrade', { action: 'mode', mode: 'auto' }),
+    commandName: 'upgrade',
+    respond: async (payload) => {
+      state.replies.push(payload);
+    },
+  });
+
+  assert.equal(handled, true);
+  assert.equal(modeCalls, 0);
+  assert.deepEqual(state.replies, [{
+    content: '❌ 只有项目升级管理员可以修改升级模式。',
+    flags: 64,
+  }]);
+});
+
 test('createSlashCommandRouter opens workspace browser for setdir browse', async () => {
   const state = createRouterState();
   const interaction = createInteraction('cx_setdir');

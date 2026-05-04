@@ -97,6 +97,7 @@ export function createTextCommandHandler({
   setProjectUpgradeMode = null,
   applyProjectUpgrade = null,
   requestProjectUpgradeRestart = null,
+  canManageProjectUpgrade = () => true,
   parseConfigKey,
   parseReasoningEffortInput,
   getEffectiveSecurityProfile,
@@ -192,6 +193,10 @@ export function createTextCommandHandler({
         const language = getSessionLanguage(session);
         const action = parseProjectUpgradeTextInput(arg);
         if (action.type === 'set_mode') {
+          if (!canManageProjectUpgrade(message.author?.id)) {
+            await safeReply(message, '❌ 只有项目升级管理员可以修改升级模式。');
+            break;
+          }
           if (typeof setProjectUpgradeMode !== 'function') {
             await safeReply(message, '❌ 当前环境未启用项目升级设置。');
             break;
@@ -200,6 +205,10 @@ export function createTextCommandHandler({
           break;
         }
         if (action.type === 'apply') {
+          if (!canManageProjectUpgrade(message.author?.id)) {
+            await safeReply(message, '❌ 只有项目升级管理员可以执行升级。');
+            break;
+          }
           if (typeof applyProjectUpgrade !== 'function') {
             await safeReply(message, '❌ 当前环境未启用项目升级。');
             break;
