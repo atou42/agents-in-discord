@@ -60,9 +60,12 @@ export function createProjectUpgradeManager({
   remoteBranch = env.AGENTS_IN_DISCORD_UPGRADE_BRANCH || 'main',
   verifyCommand = env.AGENTS_IN_DISCORD_UPGRADE_VERIFY_COMMAND || 'npm run test:progress',
   installCommand = env.AGENTS_IN_DISCORD_UPGRADE_INSTALL_COMMAND || '',
+  cacheTtlMs = Number(env.AGENTS_IN_DISCORD_UPGRADE_STATUS_CACHE_MS || 10 * 60_000),
   restartCommand = env.AGENTS_IN_DISCORD_UPGRADE_RESTART_COMMAND || '',
 } = {}) {
   let currentMode = normalizeProjectUpgradeMode(env[PROJECT_UPGRADE_MODE_ENV] || 'notify');
+  let cachedStatus = null;
+  let cachedAt = 0;
 
   const remote = String(remoteName || 'origin').trim() || 'origin';
   const branch = String(remoteBranch || 'main').trim() || 'main';
@@ -99,7 +102,7 @@ export function createProjectUpgradeManager({
       return { ok: true, status: 0, stdout: '', stderr: '', dryRun: true };
     }
     const result = spawnSyncFn(cmd, args, {
-      cwd: projectRoot,
+      cwd: options.cwd || projectRoot,
       env,
       encoding: 'utf8',
       stdio: capture ? ['ignore', 'pipe', 'pipe'] : 'inherit',
@@ -201,8 +204,28 @@ export function createProjectUpgradeManager({
     }
   }
 
+  async function getCachedStatus({ refresh = false, maxAgeMs = cacheTtlMs } = {}) {
+    const age = Date.now() - cachedAt;
+    if (!refresh && cachedStatus && age >= 0 && age < Math.max(1000, Number(maxAgeMs) || cacheTtlMs)) {
+      return {
+        ...cachedStatus,
+        cached: true,
+        cacheAgeMs: age,
+      };
+    }
+    const status = await check({ fetch: true });
+    cachedStatus = status;
+    cachedAt = Date.now();
+    return {
+      ...status,
+      cached: false,
+      cacheAgeMs: 0,
+    };
+  }
+
   async function apply({ dryRun = false, restart = false, requireIdle = null } = {}) {
     return withLock(async () => {
+      let merged = false;
       if (typeof requireIdle === 'function') {
         const idle = requireIdle();
         if (!idle?.ok) {
@@ -222,37 +245,72 @@ export function createProjectUpgradeManager({
       }
 
       const logs = [];
-      logs.push(`upgrading ${before.localShort} -> ${before.remoteShort}`);
-      runGit(['merge', '--ff-only', remoteRef], { capture: false, mutates: true, dryRun });
-      logs.push(`merged ${remoteRef}`);
-
       const install = installCommand || (fs.existsSync(path.join(projectRoot, 'package-lock.json')) ? 'npm ci' : 'npm install');
-      runShell(install, { capture: false, mutates: true, dryRun });
-      logs.push(`install command completed: ${install}`);
+      try {
+        logs.push(`validating ${before.remoteShort} in a temporary worktree`);
+        validateRemoteHeadInWorktree(before.remoteHead, { install, dryRun, logs });
 
-      if (verifyCommand && String(verifyCommand).trim().toLowerCase() !== 'off') {
-        runShell(verifyCommand, { capture: false, mutates: true, dryRun });
-        logs.push(`verify command completed: ${verifyCommand}`);
+        logs.push(`upgrading ${before.localShort} -> ${before.remoteShort}`);
+        runGit(['merge', '--ff-only', remoteRef], { capture: false, mutates: true, dryRun });
+        merged = !dryRun;
+        logs.push(`merged ${remoteRef}`);
+
+        runShell(install, { capture: false, mutates: true, dryRun });
+        logs.push(`main install command completed: ${install}`);
+
+        let restartRequested = false;
+        if (restart) {
+          requestRestart({ dryRun });
+          restartRequested = true;
+          logs.push('restart requested');
+        }
+
+        const after = dryRun ? before : await check({ fetch: false });
+        cachedStatus = after;
+        cachedAt = Date.now();
+        return {
+          ok: true,
+          changed: !dryRun,
+          dryRun,
+          restartRequested,
+          check: after,
+          before,
+          logs,
+        };
+      } catch (err) {
+        return {
+          ok: false,
+          changed: merged,
+          error: String(err?.message || err),
+          check: merged ? await check({ fetch: false }) : before,
+          before,
+          logs,
+        };
       }
-
-      let restartRequested = false;
-      if (restart) {
-        requestRestart({ dryRun });
-        restartRequested = true;
-        logs.push('restart requested');
-      }
-
-      const after = dryRun ? before : await check({ fetch: false });
-      return {
-        ok: true,
-        changed: !dryRun,
-        dryRun,
-        restartRequested,
-        check: after,
-        before,
-        logs,
-      };
     });
+  }
+
+  function validateRemoteHeadInWorktree(remoteHead, { install, dryRun = false, logs = [] } = {}) {
+    const head = String(remoteHead || '').trim();
+    if (!head) throw new Error('remote head is empty');
+    if (dryRun) {
+      logs.push(`[dry-run] would create temporary worktree for ${shortSha(head)}`);
+      return;
+    }
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'agents-in-discord-upgrade-worktree-'));
+    try {
+      runGit(['worktree', 'add', '--detach', tmpRoot, head], { capture: false, mutates: true });
+      logs.push(`temporary worktree ready: ${tmpRoot}`);
+      runShell(install, { capture: false, mutates: true, cwd: tmpRoot });
+      logs.push(`staging install command completed: ${install}`);
+      if (verifyCommand && String(verifyCommand).trim().toLowerCase() !== 'off') {
+        runShell(verifyCommand, { capture: false, mutates: true, cwd: tmpRoot });
+        logs.push(`staging verify command completed: ${verifyCommand}`);
+      }
+    } finally {
+      runGit(['worktree', 'remove', '--force', tmpRoot], { allowFailure: true, capture: true });
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
   }
 
   function requestRestart({ dryRun = false } = {}) {
@@ -295,6 +353,7 @@ export function createProjectUpgradeManager({
     resolveConfig,
     setMode,
     check,
+    getCachedStatus,
     apply,
     requestRestart,
   };
@@ -357,11 +416,21 @@ export function formatProjectUpgradeStatusLine(result, language = 'zh') {
 function formatProjectUpgradeApplyReport(result, language = 'zh') {
   const lang = language === 'en' ? 'en' : 'zh';
   if (!result?.ok) {
-    return lang === 'en'
-      ? `❌ Project upgrade not applied\n• error: ${result?.error || 'unknown error'}`
-      : `❌ 项目升级未执行\n• 错误：${result?.error || 'unknown error'}`;
+    const prefix = result?.changed
+      ? (lang === 'en' ? '❌ Project upgrade failed after changing the worktree' : '❌ 项目升级在修改工作区后失败')
+      : (lang === 'en' ? '❌ Project upgrade not applied' : '❌ 项目升级未执行');
+    return [
+      prefix,
+      lang === 'en' ? `• error: ${result?.error || 'unknown error'}` : `• 错误：${result?.error || 'unknown error'}`,
+      ...formatUpgradeLogs(result?.logs, lang),
+    ].join('\n');
   }
   if (!result.changed) {
+    if (result.dryRun) {
+      return lang === 'en'
+        ? ['✅ Project upgrade dry-run completed. No files were changed.', ...formatUpgradeLogs(result.logs, lang)].join('\n')
+        : ['✅ 项目升级 dry-run 已完成，没有修改文件。', ...formatUpgradeLogs(result.logs, lang)].join('\n');
+    }
     return lang === 'en'
       ? '✅ Project is already up to date.'
       : '✅ 项目已经是最新版本。';
@@ -371,8 +440,18 @@ function formatProjectUpgradeApplyReport(result, language = 'zh') {
     ? (lang === 'en' ? 'restart requested' : '已请求重启')
     : (lang === 'en' ? 'restart not requested' : '未请求重启');
   return lang === 'en'
-    ? `✅ Project upgraded to ${version}\n• ${restart}`
-    : `✅ 项目已升级到 ${version}\n• ${restart}`;
+    ? [`✅ Project upgraded to ${version}`, `• ${restart}`, ...formatUpgradeLogs(result.logs, lang)].join('\n')
+    : [`✅ 项目已升级到 ${version}`, `• ${restart}`, ...formatUpgradeLogs(result.logs, lang)].join('\n');
+}
+
+function formatUpgradeLogs(logs = [], language = 'zh') {
+  const items = Array.isArray(logs) ? logs.slice(-6) : [];
+  if (!items.length) return [];
+  const title = language === 'en' ? '• recent steps:' : '• 最近步骤：';
+  return [
+    title,
+    ...items.map((item) => `  ${item}`),
+  ];
 }
 
 function formatProjectUpgradeStateLine(result, language) {
