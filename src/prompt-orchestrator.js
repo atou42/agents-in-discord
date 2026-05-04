@@ -480,6 +480,7 @@ export function createPromptOrchestrator({
       const inputTokens = extractInputTokensFromUsage(result.usage);
       const resultSessionId = String(result.threadId || '').trim() || null;
       const clearPendingForkIfResolved = () => {
+        if (!result.ok) return false;
         if (!startingPendingForkFromSessionId || !resultSessionId) return false;
         if (session.pendingForkFromSessionId !== null) {
           session.pendingForkFromSessionId = null;

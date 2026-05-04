@@ -153,6 +153,40 @@ function readFirstJsonLine(filePath, maxBytes = 128 * 1024) {
   }
 }
 
+function readFirstJsonLineMatching(filePath, predicate, maxBytes = 512 * 1024) {
+  try {
+    const fd = fs.openSync(filePath, 'r');
+    try {
+      const stat = fs.fstatSync(fd);
+      if (!stat?.isFile?.()) return null;
+      const bytesToRead = Math.max(0, Math.min(stat.size, maxBytes));
+      if (bytesToRead <= 0) return null;
+      const buf = Buffer.allocUnsafe(bytesToRead);
+      const readBytes = fs.readSync(fd, buf, 0, bytesToRead, 0);
+      const chunk = buf.toString('utf8', 0, readBytes);
+      for (const line of chunk.split('\n')) {
+        if (!line.trim()) continue;
+        let parsed = null;
+        try {
+          parsed = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        if (predicate(parsed)) return parsed;
+      }
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function extractSessionCwd(line) {
+  return String(line?.cwd || line?.payload?.cwd || '').trim();
+}
+
 export function readCodexSessionMetaBySessionId(sessionId, notOlderThanMs = 0) {
   const match = findLatestRolloutFileBySessionId(sessionId, notOlderThanMs);
   if (!match?.file) return null;
@@ -203,6 +237,21 @@ export function findLatestClaudeSessionFileBySessionId(sessionId, workspaceDir =
   }
 
   return latest;
+}
+
+export function readClaudeSessionMetaBySessionId(sessionId, workspaceDir = '', notOlderThanMs = 0) {
+  const match = findLatestClaudeSessionFileBySessionId(sessionId, workspaceDir, notOlderThanMs);
+  if (!match?.file) return null;
+
+  const firstWithCwd = readFirstJsonLineMatching(match.file, (line) => Boolean(extractSessionCwd(line)));
+  const cwd = extractSessionCwd(firstWithCwd);
+  if (!cwd) return null;
+
+  return {
+    cwd: path.resolve(cwd),
+    file: match.file,
+    mtimeMs: Number(match.mtimeMs) || 0,
+  };
 }
 
 function findLatestGeminiSessionFileBySessionId(sessionId, workspaceDir = '', notOlderThanMs = 0) {

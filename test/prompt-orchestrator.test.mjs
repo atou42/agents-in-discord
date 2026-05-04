@@ -227,6 +227,45 @@ test('createPromptOrchestrator.handlePrompt clears pending Claude fork after fir
   assert.equal(harness.saveCount > 0, true);
 });
 
+test('createPromptOrchestrator.handlePrompt keeps pending Claude fork after failed first fork turn', async () => {
+  const harness = createOrchestrator({
+    runTask: async () => ({
+      ok: false,
+      cancelled: false,
+      timedOut: false,
+      error: 'No conversation found with session ID: parent-session',
+      logs: [],
+      notes: [],
+      reasonings: [],
+      messages: [],
+      finalAnswerMessages: [],
+      threadId: 'child-session',
+      usage: null,
+    }),
+  });
+  const { session, orchestrator } = harness;
+  session.provider = 'claude';
+  session.runnerSessionId = 'child-session';
+  session.codexThreadId = 'child-session';
+  session.pendingForkFromSessionId = 'parent-session';
+  const message = {
+    id: 'msg-1',
+    channel: {
+      async sendTyping() {},
+      async send(payload) {
+        harness.replyLog.push(payload);
+      },
+    },
+  };
+  const channelState = { queue: [], cancelRequested: false, activeRun: null };
+
+  const outcome = await orchestrator.handlePrompt(message, 'thread-1', 'first fork turn', channelState);
+
+  assert.deepEqual(outcome, { ok: false, cancelled: false });
+  assert.equal(session.runnerSessionId, 'child-session');
+  assert.equal(session.pendingForkFromSessionId, 'parent-session');
+});
+
 test('buildDiscordBridgePromptLine keeps Discord context compact', () => {
   const line = buildDiscordBridgePromptLine({
     key: 'fallback-channel',

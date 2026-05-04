@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 
 import {
   listRecentSessions,
+  readClaudeSessionMetaBySessionId,
   readCodexSessionMetaBySessionId,
   readGeminiSessionState,
   resolveGeminiProjectRootBySessionId,
@@ -94,6 +95,51 @@ test('provider-sessions reads codex session meta cwd from rollout file', () => {
     const meta = readCodexSessionMetaBySessionId(sessionId);
     assert.equal(meta.cwd, path.resolve(workspaceDir));
     assert.equal(meta.file, rollout);
+  } finally {
+    if (previousHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = previousHome;
+    }
+  }
+});
+
+test('provider-sessions reads claude session meta cwd from project session file', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agents-in-discord-claude-'));
+  const workspaceDir = path.join(root, 'workspace');
+  fs.mkdirSync(workspaceDir, { recursive: true });
+
+  const previousHome = process.env.HOME;
+  process.env.HOME = root;
+
+  try {
+    const projectDir = path.join(
+      root,
+      '.claude',
+      'projects',
+      path.resolve(workspaceDir).replace(/[\\/]/g, '-'),
+    );
+    fs.mkdirSync(projectDir, { recursive: true });
+
+    const sessionId = '43e6f310-5d27-4019-a664-b5dfaea09eaa';
+    const sessionFile = path.join(projectDir, `${sessionId}.jsonl`);
+    fs.writeFileSync(sessionFile, [
+      JSON.stringify({
+        type: 'queue-operation',
+        operation: 'enqueue',
+        sessionId,
+      }),
+      JSON.stringify({
+        type: 'user',
+        cwd: workspaceDir,
+        sessionId,
+      }),
+      '',
+    ].join('\n'));
+
+    const meta = readClaudeSessionMetaBySessionId(sessionId);
+    assert.equal(meta.cwd, path.resolve(workspaceDir));
+    assert.equal(meta.file, sessionFile);
   } finally {
     if (previousHome === undefined) {
       delete process.env.HOME;
