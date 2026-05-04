@@ -171,6 +171,13 @@ test('createSessionCommandActions.setRuntimeMode preserves session id and persis
   assert.deepEqual(actions.setRuntimeMode(session, null), { runtimeMode: null });
   assert.equal(session.runnerSessionId, 'sess-stays');
   assert.equal(saveCount, 2);
+
+  assert.deepEqual(actions.setBusyPromptMode(session, 'steer'), { busyPromptMode: 'steer_if_possible' });
+  assert.equal(session.runnerSessionId, 'sess-stays');
+  assert.equal(saveCount, 3);
+
+  assert.deepEqual(actions.setBusyPromptMode(session, 'default'), { busyPromptMode: null });
+  assert.equal(saveCount, 4);
 });
 
 test('createSessionCommandActions.setWorkspaceDir resets codex session when workspace changes', () => {

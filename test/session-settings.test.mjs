@@ -4,9 +4,11 @@ import assert from 'node:assert/strict';
 import {
   createSessionSettings,
   describeCompactStrategy,
+  formatBusyPromptModeLabel,
   formatCodexProfileLabel,
   formatLanguageLabel,
   formatReplyDeliveryModeLabel,
+  normalizeBusyPromptMode,
   normalizeCodexProfile,
   normalizeCompactStrategy,
   normalizeReplyDeliveryMode,
@@ -16,6 +18,7 @@ import {
   parseCompactConfigAction,
   parseCompactConfigFromText,
   parseExtraInfoConfigFromText,
+  parseBusyPromptModeAction,
   parseFastModeAction,
   parseRuntimeModeAction,
   parseReasoningEffortInput,
@@ -369,6 +372,54 @@ test('session-settings defaults Claude runtime to normal dash-p mode', () => {
     supported: true,
     source: 'env default',
   });
+});
+
+test('session-settings resolves busy prompt mode with fail-closed steering constraints', () => {
+  assert.equal(normalizeBusyPromptMode('queue'), 'queue');
+  assert.equal(normalizeBusyPromptMode('steer-if-possible'), 'steer_if_possible');
+  assert.deepEqual(parseBusyPromptModeAction('steer'), { type: 'set', mode: 'steer_if_possible' });
+  assert.deepEqual(parseBusyPromptModeAction('default'), { type: 'set', mode: null });
+  assert.equal(formatBusyPromptModeLabel('queue', 'zh'), '排队');
+
+  const parentSession = {
+    provider: 'claude',
+    providers: {
+      claude: {
+        busyPromptMode: 'steer_if_possible',
+      },
+    },
+  };
+  const settings = createSessionSettings({
+    claudeRuntimeMode: 'long',
+    getParentSession: () => parentSession,
+    normalizeProvider: (provider) => String(provider || '').trim().toLowerCase() || 'codex',
+  });
+
+  assert.deepEqual(settings.resolveBusyPromptModeSetting({ provider: 'claude', runtimeMode: 'normal', busyPromptMode: 'steer' }), {
+    mode: 'queue',
+    requestedMode: 'steer_if_possible',
+    canSteer: false,
+    supported: true,
+    source: 'session override',
+    reason: 'requires long runtime',
+  });
+  assert.deepEqual(settings.resolveBusyPromptModeSetting({ provider: 'claude', runtimeMode: 'long', busyPromptMode: 'steer' }), {
+    mode: 'queue',
+    requestedMode: 'steer_if_possible',
+    canSteer: false,
+    supported: true,
+    source: 'session override',
+    reason: 'steer unavailable',
+  });
+  assert.deepEqual(settings.resolveBusyPromptModeSetting({ provider: 'claude', runtimeMode: 'long', busyPromptMode: 'queue' }), {
+    mode: 'queue',
+    requestedMode: 'queue',
+    canSteer: false,
+    supported: true,
+    source: 'session override',
+    reason: null,
+  });
+  assert.equal(settings.resolveBusyPromptModeSetting({ provider: 'claude', runtimeMode: null }).source, 'parent channel');
 });
 
 test('session-settings resolves reply delivery from session, parent channel, and env default', () => {

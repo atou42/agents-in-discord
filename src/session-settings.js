@@ -94,8 +94,8 @@ export function normalizeSessionFastMode(value) {
 export function normalizeSessionRuntimeMode(value) {
   if (value === null || value === undefined || value === '') return null;
   const raw = String(value).trim().toLowerCase();
-  if (raw === 'normal' || raw === 'short' || raw === 'cold') return 'normal';
-  if (raw === 'long' || raw === 'hot') return 'long';
+  if (raw === 'normal' || raw === 'short' || raw === 'cold' || raw === 'exec') return 'normal';
+  if (raw === 'long' || raw === 'hot' || raw === 'server' || raw === 'app-server') return 'long';
   return null;
 }
 
@@ -108,6 +108,35 @@ export function parseRuntimeModeAction(value) {
   const mode = normalizeSessionRuntimeMode(raw);
   if (!mode) return { type: 'invalid' };
   return { type: 'set', mode };
+}
+
+export function normalizeBusyPromptMode(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const raw = String(value).trim().toLowerCase().replace(/-/g, '_');
+  if (['queue', 'queued', 'enqueue', '排队'].includes(raw)) return 'queue';
+  if (['steer', 'steering', 'steer_if_possible', 'steer_then_queue', '插入', '转向'].includes(raw)) {
+    return 'steer_if_possible';
+  }
+  return null;
+}
+
+export function parseBusyPromptModeAction(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw || ['status', 'show', 'state', '查看', '状态'].includes(raw)) return { type: 'status' };
+  if (['default', 'inherit', 'clear', 'reset', 'follow', '跟随默认', '清除'].includes(raw)) {
+    return { type: 'set', mode: null };
+  }
+  const mode = normalizeBusyPromptMode(raw);
+  if (!mode) return { type: 'invalid' };
+  return { type: 'set', mode };
+}
+
+export function formatBusyPromptModeLabel(mode, language = 'zh') {
+  const normalized = normalizeBusyPromptMode(mode) || 'queue';
+  if (normalized === 'steer_if_possible') {
+    return language === 'en' ? 'steer if possible' : '可插入时 steer';
+  }
+  return language === 'en' ? 'queue' : '排队';
 }
 
 export function parseFastModeAction(value) {
@@ -487,6 +516,41 @@ export function createSessionSettings({
     };
   }
 
+  function resolveBusyPromptModeSetting(session) {
+    const provider = normalizeProvider(session?.provider);
+    const runtime = resolveRuntimeModeSetting(session);
+    let requestedMode = normalizeBusyPromptMode(session?.busyPromptMode);
+    let source = 'session override';
+
+    if (!requestedMode) {
+      const parentSession = resolveParentSession(session);
+      requestedMode = normalizeBusyPromptMode(readProviderScopedValue(parentSession, provider, 'busyPromptMode'));
+      source = requestedMode ? 'parent channel' : 'built-in default';
+    }
+
+    if (!requestedMode) requestedMode = 'queue';
+
+    const runtimeAllowsSteer = runtime.supported && runtime.mode === 'long';
+    const providerCanSteer = false;
+    const canSteer = runtimeAllowsSteer && providerCanSteer;
+    const mode = requestedMode === 'steer_if_possible' && !canSteer ? 'queue' : requestedMode;
+    let reason = null;
+    if (requestedMode === 'steer_if_possible' && !runtimeAllowsSteer) {
+      reason = 'requires long runtime';
+    } else if (requestedMode === 'steer_if_possible' && !providerCanSteer) {
+      reason = 'steer unavailable';
+    }
+
+    return {
+      mode,
+      requestedMode,
+      canSteer,
+      supported: true,
+      source,
+      reason,
+    };
+  }
+
   function resolveModelSetting(session) {
     const provider = normalizeProvider(session?.provider);
     const currentValue = String(session?.model || '').trim();
@@ -806,6 +870,7 @@ export function createSessionSettings({
     resolveReasoningEffortSetting,
     resolveFastModeSetting,
     resolveRuntimeModeSetting,
+    resolveBusyPromptModeSetting,
     resolveCompactStrategySetting,
     resolveCompactEnabledSetting,
     resolveCompactThresholdSetting,

@@ -63,7 +63,16 @@ function normalizeSessionMode(value, fallback = 'safe') {
 function normalizeSessionRuntimeMode(value) {
   if (value === null || value === undefined || value === '') return null;
   const raw = String(value).trim().toLowerCase();
-  if (raw === 'normal' || raw === 'long') return raw;
+  if (raw === 'normal' || raw === 'exec') return 'normal';
+  if (raw === 'long') return 'long';
+  return null;
+}
+
+function normalizeBusyPromptMode(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const raw = String(value).trim().toLowerCase().replace(/-/g, '_');
+  if (raw === 'queue' || raw === 'queued') return 'queue';
+  if (raw === 'steer' || raw === 'steer_if_possible') return 'steer_if_possible';
   return null;
 }
 
@@ -198,6 +207,7 @@ export function createSessionStore({
         compactThresholdTokens: null,
         nativeCompactTokenLimit: null,
         runtimeMode: null,
+        busyPromptMode: null,
         forkedFromProvider: null,
         forkedFromSessionId: null,
         forkedFromChannelId: null,
@@ -338,6 +348,10 @@ export function createSessionStore({
       session.runtimeMode = null;
       migrated = true;
     }
+    if (session.busyPromptMode === undefined) {
+      session.busyPromptMode = null;
+      migrated = true;
+    }
     if (session.forkedFromProvider === undefined) {
       session.forkedFromProvider = null;
       migrated = true;
@@ -455,6 +469,11 @@ export function createSessionStore({
     const normalizedRuntimeMode = normalizeSessionRuntimeMode(session.runtimeMode);
     if (session.runtimeMode !== normalizedRuntimeMode) {
       session.runtimeMode = normalizedRuntimeMode;
+      migrated = true;
+    }
+    const normalizedBusyPromptMode = normalizeBusyPromptMode(session.busyPromptMode);
+    if (session.busyPromptMode !== normalizedBusyPromptMode) {
+      session.busyPromptMode = normalizedBusyPromptMode;
       migrated = true;
     }
     const normalizedForkedFromProvider = session.forkedFromProvider

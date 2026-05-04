@@ -26,9 +26,18 @@ function normalizeOptionalRuntimeMode(value) {
   const text = normalizeOptionalOverride(value);
   if (text === null) return null;
   const raw = text.toLowerCase();
-  if (raw === 'normal' || raw === 'short' || raw === 'cold') return 'normal';
+  if (raw === 'normal' || raw === 'short' || raw === 'cold' || raw === 'exec') return 'normal';
   if (raw === 'long' || raw === 'hot') return 'long';
   throw new Error(`invalid Claude runtime mode: ${value}`);
+}
+
+function normalizeOptionalBusyPromptMode(value) {
+  const text = normalizeOptionalOverride(value);
+  if (text === null) return null;
+  const raw = text.toLowerCase().replace(/-/g, '_');
+  if (raw === 'queue' || raw === 'queued') return 'queue';
+  if (raw === 'steer' || raw === 'steer_if_possible') return 'steer_if_possible';
+  throw new Error(`invalid busy prompt mode: ${value}`);
 }
 
 function normalizeOptionalReplyDeliveryMode(value) {
@@ -191,6 +200,12 @@ export function createSessionCommandActions({
     session.runtimeMode = normalizeOptionalRuntimeMode(mode);
     saveDb();
     return { runtimeMode: session.runtimeMode };
+  }
+
+  function setBusyPromptMode(session, mode) {
+    session.busyPromptMode = normalizeOptionalBusyPromptMode(mode);
+    saveDb();
+    return { busyPromptMode: session.busyPromptMode };
   }
 
   function setReplyDeliveryMode(session, mode) {
@@ -532,6 +547,7 @@ export function createSessionCommandActions({
     setReasoningEffort,
     setFastMode,
     setRuntimeMode,
+    setBusyPromptMode,
     setReplyDeliveryMode,
     setExtraInfoEnabled,
     setExtraInfoText,
