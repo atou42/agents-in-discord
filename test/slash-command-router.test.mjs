@@ -6,6 +6,79 @@ import {
   parseCommandActionButtonId,
 } from '../src/slash-command-router.js';
 
+class FakeActionRowBuilder {
+  constructor() {
+    this.data = { components: [] };
+  }
+
+  addComponents(...components) {
+    this.data.components.push(...components);
+    return this;
+  }
+}
+
+class FakeModalBuilder {
+  constructor() {
+    this.data = { components: [] };
+  }
+
+  setCustomId(value) {
+    this.data.customId = value;
+    return this;
+  }
+
+  setTitle(value) {
+    this.data.title = value;
+    return this;
+  }
+
+  addComponents(...components) {
+    this.data.components.push(...components);
+    return this;
+  }
+}
+
+class FakeTextInputBuilder {
+  constructor() {
+    this.data = {};
+  }
+
+  setCustomId(value) {
+    this.data.customId = value;
+    return this;
+  }
+
+  setLabel(value) {
+    this.data.label = value;
+    return this;
+  }
+
+  setStyle(value) {
+    this.data.style = value;
+    return this;
+  }
+
+  setPlaceholder(value) {
+    this.data.placeholder = value;
+    return this;
+  }
+
+  setRequired(value) {
+    this.data.required = value;
+    return this;
+  }
+
+  setMaxLength(value) {
+    this.data.maxLength = value;
+    return this;
+  }
+}
+
+const FakeTextInputStyle = {
+  Short: 1,
+  Paragraph: 2,
+};
+
 function createInteraction(commandName, optionValues = {}) {
   return {
     commandName,
@@ -129,6 +202,10 @@ function createRouterState(overrides = {}) {
     formatExtraInfoConfigReport: (_language, currentSession, key, channel, changed) => (
       `${currentSession.extraInfoEnabled}:${currentSession.extraInfoText}:${key}:${channel?.id}:${changed}`
     ),
+    ActionRowBuilder: FakeActionRowBuilder,
+    ModalBuilder: FakeModalBuilder,
+    TextInputBuilder: FakeTextInputBuilder,
+    TextInputStyle: FakeTextInputStyle,
     formatCompactConfigUnsupported: () => '',
     formatReasoningEffortUnsupported: () => '',
     normalizeProvider: (value) => value,
@@ -468,8 +545,38 @@ test('createSlashCommandRouter rejects fork for providers without native fork', 
   assert.match(state.replies[0].content, /不支持原生 fork/);
 });
 
-test('createSlashCommandRouter sets a Codex goal through app-server', async () => {
+test('createSlashCommandRouter opens a required goal set modal', async () => {
+  const modals = [];
+  const state = createRouterState();
+  const interaction = createInteraction('cx_goal', { action: 'set' });
+  interaction.showModal = async (modal) => {
+    modals.push(modal);
+  };
+
+  const handled = await state.router({
+    interaction,
+    commandName: 'goal',
+    respond: async (payload) => {
+      state.replies.push(payload);
+    },
+  });
+
+  assert.equal(handled, true);
+  assert.equal(modals.length, 1);
+  assert.equal(modals[0].data.customId, 'goalm:set:user-1');
+  const objectiveInput = modals[0].data.components[0].data.components[0].data;
+  const budgetInput = modals[0].data.components[1].data.components[0].data;
+  assert.equal(objectiveInput.customId, 'goal_objective');
+  assert.equal(objectiveInput.required, true);
+  assert.equal(objectiveInput.maxLength, 4000);
+  assert.equal(budgetInput.customId, 'goal_token_budget');
+  assert.equal(budgetInput.required, false);
+  assert.equal(state.replies.length, 0);
+});
+
+test('createSlashCommandRouter sets a Codex goal from modal submit', async () => {
   const goalCalls = [];
+  const replies = [];
   const queuedPrompts = [];
   const state = createRouterState({
     getSessionId: () => 'thread-1',
@@ -494,15 +601,20 @@ test('createSlashCommandRouter sets a Codex goal through app-server', async () =
     },
   });
 
-  const handled = await state.router({
-    interaction: createInteraction('cx_goal', {
-      subcommand: 'set',
-      objective: 'ship Discord goal command',
-      token_budget: '90000',
-    }),
-    commandName: 'goal',
-    respond: async (payload) => {
-      state.replies.push(payload);
+  const handled = await state.router.handleGoalModalSubmit({
+    customId: 'goalm:set:user-1',
+    channelId: 'channel-1',
+    channel: { id: 'channel-1' },
+    user: { id: 'user-1' },
+    fields: {
+      getTextInputValue(name) {
+        if (name === 'goal_objective') return 'ship Discord goal command';
+        if (name === 'goal_token_budget') return '90000';
+        return '';
+      },
+    },
+    async reply(payload) {
+      replies.push(payload);
     },
   });
 
@@ -513,16 +625,17 @@ test('createSlashCommandRouter sets a Codex goal through app-server', async () =
     status: 'active',
     tokenBudget: 90000,
   }]);
-  assert.match(state.replies[0].content, /goal 已设置/);
-  assert.match(state.replies[0].content, /ship Discord goal command/);
-  assert.match(state.replies[0].content, /已触发自动续跑/);
+  assert.match(replies[0].content, /goal 已设置/);
+  assert.match(replies[0].content, /ship Discord goal command/);
+  assert.match(replies[0].content, /已触发自动续跑/);
   assert.equal(queuedPrompts.length, 1);
   assert.equal(queuedPrompts[0].key, 'channel-1');
   assert.match(queuedPrompts[0].content, /Continue working toward the active Codex goal/);
 });
 
-test('createSlashCommandRouter rejects Codex goal set without objective', async () => {
+test('createSlashCommandRouter rejects empty Codex goal modal submit', async () => {
   const goalCalls = [];
+  const replies = [];
   const state = createRouterState({
     getSessionId: () => 'thread-1',
     async setCodexThreadGoal(options) {
@@ -531,17 +644,24 @@ test('createSlashCommandRouter rejects Codex goal set without objective', async 
     },
   });
 
-  const handled = await state.router({
-    interaction: createInteraction('cx_goal', { subcommand: 'set' }),
-    commandName: 'goal',
-    respond: async (payload) => {
-      state.replies.push(payload);
+  const handled = await state.router.handleGoalModalSubmit({
+    customId: 'goalm:set:user-1',
+    channelId: 'channel-1',
+    channel: { id: 'channel-1' },
+    user: { id: 'user-1' },
+    fields: {
+      getTextInputValue() {
+        return '';
+      },
+    },
+    async reply(payload) {
+      replies.push(payload);
     },
   });
 
   assert.equal(handled, true);
   assert.equal(goalCalls.length, 0);
-  assert.match(state.replies[0].content, /goal objective is required/);
+  assert.match(replies[0].content, /goal objective is required/);
 });
 
 test('createSlashCommandRouter rejects Codex goal without a bound session', async () => {
@@ -554,8 +674,7 @@ test('createSlashCommandRouter rejects Codex goal without a bound session', asyn
 
   const handled = await state.router({
     interaction: createInteraction('cx_goal', {
-      action: 'set',
-      objective: 'ship Discord goal command',
+      action: 'status',
     }),
     commandName: 'goal',
     respond: async (payload) => {

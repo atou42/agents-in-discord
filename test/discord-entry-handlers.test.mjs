@@ -24,6 +24,7 @@ function createHarness(overrides = {}) {
     onboarding: 0,
     settingsPanel: 0,
     settingsModal: 0,
+    goalModal: 0,
   };
 
   const handlers = createDiscordEntryHandlers({
@@ -71,6 +72,7 @@ function createHarness(overrides = {}) {
     isOnboardingButtonId: () => false,
     isSettingsPanelComponentId: () => false,
     isSettingsPanelModalId: () => false,
+    isGoalModalId: () => false,
     handleWorkspaceBusyInteraction: async () => {
       calls.workspaceBusy = (calls.workspaceBusy || 0) + 1;
     },
@@ -85,6 +87,9 @@ function createHarness(overrides = {}) {
     },
     handleSettingsPanelModalSubmit: async () => {
       calls.settingsModal += 1;
+    },
+    handleGoalModalSubmit: async () => {
+      calls.goalModal += 1;
     },
     routeSlashCommand: async (payload) => {
       calls.routeSlashCommand.push(payload);
@@ -194,6 +199,26 @@ test('handleInteractionCreate routes settings panel modal submits', async () => 
   assert.equal(calls.settingsModal, 1);
 });
 
+test('handleInteractionCreate routes goal modal submits', async () => {
+  const { handlers, calls } = createHarness({
+    isGoalModalId: () => true,
+  });
+  const interaction = {
+    customId: 'goalm:set:12345',
+    user: { id: '12345' },
+    isButton: () => false,
+    isStringSelectMenu: () => false,
+    isModalSubmit: () => true,
+    isChatInputCommand: () => false,
+    async reply() {},
+  };
+
+  await handlers.handleInteractionCreate(interaction);
+
+  assert.equal(calls.goalModal, 1);
+  assert.equal(calls.settingsModal, 0);
+});
+
 test('handleInteractionCreate defers chat commands and reports unknown commands via editReply', async () => {
   const { handlers, calls } = createHarness();
   const defers = [];
@@ -256,6 +281,38 @@ test('handleInteractionCreate retries deferReply before routing slash command', 
   assert.equal(calls.routeSlashCommand.length, 1);
   assert.equal(calls.logs[0][1], '[interaction] kind=chat-input cmd=status user=demo#0001 channel=unknown');
   assert.equal(calls.retries[0].baseDelayMs, 75);
+});
+
+test('handleInteractionCreate can route modal-first slash commands without deferring', async () => {
+  const { handlers, calls } = createHarness({
+    shouldDeferInteraction: () => false,
+    routeSlashCommand: async (payload) => {
+      calls.routeSlashCommand.push(payload);
+      return true;
+    },
+  });
+  const defers = [];
+  const interaction = {
+    commandName: 'goal',
+    user: { id: 'user-1', tag: 'demo#0001' },
+    deferred: false,
+    replied: false,
+    isButton: () => false,
+    isStringSelectMenu: () => false,
+    isChatInputCommand: () => true,
+    async deferReply(payload) {
+      defers.push(payload);
+    },
+    async editReply() {},
+    async reply() {},
+    async followUp() {},
+  };
+
+  await handlers.handleInteractionCreate(interaction);
+
+  assert.deepEqual(defers, []);
+  assert.equal(calls.routeSlashCommand.length, 1);
+  assert.equal(calls.routeSlashCommand[0].commandName, 'norm:goal');
 });
 
 test('handleInteractionCreate posts a channel fallback notice when slash acknowledgement expires', async () => {

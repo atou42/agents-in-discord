@@ -116,11 +116,16 @@ test('buildSlashCommands includes workspace commands and aliases', () => {
   assert.ok(!names.includes('cx_process_lines'));
 
   const goal = commands.find((command) => command.name === 'cx_goal');
-  const goalSet = goal.options.find((option) => option.name === 'set');
-  const goalPause = goal.options.find((option) => option.name === 'pause');
-  assert.ok(goalSet);
-  assert.equal(goalSet.options.find((option) => option.name === 'objective').required, true);
-  assert.equal(goalPause.options?.length, 0);
+  assert.deepEqual(goal.options.map((option) => option.name), ['action']);
+  assert.deepEqual(goal.options[0].choices.map((choice) => choice.value), [
+    'status',
+    'set',
+    'pause',
+    'resume',
+    'done',
+    'clear',
+    'budget',
+  ]);
 });
 
 test('buildSlashCommands exposes browse keyword in workspace option descriptions', () => {
