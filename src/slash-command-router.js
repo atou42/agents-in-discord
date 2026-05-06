@@ -53,11 +53,11 @@ function createInteractionPromptMessage(interaction) {
     reactions: { cache: new Map() },
     react: async () => {},
     reply: async (payload) => {
-      if (typeof interaction.followUp === 'function') {
-        return interaction.followUp(payload);
-      }
       if (typeof interaction.channel?.send === 'function') {
         return interaction.channel.send(payload);
+      }
+      if (typeof interaction.followUp === 'function') {
+        return interaction.followUp(payload);
       }
       throw new Error('Cannot send goal continuation reply');
     },

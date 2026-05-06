@@ -210,12 +210,12 @@ function formatGoalRunHint(goal, language, continuation = null) {
       const queuedAhead = Number(continuation.queuedAhead) || 0;
       if (language === 'en') {
         return queuedAhead > 0
-          ? `Run state: active; continuation queued after ${queuedAhead} task(s).`
-          : 'Run state: active; continuation started.';
+          ? `Run state: active; continuation queued after ${queuedAhead} task(s). The progress card will be posted separately in the channel.`
+          : 'Run state: active; continuation started. The progress card will be posted separately in the channel.';
       }
       return queuedAhead > 0
-        ? `运行状态：active，已排到 ${queuedAhead} 个任务之后自动续跑。`
-        : '运行状态：active，已触发自动续跑。';
+        ? `运行状态：active，已排到 ${queuedAhead} 个任务之后自动续跑；进度卡会单独发到频道。`
+        : '运行状态：active，已触发自动续跑；进度卡会单独发到频道。';
     }
     if (continuation?.state === 'failed') {
       return language === 'en'

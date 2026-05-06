@@ -578,6 +578,8 @@ test('createSlashCommandRouter sets a Codex goal from modal submit', async () =>
   const goalCalls = [];
   const replies = [];
   const queuedPrompts = [];
+  const channelSends = [];
+  const interactionFollowUps = [];
   const state = createRouterState({
     getSessionId: () => 'thread-1',
     async setCodexThreadGoal(options) {
@@ -595,8 +597,8 @@ test('createSlashCommandRouter sets a Codex goal from modal submit', async () =>
         },
       };
     },
-    async enqueuePrompt(_message, key, content) {
-      queuedPrompts.push({ key, content });
+    async enqueuePrompt(message, key, content) {
+      queuedPrompts.push({ message, key, content });
       return { ok: true, enqueued: true, queuedAhead: 0 };
     },
   });
@@ -604,7 +606,13 @@ test('createSlashCommandRouter sets a Codex goal from modal submit', async () =>
   const handled = await state.router.handleGoalModalSubmit({
     customId: 'goalm:set:user-1',
     channelId: 'channel-1',
-    channel: { id: 'channel-1' },
+    channel: {
+      id: 'channel-1',
+      async send(payload) {
+        channelSends.push(payload);
+        return { id: 'channel-message-1' };
+      },
+    },
     user: { id: 'user-1' },
     fields: {
       getTextInputValue(name) {
@@ -615,6 +623,10 @@ test('createSlashCommandRouter sets a Codex goal from modal submit', async () =>
     },
     async reply(payload) {
       replies.push(payload);
+    },
+    async followUp(payload) {
+      interactionFollowUps.push(payload);
+      return { id: 'interaction-followup-1' };
     },
   });
 
@@ -631,6 +643,10 @@ test('createSlashCommandRouter sets a Codex goal from modal submit', async () =>
   assert.equal(queuedPrompts.length, 1);
   assert.equal(queuedPrompts[0].key, 'channel-1');
   assert.match(queuedPrompts[0].content, /Continue working toward the active Codex goal/);
+
+  await queuedPrompts[0].message.reply('runtime progress card');
+  assert.deepEqual(channelSends, ['runtime progress card']);
+  assert.deepEqual(interactionFollowUps, []);
 });
 
 test('createSlashCommandRouter rejects empty Codex goal modal submit', async () => {
