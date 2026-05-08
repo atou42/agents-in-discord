@@ -358,6 +358,7 @@ export function createSessionSettings({
   taskRetryMaxDelayMs = 8000,
   compactStrategy = 'native',
   claudeRuntimeMode = 'normal',
+  codexRuntimeMode = 'normal',
   compactOnThreshold = true,
   maxInputTokensBeforeCompact = 250000,
   modelAutoCompactTokenLimit = maxInputTokensBeforeCompact,
@@ -482,7 +483,7 @@ export function createSessionSettings({
 
   function resolveRuntimeModeSetting(session) {
     const provider = normalizeProvider(session?.provider);
-    if (provider !== 'claude') {
+    if (provider !== 'claude' && provider !== 'codex') {
       return {
         mode: 'normal',
         supported: false,
@@ -510,7 +511,7 @@ export function createSessionSettings({
     }
 
     return {
-      mode: normalizeSessionRuntimeMode(claudeRuntimeMode) || 'normal',
+      mode: normalizeSessionRuntimeMode(provider === 'codex' ? codexRuntimeMode : claudeRuntimeMode) || 'normal',
       supported: true,
       source: 'env default',
     };

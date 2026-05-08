@@ -364,6 +364,9 @@ const MODEL_AUTO_COMPACT_TOKEN_LIMIT = toInt(
 const CLAUDE_RUNTIME_MODE = normalizeSessionRuntimeMode(
   process.env.CLAUDE__RUNTIME_MODE || process.env.CLAUDE_RUNTIME_MODE || 'normal',
 ) || 'normal';
+const CODEX_RUNTIME_MODE = normalizeSessionRuntimeMode(
+  process.env.CODEX__RUNTIME_MODE || process.env.CODEX_RUNTIME_MODE || 'normal',
+) || 'normal';
 const CLAUDE_LONG_IDLE_MS = normalizeIntervalMs(
   process.env.CLAUDE__LONG_IDLE_MS || process.env.CLAUDE_LONG_IDLE_MS,
   15 * 60_000,
@@ -372,6 +375,15 @@ const CLAUDE_LONG_IDLE_MS = normalizeIntervalMs(
 const CLAUDE_LONG_MAX_SESSIONS = Math.max(
   1,
   toInt(process.env.CLAUDE__LONG_MAX_SESSIONS || process.env.CLAUDE_LONG_MAX_SESSIONS, 8),
+);
+const CODEX_APP_SERVER_IDLE_MS = normalizeIntervalMs(
+  process.env.CODEX__APP_SERVER_IDLE_MS || process.env.CODEX_APP_SERVER_IDLE_MS,
+  15 * 60_000,
+  1000,
+);
+const CODEX_APP_SERVER_MAX_SESSIONS = Math.max(
+  1,
+  toInt(process.env.CODEX__APP_SERVER_MAX_SESSIONS || process.env.CODEX_APP_SERVER_MAX_SESSIONS, 8),
 );
 const PROJECT_UPGRADE_CHECK_INTERVAL_MS = normalizeIntervalMs(
   process.env.AGENTS_IN_DISCORD_UPGRADE_CHECK_INTERVAL_MS,
@@ -469,6 +481,7 @@ const appContext = createAppContext({
     taskRetryMaxDelayMs: TASK_RETRY_MAX_DELAY_MS,
     compactStrategy: COMPACT_STRATEGY,
     claudeRuntimeMode: CLAUDE_RUNTIME_MODE,
+    codexRuntimeMode: CODEX_RUNTIME_MODE,
     compactOnThreshold: COMPACT_ON_THRESHOLD,
     maxInputTokensBeforeCompact: MAX_INPUT_TOKENS_BEFORE_COMPACT,
     modelAutoCompactTokenLimit: MODEL_AUTO_COMPACT_TOKEN_LIMIT,
@@ -574,6 +587,8 @@ const appContext = createAppContext({
       defaultModel: DEFAULT_MODEL,
       claudeLongIdleMs: CLAUDE_LONG_IDLE_MS,
       claudeLongMaxSessions: CLAUDE_LONG_MAX_SESSIONS,
+      codexAppServerIdleMs: CODEX_APP_SERVER_IDLE_MS,
+      codexAppServerMaxSessions: CODEX_APP_SERVER_MAX_SESSIONS,
       ensureDir,
       normalizeProvider,
       getProviderBin,
@@ -873,6 +888,9 @@ console.log([
   `• BOT_MODE=${BOT_MODE}`,
   `• DEFAULT_PROVIDER=${DEFAULT_PROVIDER}`,
   `• DEFAULT_MODE=${DEFAULT_MODE}`,
+  `• CODEX_RUNTIME_MODE=${CODEX_RUNTIME_MODE}`,
+  `• CODEX_APP_SERVER_IDLE_MS=${CODEX_APP_SERVER_IDLE_MS}`,
+  `• CODEX_APP_SERVER_MAX_SESSIONS=${CODEX_APP_SERVER_MAX_SESSIONS}`,
   `• CLAUDE_RUNTIME_MODE=${CLAUDE_RUNTIME_MODE}`,
   `• CLAUDE_LONG_IDLE_MS=${CLAUDE_LONG_IDLE_MS}`,
   `• CLAUDE_LONG_MAX_SESSIONS=${CLAUDE_LONG_MAX_SESSIONS}`,

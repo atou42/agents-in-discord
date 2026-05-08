@@ -615,7 +615,7 @@ export function createTextCommandHandler({
       case 'runtime': {
         const provider = getSessionProvider(session);
         const language = getSessionLanguage(session);
-        if (provider !== 'claude') {
+        if (provider !== 'claude' && provider !== 'codex') {
           await safeReply(message, formatRuntimeModeConfigReport(language, provider, { mode: 'normal', supported: false, source: 'provider unsupported' }, false));
           break;
         }

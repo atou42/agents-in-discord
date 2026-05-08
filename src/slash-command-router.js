@@ -548,7 +548,7 @@ export function createSlashCommandRouter({
     const provider = getSessionProvider(session);
     const language = getSessionLanguage(session);
     const action = parseRuntimeModeAction(interaction.options.getString('mode'));
-    if (provider !== 'claude') {
+    if (provider !== 'claude' && provider !== 'codex') {
       await respond({
         content: formatRuntimeModeConfigReport(language, provider, { mode: 'normal', supported: false, source: 'provider unsupported' }, false),
         flags: 64,

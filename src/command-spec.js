@@ -223,7 +223,7 @@ export function buildSlashCommandEntries({ botProvider = null } = {}) {
           ));
       },
     },
-    (!lockedProvider || lockedProvider === 'claude') && {
+    (!lockedProvider || lockedProvider === 'claude' || lockedProvider === 'codex') && {
       name: 'runtime',
       description: '切换运行时接入方式（exec/long/status/default）',
       configure(builder) {

@@ -331,6 +331,7 @@ test('session-settings resolves Claude runtime mode from session, parent, and en
   };
   const settings = createSessionSettings({
     claudeRuntimeMode: 'normal',
+    codexRuntimeMode: 'normal',
     getParentSession: () => parentSession,
     normalizeProvider: (provider) => String(provider || '').trim().toLowerCase() || 'codex',
   });
@@ -356,9 +357,14 @@ test('session-settings resolves Claude runtime mode from session, parent, and en
     source: 'env default',
   });
   assert.deepEqual(settings.resolveRuntimeModeSetting({ provider: 'codex', runtimeMode: 'long' }), {
-    mode: 'normal',
-    supported: false,
-    source: 'provider unsupported',
+    mode: 'long',
+    supported: true,
+    source: 'session override',
+  });
+  assert.deepEqual(createSessionSettings({ codexRuntimeMode: 'long' }).resolveRuntimeModeSetting({ provider: 'codex' }), {
+    mode: 'long',
+    supported: true,
+    source: 'env default',
   });
 });
 

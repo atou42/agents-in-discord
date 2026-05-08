@@ -12,7 +12,7 @@ Current capability matrix:
 
 | Provider | Runtime today | Busy prompt today |
 | --- | --- | --- |
-| Codex | `exec` | `queue` |
+| Codex | `exec` or `long` | `queue` |
 | Claude Code | `exec` or `long` | `queue` |
 | Gemini | `exec` | `queue` |
 
@@ -20,7 +20,7 @@ Target matrix after runner work:
 
 | Provider | Long runtime | Steer path |
 | --- | --- | --- |
-| Codex | `codex app-server` | `turn/steer` with `expectedTurnId` |
+| Codex | implemented with `codex app-server` | `turn/steer` with `expectedTurnId` |
 | Claude Code | stream-json hot process | realtime stream-json user input while a turn is active |
 | Gemini | not specified | queue only |
 

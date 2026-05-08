@@ -116,6 +116,68 @@ test('createRunnerExecutor routes Claude long runtime to the hot-session runner'
   assert.equal(longRunInput.systemPrompt, '[Via agents-in-discord; discord_thread=thread-1]');
 });
 
+test('createRunnerExecutor routes Codex long runtime to the app-server runner', async () => {
+  let codexLongInput = null;
+  const executor = createRunnerExecutor({
+    spawnEnv: process.env,
+    ensureDir: () => {},
+    normalizeProvider: (value) => String(value || '').trim().toLowerCase(),
+    getSessionProvider: (session) => session.provider,
+    getProviderBin: () => 'codex',
+    getSessionId: (session) => session.runnerSessionId,
+    resolveModelSetting: () => ({ value: null, source: 'provider' }),
+    resolveCodexProfileSetting: () => ({ value: null, source: 'provider default', valid: true, isExplicit: false }),
+    resolveReasoningEffortSetting: () => ({ value: null, source: 'provider' }),
+    resolveTimeoutSetting: () => ({ timeoutMs: 0 }),
+    resolveFastModeSetting: () => ({ enabled: false, supported: true }),
+    resolveRuntimeModeSetting: () => ({ mode: 'long', supported: true }),
+    resolveCompactStrategySetting: () => ({ strategy: 'hard' }),
+    resolveCompactEnabledSetting: () => ({ enabled: false }),
+    resolveNativeCompactTokenLimitSetting: () => ({ tokens: 0 }),
+    normalizeTimeoutMs: (value) => Number(value || 0),
+    safeError: (err) => String(err?.message || err),
+    stopChildProcess: () => {},
+    startSessionProgressBridge: () => () => {},
+    extractAgentMessageText,
+    isFinalAnswerLikeAgentMessage,
+    createCodexAppServerRunnerFn: () => ({
+      runTask(input) {
+        codexLongInput = input;
+        return Promise.resolve({
+          ok: true,
+          cancelled: false,
+          timedOut: false,
+          error: '',
+          logs: [],
+          messages: [],
+          finalAnswerMessages: ['done'],
+          reasonings: [],
+          usage: null,
+          threadId: 'codex-thread-1',
+          meta: {},
+        });
+      },
+      closeSession: () => false,
+      closeAll: () => 0,
+      getSnapshot: () => [],
+    }),
+  });
+
+  const result = await executor.runProviderTask({
+    session: { provider: 'codex', mode: 'safe', runnerSessionId: 'codex-thread-1' },
+    sessionKey: 'discord-thread-1',
+    workspaceDir: '/tmp/workspace',
+    prompt: 'hello',
+    systemPrompt: '[Via agents-in-discord; discord_thread=thread-1]',
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.threadId, 'codex-thread-1');
+  assert.equal(codexLongInput.sessionKey, 'discord-thread-1');
+  assert.equal(codexLongInput.prompt, 'hello');
+  assert.equal(codexLongInput.systemPrompt, '[Via agents-in-discord; discord_thread=thread-1]');
+});
+
 test('createRunnerExecutor stops Codex goal continuation when official goal state becomes complete', async () => {
   let killed = false;
   const goalCalls = [];

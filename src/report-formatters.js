@@ -817,7 +817,7 @@ export function createReportFormatters({
       `• ALLOWED_USER_IDS: ${allowedUserIds ? `${allowedUserIds.size} configured` : '(all users)'}`,
       `• runner timeout: ${formatTimeoutLabel(timeoutSetting.timeoutMs)} (${timeoutSetting.source})`,
       fastMode.supported ? `• fast mode: ${formatFastModeLabel(fastMode.enabled)} (${fastMode.source})` : null,
-      runtimeMode.supported ? `• Claude runtime: ${formatRuntimeModeLabel(runtimeMode.mode)} (${runtimeMode.source})` : null,
+      runtimeMode.supported ? `• ${getProviderDisplayName(provider)} runtime: ${formatRuntimeModeLabel(runtimeMode.mode)} (${runtimeMode.source})` : null,
       `• compact strategy: ${describeCompactStrategy(compactSetting.strategy)} (${compactSetting.source})`,
       `• compact enabled: ${compactEnabled.enabled ? 'on' : 'off'} (${compactEnabled.source})`,
       `• compact token limit: ${compactThreshold.tokens} (${compactThreshold.source})`,
@@ -1000,22 +1000,29 @@ export function createReportFormatters({
   }
 
   function formatRuntimeModeConfigHelp(language, provider = 'claude') {
-    if (provider !== 'claude') {
+    if (provider !== 'claude' && provider !== 'codex') {
       return language === 'en'
         ? `Current provider ${getProviderDisplayName(provider)} does not expose runtime mode switching yet.`
         : `当前 provider ${getProviderDisplayName(provider)} 暂未开放运行时切换。`;
     }
+    const longDescription = provider === 'codex'
+      ? (language === 'en'
+        ? '`long` keeps one hot Codex app-server process per thread and releases it after the idle window.'
+        : '`long` 会让每个 thread 保留一个热 Codex app-server 进程，空闲到期后释放。')
+      : (language === 'en'
+        ? '`long` keeps one hot Claude process per thread and releases it after the idle window.'
+        : '`long` 会让每个 thread 保留一个热 Claude 进程，空闲到期后释放。');
     if (language === 'en') {
       return [
         'Usage: `!runtime <exec|long|status|default>`',
         `Slash: \`${slashRef('runtime')} <exec|long|status|default>\``,
-        '`exec` keeps one process per request. `long` keeps one hot Claude process per thread and releases it after the idle window.',
+        `\`exec\` keeps one process per request. ${longDescription}`,
       ].join('\n');
     }
     return [
       '用法：`!runtime <exec|long|status|default>`',
       `Slash：\`${slashRef('runtime')} <exec|long|status|default>\``,
-      '`exec` 保留每轮启动方式。`long` 会让每个 thread 保留一个热 Claude 进程，空闲到期后释放。',
+      `\`exec\` 保留每轮启动方式。${longDescription}`,
     ].join('\n');
   }
 
@@ -1169,7 +1176,7 @@ export function createReportFormatters({
           ? `• \`${slashRef('model')} name:<name|default> effort:<${[...reasoningLevels, 'default'].join('|')}>\` / \`!model <name|default>\` — set model or effort directly`
           : `• \`${slashRef('model')} name:<name|default>\` / \`!model <name|default>\` — set model directly`,
         provider === 'codex' ? `• \`${slashRef('fast')} <on|off|status|default>\` / \`!fast <...>\` — toggle Codex Fast mode for this channel` : null,
-        provider === 'claude' ? `• \`${slashRef('runtime')} <normal|long|status|default>\` / \`!runtime <...>\` — switch Claude runtime mode for this channel` : null,
+        (provider === 'claude' || provider === 'codex') ? `• \`${slashRef('runtime')} <normal|long|status|default>\` / \`!runtime <...>\` — switch ${getProviderDisplayName(provider)} runtime mode for this channel` : null,
         reasoningLevels.length ? null : `• effort — not exposed by current provider (${getProviderDisplayName(provider)})`,
         compact.supportsNativeLimit
           ? `• \`${slashRef('compact')} key:<...> value:<...>\` / \`!compact <...>\` — context compaction config (native + native_limit available on current provider)`
@@ -1228,7 +1235,7 @@ export function createReportFormatters({
           ? `• \`${slashRef('model')} name:<name|default> effort:<${[...reasoningLevels, 'default'].join('|')}>\` / \`!model <name|default>\` — 直接设置 model 或 effort`
           : `• \`${slashRef('model')} name:<name|default>\` / \`!model <name|default>\` — 直接设置 model`,
         provider === 'codex' ? `• \`${slashRef('fast')} <on|off|status|default>\` / \`!fast <...>\` — 切换当前频道的 Codex Fast mode` : null,
-        provider === 'claude' ? `• \`${slashRef('runtime')} <normal|long|status|default>\` / \`!runtime <...>\` — 切换当前频道的 Claude 接入方式` : null,
+        (provider === 'claude' || provider === 'codex') ? `• \`${slashRef('runtime')} <normal|long|status|default>\` / \`!runtime <...>\` — 切换当前频道的 ${getProviderDisplayName(provider)} 接入方式` : null,
       reasoningLevels.length ? null : `• effort — 当前 provider (${getProviderDisplayName(provider)}) 未暴露`,
       compact.supportsNativeLimit
         ? `• \`${slashRef('compact')} key:<...> value:<...>\` / \`!compact <...>\` — 上下文压缩配置（当前 provider 支持 native 与 native_limit）`

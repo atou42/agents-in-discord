@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createRunnerArgsBuilder, uniqueDirs } from './runner-args.js';
 import { createClaudeLongRunner } from './claude-long-runner.js';
+import { createCodexAppServerRunner } from './codex-app-server-runner.js';
 import { CODEX_GOAL_CONTINUATION_PROMPT } from './codex-goal-flow.js';
 import {
   createRunnerEventParser,
@@ -24,6 +25,7 @@ export function createRunnerExecutor({
   getSessionId,
   getProviderDefaultWorkspace = () => ({ workspaceDir: null }),
   resolveModelSetting,
+  resolveCodexProfileSetting,
   resolveReasoningEffortSetting,
   resolveTimeoutSetting,
   resolveFastModeSetting,
@@ -44,13 +46,17 @@ export function createRunnerExecutor({
   spawnFn = spawn,
   claudeLongIdleMs = 15 * 60_000,
   claudeLongMaxSessions = 8,
+  codexAppServerIdleMs = 15 * 60_000,
+  codexAppServerMaxSessions = 8,
   createClaudeLongRunnerFn = createClaudeLongRunner,
+  createCodexAppServerRunnerFn = createCodexAppServerRunner,
 } = {}) {
   const { buildSessionRunnerArgs } = createRunnerArgsBuilder({
     defaultModel,
     normalizeProvider,
     getSessionId,
     resolveModelSetting,
+    resolveCodexProfileSetting,
     resolveReasoningEffortSetting,
     resolveFastModeSetting,
     resolveCompactStrategySetting,
@@ -74,6 +80,24 @@ export function createRunnerExecutor({
     stopChildProcess,
     idleMs: claudeLongIdleMs,
     maxSessions: claudeLongMaxSessions,
+  });
+  const codexAppServerRunner = createCodexAppServerRunnerFn({
+    spawnEnv,
+    getProviderBin,
+    getSessionId,
+    resolveModelSetting,
+    resolveCodexProfileSetting,
+    resolveReasoningEffortSetting,
+    resolveFastModeSetting,
+    resolveCompactStrategySetting,
+    resolveCompactEnabledSetting,
+    resolveNativeCompactTokenLimitSetting,
+    resolveTimeoutSetting,
+    normalizeTimeoutMs,
+    safeError,
+    stopChildProcess,
+    idleMs: codexAppServerIdleMs,
+    maxSessions: codexAppServerMaxSessions,
   });
 
   async function runProviderTask({
@@ -105,6 +129,21 @@ export function createRunnerExecutor({
         prompt,
         systemPrompt,
         additionalWorkspaceDirs,
+        onSpawn,
+        wasCancelled,
+        onEvent,
+        onLog,
+      });
+    }
+
+    if (normalizeProvider(provider) === 'codex' && resolveRuntimeModeSetting(session).mode === 'long') {
+      return codexAppServerRunner.runTask({
+        session,
+        sessionKey,
+        workspaceDir,
+        prompt,
+        systemPrompt,
+        inputImages,
         onSpawn,
         wasCancelled,
         onEvent,
@@ -459,9 +498,14 @@ export function createRunnerExecutor({
     runProviderTask,
     runCodex: runProviderTask,
     buildSessionRunnerArgs,
-    closeRuntimeSession: (sessionKey, reason = 'closed') => claudeLongRunner.closeSession(sessionKey, reason),
-    closeAllRuntimeSessions: (reason = 'closed') => claudeLongRunner.closeAll(reason),
+    closeRuntimeSession: (sessionKey, reason = 'closed') => {
+      const closedClaude = claudeLongRunner.closeSession(sessionKey, reason);
+      const closedCodex = codexAppServerRunner.closeSession(sessionKey, reason);
+      return Boolean(closedClaude || closedCodex);
+    },
+    closeAllRuntimeSessions: (reason = 'closed') => claudeLongRunner.closeAll(reason) + codexAppServerRunner.closeAll(reason),
     getClaudeLongSessions: () => claudeLongRunner.getSnapshot(),
+    getCodexAppServerSessions: () => codexAppServerRunner.getSnapshot(),
   };
 }
 
