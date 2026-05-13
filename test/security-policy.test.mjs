@@ -9,6 +9,7 @@ import {
   parseConfigKey,
   parseCsvSet,
   parseOptionalBool,
+  resolveProjectUpgradeNotifyChannelIds,
 } from '../src/security-policy.js';
 
 function createGuildChannel({ canView = false, id = null } = {}) {
@@ -59,6 +60,32 @@ test('security-policy tracks config allowlist helpers', () => {
   assert.equal(policy.formatConfigCommandStatus(), 'on (`personality`, `model_reasoning_effort`)');
   assert.equal(policy.formatQueueLimit(0), 'unlimited');
   assert.equal(policy.formatQueueLimit(7), '7');
+});
+
+test('project upgrade notify channels fall back to an empty set when channel allowlist is unset', () => {
+  const inherited = resolveProjectUpgradeNotifyChannelIds({
+    upgradeNotifyChannelIds: '',
+    allowedChannelIds: null,
+  });
+  const configured = resolveProjectUpgradeNotifyChannelIds({
+    upgradeNotifyChannelIds: 'channel-a, channel-b',
+    allowedChannelIds: null,
+  });
+  const fallback = resolveProjectUpgradeNotifyChannelIds({
+    upgradeNotifyChannelIds: '',
+    allowedChannelIds: new Set(['channel-c']),
+  });
+
+  assert.deepEqual([...inherited], []);
+  assert.deepEqual([...configured], ['channel-a', 'channel-b']);
+  assert.deepEqual([...fallback], ['channel-c']);
+  assert.throws(
+    () => resolveProjectUpgradeNotifyChannelIds({
+      upgradeNotifyChannelIds: '',
+      allowedChannelIds: ['channel-d'],
+    }),
+    /allowedChannelIds must be a Set/,
+  );
 });
 
 test('security-policy resolves auto and manual channel security contexts', () => {

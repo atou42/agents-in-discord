@@ -79,6 +79,7 @@ import {
   parseConfigKey,
   parseCsvSet,
   parseOptionalBool,
+  resolveProjectUpgradeNotifyChannelIds,
 } from './security-policy.js';
 import {
   createChildThreadWorkspaceModeStore,
@@ -395,9 +396,10 @@ const PROJECT_UPGRADE_INITIAL_DELAY_MS = normalizeIntervalMs(
   30_000,
   1000,
 );
-const PROJECT_UPGRADE_NOTIFY_CHANNEL_IDS = parseCsvSet(
-  process.env.AGENTS_IN_DISCORD_UPGRADE_NOTIFY_CHANNEL_IDS || [...ALLOWED_CHANNEL_IDS].join(','),
-);
+const PROJECT_UPGRADE_NOTIFY_CHANNEL_IDS = resolveProjectUpgradeNotifyChannelIds({
+  upgradeNotifyChannelIds: process.env.AGENTS_IN_DISCORD_UPGRADE_NOTIFY_CHANNEL_IDS,
+  allowedChannelIds: ALLOWED_CHANNEL_IDS,
+});
 const PROJECT_UPGRADE_ADMIN_USER_IDS = parseCsvSet(
   process.env.AGENTS_IN_DISCORD_UPGRADE_ADMIN_USER_IDS || '',
 );

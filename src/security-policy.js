@@ -3,6 +3,19 @@ export function parseCsvSet(value) {
   return new Set(value.split(',').map((item) => item.trim()).filter(Boolean));
 }
 
+export function resolveProjectUpgradeNotifyChannelIds({
+  upgradeNotifyChannelIds = '',
+  allowedChannelIds = null,
+} = {}) {
+  const configured = parseCsvSet(upgradeNotifyChannelIds || '');
+  if (configured) return configured;
+  if (allowedChannelIds === null || allowedChannelIds === undefined) return new Set();
+  if (!(allowedChannelIds instanceof Set)) {
+    throw new Error('allowedChannelIds must be a Set when configured');
+  }
+  return new Set(allowedChannelIds);
+}
+
 export function normalizeSecurityProfile(value, { logger = console } = {}) {
   const raw = String(value || 'auto').trim().toLowerCase();
   if (['auto', 'solo', 'team', 'public'].includes(raw)) return raw;
