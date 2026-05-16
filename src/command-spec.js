@@ -312,6 +312,20 @@ export function buildSlashCommandEntries({ botProvider = null } = {}) {
       },
     },
     (!lockedProvider || lockedProvider === 'codex') && {
+      name: 'side',
+      description: '开启或管理 Codex 临时 side conversation',
+      configure(builder) {
+        return builder
+          .addStringOption(o => o.setName('action').setDescription('side 操作').setRequired(false)
+            .addChoices(
+              { name: 'start', value: 'start' },
+              { name: 'status', value: 'status' },
+              { name: 'close', value: 'close' },
+            ))
+          .addStringOption(o => o.setName('name').setDescription('可选：新 side thread 名').setRequired(false));
+      },
+    },
+    (!lockedProvider || lockedProvider === 'codex') && {
       name: 'goal',
       description: '管理当前 Codex session 的持久目标；active 时会自动续跑',
       configure(builder) {

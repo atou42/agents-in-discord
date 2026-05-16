@@ -156,6 +156,20 @@ export function createWorkspaceRuntime({
 
       const existing = readLock(workspaceKey);
       const existingOwner = existing.owner;
+      const shareWithKey = String(owner?.shareWorkspaceLockWithKey || '').trim();
+      const existingKey = String(existingOwner?.key || '').trim();
+      if (!existing.malformed && shareWithKey && existingKey && existingKey === shareWithKey) {
+        return {
+          acquired: true,
+          shared: true,
+          aborted: false,
+          workspaceKey,
+          workspaceDir: workspaceKey,
+          lockFile,
+          owner: existingOwner,
+          release() {},
+        };
+      }
       if (existing.malformed) {
         const ageMs = getLockAgeMs(lockFile);
         if (ageMs !== null && ageMs >= normalizedMalformedLockStaleMs) {

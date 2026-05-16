@@ -520,6 +520,9 @@ export function createPromptOrchestrator({
           messageId: message.id,
           sessionId: getSessionId(session),
           sessionName: session.name || null,
+          shareWorkspaceLockWithKey: session?.sideConversation?.status === 'open'
+            ? session.sideConversation.parentChannelId
+            : null,
         },
         {
           isAborted: () => Boolean(channelState.cancelRequested || channelState.activeRun?.cancelRequested),

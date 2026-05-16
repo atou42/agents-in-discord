@@ -24,7 +24,7 @@ function waitFor(check, { timeoutMs = 1000, intervalMs = 10 } = {}) {
   });
 }
 
-function createFakeAppServerSpawn({ autoComplete = true, failSteer = false } = {}) {
+function createFakeAppServerSpawn({ autoComplete = true, failSteer = false, failInject = false } = {}) {
   const calls = [];
   const writes = [];
   let activeThreadId = 'thread-1';
@@ -54,7 +54,20 @@ function createFakeAppServerSpawn({ autoComplete = true, failSteer = false } = {
       } else if (request.method === 'thread/resume') {
         activeThreadId = request.params.threadId;
         child.stdout.write(`${JSON.stringify({ id: request.id, result: { thread: { id: request.params.threadId } } })}\n`);
+      } else if (request.method === 'thread/fork') {
+        child.stdout.write(`${JSON.stringify({ id: request.id, result: { thread: { id: 'side-thread-1', forkedFromId: request.params.threadId } } })}\n`);
+      } else if (request.method === 'thread/inject_items') {
+        if (failInject) {
+          child.stdout.write(`${JSON.stringify({ id: request.id, error: { message: 'inject failed' } })}\n`);
+        } else {
+          child.stdout.write(`${JSON.stringify({ id: request.id, result: { ok: true } })}\n`);
+        }
+      } else if (request.method === 'thread/unsubscribe') {
+        child.stdout.write(`${JSON.stringify({ id: request.id, result: { ok: true } })}\n`);
+      } else if (request.method === 'turn/interrupt') {
+        child.stdout.write(`${JSON.stringify({ id: request.id, result: { ok: true } })}\n`);
       } else if (request.method === 'turn/start') {
+        activeThreadId = request.params.threadId;
         activeTurnId = 'turn-1';
         child.stdout.write(`${JSON.stringify({ id: request.id, result: { turn: { id: activeTurnId, status: 'inProgress' } } })}\n`);
         queueMicrotask(() => {
@@ -136,6 +149,10 @@ test('createCodexAppServerRunner runs a turn over persistent app-server and clos
     'thread/start',
     'turn/start',
   ]);
+  const threadStart = JSON.parse(fake.writes.find((line) => JSON.parse(line).method === 'thread/start'));
+  assert.equal(threadStart.params.approvalPolicy, 'on-request');
+  assert.equal(threadStart.params.sandbox, 'workspace-write');
+  assert.equal(threadStart.params.approvalsReviewer, 'auto_review');
   assert.equal(events.some((event) => event.type === 'item.completed'), true);
 
   await sleep(20);
@@ -180,6 +197,166 @@ test('createCodexAppServerRunner resumes an existing thread before starting a tu
   ]);
   assert.equal(JSON.parse(fake.writes.find((line) => JSON.parse(line).method === 'thread/resume')).params.threadId, 'existing-thread-1');
   runner.closeAll('test done');
+});
+
+test('createCodexAppServerRunner forks side thread as ephemeral and injects boundary items', async () => {
+  const fake = createFakeAppServerSpawn();
+  const runner = createCodexAppServerRunner({
+    spawnEnv: { HOME: '/tmp/home' },
+    getProviderBin: () => 'codex-test',
+    getSessionId: (session) => session.runnerSessionId || null,
+    resolveModelSetting: () => ({ value: 'gpt-5.5' }),
+    resolveCodexProfileSetting: () => ({ value: null, isExplicit: false, valid: true }),
+    resolveReasoningEffortSetting: () => ({ value: 'high' }),
+    resolveFastModeSetting: () => ({ enabled: false, source: 'env default' }),
+    resolveCompactStrategySetting: () => ({ strategy: 'hard' }),
+    resolveCompactEnabledSetting: () => ({ enabled: false }),
+    resolveNativeCompactTokenLimitSetting: () => ({ tokens: 0 }),
+    resolveTimeoutSetting: () => ({ timeoutMs: 0 }),
+    normalizeTimeoutMs: (value) => Number(value || 0),
+    safeError: (err) => String(err?.message || err),
+    stopChildProcess: (target) => target.kill(),
+    idleMs: 0,
+    spawnFn: fake.spawnFn,
+    log: () => {},
+  });
+
+  const result = await runner.forkSideThread({
+    session: { provider: 'codex', mode: 'safe', runnerSessionId: 'parent-thread-1' },
+    sessionKey: 'discord-thread-1',
+    workspaceDir: '/tmp/workspace',
+    systemPrompt: 'parent instructions',
+    sideDeveloperInstructions: 'side rules',
+    boundaryItems: [{ type: 'message', role: 'user', content: [] }],
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.parentThreadId, 'parent-thread-1');
+  assert.equal(result.sideThreadId, 'side-thread-1');
+  const methods = fake.writes.map((line) => JSON.parse(line).method);
+  assert.deepEqual(methods, ['initialize', 'initialized', 'thread/resume', 'thread/fork', 'thread/inject_items']);
+  const forkRequest = fake.writes.map((line) => JSON.parse(line)).find((request) => request.method === 'thread/fork');
+  assert.equal(forkRequest.params.threadId, 'parent-thread-1');
+  assert.equal(forkRequest.params.ephemeral, true);
+  assert.match(forkRequest.params.developerInstructions, /parent instructions/);
+  assert.match(forkRequest.params.developerInstructions, /side rules/);
+  const injectRequest = fake.writes.map((line) => JSON.parse(line)).find((request) => request.method === 'thread/inject_items');
+  assert.equal(injectRequest.params.threadId, 'side-thread-1');
+  assert.equal(injectRequest.params.items.length, 1);
+
+  const sideRun = await runner.runTask({
+    session: { provider: 'codex', mode: 'safe', runnerSessionId: 'side-thread-1' },
+    sessionKey: 'discord-thread-1',
+    workspaceDir: '/tmp/workspace',
+    prompt: 'side hello',
+    targetThreadId: 'side-thread-1',
+  });
+  assert.equal(sideRun.ok, true);
+  assert.equal(sideRun.threadId, 'side-thread-1');
+  fake.child.stdout.write(`${JSON.stringify({ method: 'thread/tokenUsage/updated', params: { threadId: 'side-thread-1', tokenUsage: { totalTokens: 1 } } })}\n`);
+  await sleep(5);
+  const turnRequest = fake.writes.map((line) => JSON.parse(line)).filter((request) => request.method === 'turn/start').pop();
+  assert.equal(turnRequest.params.threadId, 'side-thread-1');
+  assert.equal(runner.getSnapshot()[0].threadId, 'parent-thread-1');
+  const cleanup = await runner.closeSideThread({
+    sessionKey: 'discord-thread-1',
+    threadId: 'side-thread-1',
+  });
+  assert.equal(cleanup.ok, true);
+  assert.equal(cleanup.unsubscribed, true);
+  assert.equal(cleanup.interrupted, false);
+  assert.equal(fake.child.killed, false);
+  assert.equal(runner.getSnapshot()[0].threadId, 'parent-thread-1');
+  runner.closeAll('test done');
+});
+
+test('createCodexAppServerRunner unsubscribes side thread when boundary injection fails', async () => {
+  const fake = createFakeAppServerSpawn({ failInject: true });
+  const runner = createCodexAppServerRunner({
+    spawnEnv: { HOME: '/tmp/home' },
+    getProviderBin: () => 'codex-test',
+    getSessionId: (session) => session.runnerSessionId || null,
+    resolveModelSetting: () => ({ value: 'gpt-5.5' }),
+    resolveCodexProfileSetting: () => ({ value: null, isExplicit: false, valid: true }),
+    resolveReasoningEffortSetting: () => ({ value: 'high' }),
+    resolveFastModeSetting: () => ({ enabled: false, source: 'env default' }),
+    resolveCompactStrategySetting: () => ({ strategy: 'hard' }),
+    resolveCompactEnabledSetting: () => ({ enabled: false }),
+    resolveNativeCompactTokenLimitSetting: () => ({ tokens: 0 }),
+    resolveTimeoutSetting: () => ({ timeoutMs: 0 }),
+    normalizeTimeoutMs: (value) => Number(value || 0),
+    safeError: (err) => String(err?.message || err),
+    stopChildProcess: (target) => target.kill(),
+    idleMs: 0,
+    spawnFn: fake.spawnFn,
+    log: () => {},
+  });
+
+  await assert.rejects(
+    () => runner.forkSideThread({
+      session: { provider: 'codex', mode: 'safe', runnerSessionId: 'parent-thread-1' },
+      sessionKey: 'discord-thread-1',
+      workspaceDir: '/tmp/workspace',
+      boundaryItems: [{ type: 'message', role: 'user', content: [] }],
+    }),
+    /inject failed; side thread unsubscribed/,
+  );
+  const requests = fake.writes.map((line) => JSON.parse(line));
+  assert.deepEqual(requests.map((request) => request.method), [
+    'initialize',
+    'initialized',
+    'thread/resume',
+    'thread/fork',
+    'thread/inject_items',
+    'thread/unsubscribe',
+  ]);
+  assert.equal(requests.at(-1).params.threadId, 'side-thread-1');
+  runner.closeAll('test done');
+});
+
+test('createCodexAppServerRunner interrupts and unsubscribes active side thread before closing', async () => {
+  const fake = createFakeAppServerSpawn({ autoComplete: false });
+  const runner = createCodexAppServerRunner({
+    spawnEnv: { HOME: '/tmp/home' },
+    getProviderBin: () => 'codex-test',
+    getSessionId: (session) => session.runnerSessionId || null,
+    resolveModelSetting: () => ({ value: null }),
+    resolveCodexProfileSetting: () => ({ value: null, isExplicit: false, valid: true }),
+    resolveReasoningEffortSetting: () => ({ value: null }),
+    resolveFastModeSetting: () => ({ enabled: false, source: 'env default' }),
+    resolveCompactStrategySetting: () => ({ strategy: 'hard' }),
+    resolveCompactEnabledSetting: () => ({ enabled: false }),
+    resolveNativeCompactTokenLimitSetting: () => ({ tokens: 0 }),
+    resolveTimeoutSetting: () => ({ timeoutMs: 0 }),
+    normalizeTimeoutMs: (value) => Number(value || 0),
+    safeError: (err) => String(err?.message || err),
+    stopChildProcess: (target) => target.kill(),
+    idleMs: 0,
+    spawnFn: fake.spawnFn,
+    log: () => {},
+  });
+
+  const run = runner.runTask({
+    session: { provider: 'codex', mode: 'safe', runnerSessionId: 'side-thread-1' },
+    sessionKey: 'side-channel-1',
+    workspaceDir: '/tmp/workspace',
+    prompt: 'side question',
+  });
+  await waitFor(() => fake.writes.some((line) => JSON.parse(line).method === 'turn/start'));
+
+  const cleanup = await runner.closeSideThread({
+    session: { provider: 'codex', mode: 'safe', runnerSessionId: 'side-thread-1' },
+    sessionKey: 'side-channel-1',
+    threadId: 'side-thread-1',
+  });
+
+  assert.equal(cleanup.ok, true);
+  assert.equal(cleanup.interrupted, true);
+  assert.equal(cleanup.unsubscribed, true);
+  const methods = fake.writes.map((line) => JSON.parse(line).method);
+  assert.deepEqual(methods.slice(-2), ['turn/interrupt', 'thread/unsubscribe']);
+  const result = await run;
+  assert.equal(result.ok, false);
 });
 
 test('createCodexAppServerRunner steers an active Codex turn', async () => {

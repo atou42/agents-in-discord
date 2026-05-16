@@ -41,6 +41,7 @@ export function createRunnerExecutor({
   isFinalAnswerLikeAgentMessage,
   readGeminiSessionState = () => null,
   getCodexThreadGoal = null,
+  unsubscribeCodexThread = null,
   codexGoalMonitorIntervalMs = 2000,
   codexGoalCompletionGraceMs = 15_000,
   spawnFn = spawn,
@@ -137,13 +138,15 @@ export function createRunnerExecutor({
     }
 
     if (normalizeProvider(provider) === 'codex' && resolveRuntimeModeSetting(session).mode === 'long') {
+      const sideMeta = session?.sideConversation?.status === 'open' ? session.sideConversation : null;
       return codexAppServerRunner.runTask({
         session,
-        sessionKey,
+        sessionKey: sideMeta?.parentChannelId || sessionKey,
         workspaceDir,
         prompt,
         systemPrompt,
         inputImages,
+        targetThreadId: sideMeta?.sideSessionId || null,
         onSpawn,
         wasCancelled,
         onEvent,
@@ -256,6 +259,7 @@ export function createRunnerExecutor({
       let goalPollInFlight = false;
       let goalMonitorTimer = null;
       let goalCompletionStopTimer = null;
+      let goalStopReason = '';
       let progressBridgeThreadId = null;
       let stopProgressBridge = null;
       const timeoutMs = normalizeTimeoutMs(options.timeoutMs, defaultTimeoutMs);
@@ -290,30 +294,43 @@ export function createRunnerExecutor({
         goalCompletionStopTimer = null;
       };
 
-      const scheduleGoalCompletionStop = () => {
-        if (goalCompletionStopTimer || child.killed) return;
+      const scheduleGoalStop = ({ reason, reset = false } = {}) => {
+        if (child.killed) return;
+        const normalizedReason = String(reason || 'complete').trim();
+        if (goalCompletionStopTimer && !reset) return;
+        if (goalCompletionStopTimer && reset) clearGoalCompletionStopTimer();
+        goalStopReason = normalizedReason;
         const graceMs = Math.max(0, Number(options.goalMonitor?.completionGraceMs ?? codexGoalCompletionGraceMs) || 0);
         if (graceMs === 0) {
-          logs.push('Codex goal reached complete; stopping goal continuation runner.');
+          logs.push(normalizedReason === 'blocker'
+            ? 'Codex goal reported a blocker; stopping goal continuation runner.'
+            : 'Codex goal reached complete; stopping goal continuation runner.');
           stopChildProcess(child);
           return;
         }
-        logs.push(`Codex goal reached complete; waiting ${graceMs}ms for final output before stopping runner.`);
+        logs.push(normalizedReason === 'blocker'
+          ? `Codex goal reported a blocker; waiting ${graceMs}ms for final output before stopping runner.`
+          : `Codex goal reached complete; waiting ${graceMs}ms for final output before stopping runner.`);
         goalCompletionStopTimer = setTimeout(() => {
           goalCompletionStopTimer = null;
           if (resolved || child.killed) return;
-          logs.push('Codex goal completion grace elapsed; stopping goal continuation runner.');
+          logs.push(goalStopReason === 'blocker'
+            ? 'Codex goal blocker grace elapsed; stopping goal continuation runner.'
+            : 'Codex goal completion grace elapsed; stopping goal continuation runner.');
           stopChildProcess(child);
         }, graceMs);
         goalCompletionStopTimer.unref?.();
+      };
+
+      const scheduleGoalCompletionStop = () => {
+        scheduleGoalStop({ reason: 'complete' });
       };
 
       const stopGoalContinuationAfterBlocker = (text) => {
         if (!options.goalMonitor?.enabled || stoppedAfterGoalBlocked || child.killed) return;
         if (!isCodexGoalBlockerMessage(text)) return;
         stoppedAfterGoalBlocked = true;
-        logs.push('Codex goal reported a blocker; stopping goal continuation runner.');
-        stopChildProcess(child);
+        scheduleGoalStop({ reason: 'blocker' });
       };
 
       const pollGoalCompletion = async () => {
@@ -406,11 +423,22 @@ export function createRunnerExecutor({
       };
 
       const handleEvent = (ev) => {
+        const previousFinalCount = finalAnswerMessages.length;
+        const previousMessageCount = messages.length;
+        const previousFinal = String(finalAnswerMessages[finalAnswerMessages.length - 1] || '');
+        const previousMessage = String(messages[messages.length - 1] || '');
         const state = { messages, finalAnswerMessages, reasonings, logs, usage, threadId, meta };
         handleRunnerEvent(provider, ev, state, ensureSessionBridge);
         usage = state.usage;
         threadId = state.threadId;
         startGoalMonitor();
+        const visibleOutputChanged = previousFinalCount !== finalAnswerMessages.length
+          || previousMessageCount !== messages.length
+          || previousFinal !== String(finalAnswerMessages[finalAnswerMessages.length - 1] || '')
+          || previousMessage !== String(messages[messages.length - 1] || '');
+        if (visibleOutputChanged && goalCompletionStopTimer && (goalCompleted || stoppedAfterGoalBlocked)) {
+          scheduleGoalStop({ reason: goalStopReason || (stoppedAfterGoalBlocked ? 'blocker' : 'complete'), reset: true });
+        }
         stopGoalContinuationAfterBlocker(finalAnswerMessages[finalAnswerMessages.length - 1]);
       };
 
@@ -526,15 +554,83 @@ export function createRunnerExecutor({
     }
     return codexAppServerRunner.steerTask({
       session,
-      sessionKey,
+      sessionKey: session?.sideConversation?.status === 'open'
+        ? session.sideConversation.parentChannelId
+        : sessionKey,
       prompt,
       inputImages,
     });
   }
 
+  async function startCodexSideConversation({
+    session,
+    sessionKey = null,
+    workspaceDir,
+    systemPrompt = '',
+    sideDeveloperInstructions = '',
+    boundaryItems = [],
+  } = {}) {
+    const provider = getSessionProvider(session);
+    if (normalizeProvider(provider) !== 'codex' || resolveRuntimeModeSetting(session).mode !== 'long') {
+      return {
+        ok: false,
+        reason: 'unsupported_runtime',
+        error: 'Codex side conversation requires Codex long runtime',
+        parentThreadId: null,
+        sideThreadId: null,
+      };
+    }
+    ensureDir(workspaceDir);
+    return codexAppServerRunner.forkSideThread({
+      session,
+      sessionKey,
+      workspaceDir,
+      systemPrompt,
+      sideDeveloperInstructions,
+      boundaryItems,
+    });
+  }
+
+  async function closeCodexSideConversation({
+    session,
+    sessionKey = null,
+    threadId = null,
+    reason = 'side conversation closed',
+  } = {}) {
+    const liveCleanup = await codexAppServerRunner.closeSideThread({
+      session,
+      sessionKey,
+      threadId,
+      reason,
+    });
+    if (liveCleanup?.reason !== 'no_live_runner' || typeof unsubscribeCodexThread !== 'function') {
+      return liveCleanup;
+    }
+    const normalizedThreadId = String(threadId || getSessionId(session) || '').trim();
+    if (!normalizedThreadId) return liveCleanup;
+    try {
+      await unsubscribeCodexThread({ threadId: normalizedThreadId });
+      return {
+        ...liveCleanup,
+        ok: true,
+        unsubscribed: true,
+        reason: 'one_shot_unsubscribe',
+      };
+    } catch (err) {
+      return {
+        ...liveCleanup,
+        ok: false,
+        error: safeError(err),
+        reason: 'unsubscribe_failed',
+      };
+    }
+  }
+
   return {
     runProviderTask,
     steerProviderTask,
+    startCodexSideConversation,
+    closeCodexSideConversation,
     runCodex: runProviderTask,
     buildSessionRunnerArgs,
     closeRuntimeSession: (sessionKey, reason = 'closed') => {

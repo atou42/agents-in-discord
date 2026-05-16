@@ -39,6 +39,35 @@ test('createWorkspaceRuntime serializes access to the same workspace', async () 
   second.release();
 });
 
+test('createWorkspaceRuntime lets a side thread share its parent workspace lock', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-cli-discord-workspace-lock-'));
+  const runtime = createWorkspaceRuntime({
+    lockRoot: path.join(root, 'locks'),
+    ensureDir,
+    pollIntervalMs: 30,
+  });
+
+  const parent = await runtime.acquireWorkspace('/tmp/workspace-side', { key: 'parent-thread' });
+  assert.equal(parent.acquired, true);
+
+  let waited = false;
+  const side = await runtime.acquireWorkspace('/tmp/workspace-side', {
+    key: 'side-thread',
+    shareWorkspaceLockWithKey: 'parent-thread',
+  }, {
+    onWait: () => {
+      waited = true;
+    },
+  });
+
+  assert.equal(side.acquired, true);
+  assert.equal(side.shared, true);
+  assert.equal(waited, false);
+  assert.equal(side.owner.key, 'parent-thread');
+  side.release();
+  parent.release();
+});
+
 test('createWorkspaceRuntime removes stale workspace locks from dead processes', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-cli-discord-workspace-lock-'));
   const runtime = createWorkspaceRuntime({

@@ -8,8 +8,11 @@ import {
   clearCodexThreadGoal,
   forkCodexThread,
   getCodexThreadGoal,
+  injectCodexThreadItems,
+  interruptCodexTurn,
   listCodexThreadTurns,
   setCodexThreadGoal,
+  unsubscribeCodexThread,
 } from '../src/codex-app-server.js';
 
 function createFakeSpawn({ onRequest } = {}) {
@@ -299,4 +302,59 @@ test('Codex thread turn helpers reject invalid pagination before spawning', asyn
     /invalid itemsView/,
   );
   assert.equal(spawned, false);
+});
+
+test('Codex side protocol helpers send inject unsubscribe and interrupt requests', async () => {
+  const seen = [];
+  const fake = createFakeSpawn({
+    onRequest(request) {
+      seen.push({ method: request.method, params: request.params });
+      if (request.method === 'initialize') {
+        return { id: request.id, result: { codexHome: '/tmp/codex' } };
+      }
+      if (request.method === 'thread/inject_items') {
+        assert.deepEqual(request.params, {
+          threadId: 'side-1',
+          items: [{ type: 'message', role: 'user', content: [] }],
+        });
+        return { id: request.id, result: { ok: true } };
+      }
+      if (request.method === 'thread/unsubscribe') {
+        assert.deepEqual(request.params, { threadId: 'side-1' });
+        return { id: request.id, result: { ok: true } };
+      }
+      if (request.method === 'turn/interrupt') {
+        assert.deepEqual(request.params, { threadId: 'side-1', turnId: 'turn-1' });
+        return { id: request.id, result: { ok: true } };
+      }
+      throw new Error(`unexpected method ${request.method}`);
+    },
+  });
+
+  await injectCodexThreadItems({
+    codexBin: 'codex-test',
+    spawnFn: fake.spawnFn,
+    threadId: ' side-1 ',
+    items: [{ type: 'message', role: 'user', content: [] }],
+  });
+  await unsubscribeCodexThread({
+    codexBin: 'codex-test',
+    spawnFn: fake.spawnFn,
+    threadId: 'side-1',
+  });
+  await interruptCodexTurn({
+    codexBin: 'codex-test',
+    spawnFn: fake.spawnFn,
+    threadId: 'side-1',
+    turnId: 'turn-1',
+  });
+
+  assert.deepEqual(seen.map((entry) => entry.method), [
+    'initialize',
+    'thread/inject_items',
+    'initialize',
+    'thread/unsubscribe',
+    'initialize',
+    'turn/interrupt',
+  ]);
 });

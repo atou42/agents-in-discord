@@ -160,6 +160,43 @@ function buildThreadTurnsListParams({
   return params;
 }
 
+function buildThreadInjectItemsParams({ threadId, items } = {}) {
+  const normalizedThreadId = normalizeText(threadId);
+  if (!normalizedThreadId) {
+    throw new Error('threadId is required for Codex thread item injection');
+  }
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new Error('items are required for Codex thread item injection');
+  }
+  return {
+    threadId: normalizedThreadId,
+    items,
+  };
+}
+
+function buildThreadUnsubscribeParams({ threadId } = {}) {
+  const normalizedThreadId = normalizeText(threadId);
+  if (!normalizedThreadId) {
+    throw new Error('threadId is required for Codex thread unsubscribe');
+  }
+  return { threadId: normalizedThreadId };
+}
+
+function buildTurnInterruptParams({ threadId, turnId } = {}) {
+  const normalizedThreadId = normalizeText(threadId);
+  const normalizedTurnId = normalizeText(turnId);
+  if (!normalizedThreadId) {
+    throw new Error('threadId is required for Codex turn interrupt');
+  }
+  if (!normalizedTurnId) {
+    throw new Error('turnId is required for Codex turn interrupt');
+  }
+  return {
+    threadId: normalizedThreadId,
+    turnId: normalizedTurnId,
+  };
+}
+
 export function createCodexAppServerClient({
   codexBin = 'codex',
   env = process.env,
@@ -310,13 +347,28 @@ export function createCodexAppServerClient({
     return request('thread/turns/list', buildThreadTurnsListParams(options));
   }
 
+  async function injectThreadItems(options = {}) {
+    return request('thread/inject_items', buildThreadInjectItemsParams(options));
+  }
+
+  async function unsubscribeThread(options = {}) {
+    return request('thread/unsubscribe', buildThreadUnsubscribeParams(options));
+  }
+
+  async function interruptTurn(options = {}) {
+    return request('turn/interrupt', buildTurnInterruptParams(options));
+  }
+
   return {
     clearThreadGoal,
     getThreadGoal,
+    injectThreadItems,
+    interruptTurn,
     listThreadTurns,
     request,
     forkThread,
     setThreadGoal,
+    unsubscribeThread,
   };
 }
 
@@ -350,4 +402,16 @@ export async function clearCodexThreadGoal(options = {}) {
 
 export async function listCodexThreadTurns(options = {}) {
   return createCodexAppServerClient(options).listThreadTurns(options);
+}
+
+export async function injectCodexThreadItems(options = {}) {
+  return createCodexAppServerClient(options).injectThreadItems(options);
+}
+
+export async function unsubscribeCodexThread(options = {}) {
+  return createCodexAppServerClient(options).unsubscribeThread(options);
+}
+
+export async function interruptCodexTurn(options = {}) {
+  return createCodexAppServerClient(options).interruptTurn(options);
 }

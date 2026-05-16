@@ -607,6 +607,57 @@ test('createSessionCommandActions.bindForkedSession records fork metadata withou
   assert.equal(saveCount, 1);
 });
 
+test('createSessionCommandActions binds and closes Codex side conversation metadata', () => {
+  let saveCount = 0;
+  const parentSession = { provider: 'codex', runnerSessionId: 'parent-1', codexThreadId: 'parent-1', workspaceDir: '/repo' };
+  const sideSession = { provider: 'codex', runnerSessionId: null, codexThreadId: null };
+  const actions = createSessionCommandActions({
+    saveDb: () => {
+      saveCount += 1;
+    },
+    clearSessionId: (session) => {
+      session.runnerSessionId = null;
+      session.codexThreadId = null;
+    },
+    getSessionId: (session) => session.runnerSessionId,
+    setSessionId: (session, value) => {
+      session.runnerSessionId = value;
+      session.codexThreadId = value;
+    },
+    getSessionProvider: (session) => session.provider || 'codex',
+  });
+
+  const binding = actions.bindSideConversation(parentSession, sideSession, {
+    sideSessionId: 'side-1',
+    parentSessionId: 'parent-1',
+    parentChannelId: 'parent-channel',
+    sideChannelId: 'side-channel',
+    requesterId: 'user-1',
+    workspaceDir: '/repo',
+  });
+
+  assert.equal(binding.parent.status, 'open');
+  assert.equal(binding.side.status, 'open');
+  assert.equal(parentSession.openSideConversation.sideSessionId, 'side-1');
+  assert.equal(parentSession.openSideConversation.requesterId, 'user-1');
+  assert.equal(sideSession.sideConversation.parentChannelId, 'parent-channel');
+  assert.equal(sideSession.sideConversation.requesterId, 'user-1');
+  assert.equal(sideSession.runnerSessionId, 'side-1');
+  assert.equal(sideSession.codexThreadId, 'side-1');
+  assert.equal(sideSession.workspaceDir, '/repo');
+  assert.equal(sideSession.forkedFromSessionId, null);
+
+  const closed = actions.markSideConversationClosed(parentSession, sideSession, {
+    status: 'cleanup_failed',
+    cleanupError: 'unsubscribe failed',
+  });
+
+  assert.equal(closed.status, 'cleanup_failed');
+  assert.equal(parentSession.openSideConversation.cleanupError, 'unsubscribe failed');
+  assert.equal(sideSession.sideConversation.cleanupError, 'unsubscribe failed');
+  assert.equal(saveCount, 2);
+});
+
 test('createSessionCommandActions.formatRecentSessionsReport renders resume hint and items', () => {
   const actions = createSessionCommandActions({
     saveDb: () => {},

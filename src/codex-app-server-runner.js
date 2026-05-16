@@ -57,7 +57,7 @@ function setConfigPath(target, path, value) {
   node[parts[parts.length - 1]] = value;
 }
 
-function buildCodexLongConfig({
+export function buildCodexLongConfig({
   session,
   resolveFastModeSetting,
   resolveCompactStrategySetting,
@@ -84,7 +84,7 @@ function buildCodexLongConfig({
   return Object.keys(config).length ? config : null;
 }
 
-function buildPermissionParams(session) {
+export function buildPermissionParams(session) {
   if (session?.mode === 'dangerous') {
     return {
       approvalPolicy: 'never',
@@ -294,11 +294,13 @@ export function createCodexAppServerRunner({
     const method = String(payload?.method || '').trim();
     const params = payload?.params || {};
     const turn = entry.currentTurn;
+    const eventThreadId = normalizeText(params.threadId);
+    const isSideThreadEvent = Boolean(eventThreadId && entry.sideThreadIds?.has(eventThreadId));
 
-    if (params.threadId) {
-      entry.threadId = params.threadId;
-      if (turn) turn.threadId = params.threadId;
+    if (eventThreadId && !isSideThreadEvent && !turn?.sideTargetThreadId) {
+      entry.threadId = eventThreadId;
     }
+    if (eventThreadId && turn) turn.threadId = eventThreadId;
 
     if (method === 'thread/tokenUsage/updated' && turn) {
       turn.usage = params.tokenUsage || params.usage || turn.usage;
@@ -364,7 +366,7 @@ export function createCodexAppServerRunner({
       if (turn.timeout) clearTimeout(turn.timeout);
       entry.currentTurn = null;
       entry.lastUsedAt = Date.now();
-      scheduleIdleClose(entry);
+      if (!turn.keepAlive) scheduleIdleClose(entry);
       turn.onEvent?.({ type: 'turn.completed', usage: turn.usage, status });
       turn.resolve({
         ok,
@@ -562,6 +564,58 @@ export function createCodexAppServerRunner({
     return threadId;
   }
 
+  async function forkSideThread({
+    session,
+    sessionKey = null,
+    workspaceDir,
+    systemPrompt = '',
+    sideDeveloperInstructions = '',
+    boundaryItems = [],
+  } = {}) {
+    const key = normalizeText(sessionKey) || normalizeText(getSessionId(session)) || 'default';
+    const entry = getOrCreateEntry({ key, session, workspaceDir, systemPrompt });
+    const parentThreadId = await ensureThread(entry, { session, workspaceDir, systemPrompt });
+    const baseParams = buildThreadParams({
+      session,
+      workspaceDir,
+      systemPrompt: [systemPrompt, sideDeveloperInstructions].filter(Boolean).join('\n\n'),
+    });
+    const forkResult = await send(entry, 'thread/fork', {
+      threadId: parentThreadId,
+      ...baseParams,
+      ephemeral: true,
+    });
+    const sideThreadId = normalizeText(forkResult?.thread?.id || forkResult?.threadId);
+    if (!sideThreadId) {
+      throw new Error('Codex app-server did not return a side thread id');
+    }
+    entry.sideThreadIds.add(sideThreadId);
+    if (Array.isArray(boundaryItems) && boundaryItems.length > 0) {
+      try {
+        await send(entry, 'thread/inject_items', {
+          threadId: sideThreadId,
+          items: boundaryItems,
+        });
+      } catch (err) {
+        let cleanupError = '';
+        try {
+          await send(entry, 'thread/unsubscribe', { threadId: sideThreadId });
+        } catch (cleanupErr) {
+          cleanupError = safeError(cleanupErr);
+        }
+        entry.sideThreadIds.delete(sideThreadId);
+        const suffix = cleanupError ? `; cleanup failed: ${cleanupError}` : '; side thread unsubscribed';
+        throw new Error(`${safeError(err)}${suffix}`);
+      }
+    }
+    return {
+      ok: true,
+      parentThreadId,
+      sideThreadId,
+      raw: forkResult,
+    };
+  }
+
   function getOrCreateEntry({ key, session, workspaceDir, systemPrompt }) {
     const requestedSessionId = normalizeText(getSessionId(session));
     const signature = buildRuntimeSignature({
@@ -616,6 +670,7 @@ export function createCodexAppServerRunner({
       lastUsedAt: Date.now(),
       closed: false,
       readyPromise: null,
+      sideThreadIds: new Set(),
     };
     entry.readyPromise = initializeEntry(entry);
     entries.set(key, entry);
@@ -636,6 +691,7 @@ export function createCodexAppServerRunner({
     prompt,
     systemPrompt = '',
     inputImages = [],
+    targetThreadId = null,
     onSpawn,
     wasCancelled,
     onEvent,
@@ -659,11 +715,23 @@ export function createCodexAppServerRunner({
     }
 
     let entry;
+    const sideTargetThreadId = normalizeText(targetThreadId);
     try {
-      entry = getOrCreateEntry({ key, session, workspaceDir, systemPrompt });
-      await ensureThread(entry, { session, workspaceDir, systemPrompt });
+      if (sideTargetThreadId) {
+        entry = entries.get(key);
+        if (!entry || entry.closed) {
+          throw new Error('Codex side parent app-server session is not running');
+        }
+        await entry.readyPromise;
+        if (!entry.threadId) {
+          throw new Error('Codex side parent app-server thread is unavailable');
+        }
+      } else {
+        entry = getOrCreateEntry({ key, session, workspaceDir, systemPrompt });
+        await ensureThread(entry, { session, workspaceDir, systemPrompt });
+      }
     } catch (err) {
-      if (entry) closeEntry(entry, 'startup failed');
+      if (entry && !sideTargetThreadId) closeEntry(entry, 'startup failed');
       return {
         ok: false,
         cancelled: false,
@@ -674,7 +742,7 @@ export function createCodexAppServerRunner({
         finalAnswerMessages: [],
         reasonings: [],
         usage: null,
-        threadId: entry?.threadId || null,
+        threadId: sideTargetThreadId || entry?.threadId || null,
         meta: {},
       };
     }
@@ -690,7 +758,7 @@ export function createCodexAppServerRunner({
         finalAnswerMessages: [],
         reasonings: [],
         usage: null,
-        threadId: entry.threadId,
+        threadId: sideTargetThreadId || entry.threadId,
         meta: {},
       };
     }
@@ -700,6 +768,7 @@ export function createCodexAppServerRunner({
       key,
       pid: entry.child?.pid ?? null,
       threadId: entry.threadId,
+      targetThreadId: sideTargetThreadId,
     });
 
     return new Promise((resolve) => {
@@ -714,7 +783,9 @@ export function createCodexAppServerRunner({
         finalAnswerMessages: [],
         reasonings: [],
         usage: null,
-        threadId: entry.threadId,
+        threadId: sideTargetThreadId || entry.threadId,
+        sideTargetThreadId,
+        keepAlive: Boolean(sideTargetThreadId),
         turnId: null,
         meta: {},
         deltaByItemId: new Map(),
@@ -733,7 +804,7 @@ export function createCodexAppServerRunner({
       const effort = resolveReasoningEffortSetting(session).value || null;
       const model = resolveModelSetting(session).value || null;
       send(entry, 'turn/start', {
-        threadId: entry.threadId,
+        threadId: sideTargetThreadId || entry.threadId,
         input: buildUserInput(prompt, inputImages),
         model,
         effort,
@@ -860,6 +931,85 @@ export function createCodexAppServerRunner({
     }
   }
 
+  async function closeSideThread({
+    session,
+    sessionKey = null,
+    threadId = null,
+    reason = 'side conversation closed',
+  } = {}) {
+    const key = normalizeText(sessionKey) || normalizeText(getSessionId(session));
+    const normalizedThreadId = normalizeText(threadId) || normalizeText(getSessionId(session));
+    if (!normalizedThreadId) {
+      return { ok: false, reason: 'missing_side_thread', error: 'missing Codex side thread id' };
+    }
+
+    const entry = key ? entries.get(key) : null;
+    const cleanup = {
+      interrupted: false,
+      unsubscribed: false,
+      errors: [],
+    };
+    if (!entry || entry.closed) {
+      return {
+        ok: true,
+        reason: 'no_live_runner',
+        threadId: normalizedThreadId,
+        ...cleanup,
+      };
+    }
+
+    const activeTurnTargetsSide = normalizeText(entry.currentTurn?.threadId) === normalizedThreadId;
+    if (entry.activeTurnId && activeTurnTargetsSide) {
+      try {
+        await send(entry, 'turn/interrupt', {
+          threadId: normalizedThreadId,
+          turnId: entry.activeTurnId,
+        });
+        cleanup.interrupted = true;
+      } catch (err) {
+        cleanup.errors.push(`interrupt failed: ${safeError(err)}`);
+      }
+    }
+    try {
+      await send(entry, 'thread/unsubscribe', { threadId: normalizedThreadId });
+      cleanup.unsubscribed = true;
+      entry.sideThreadIds?.delete(normalizedThreadId);
+    } catch (err) {
+      cleanup.errors.push(`unsubscribe failed: ${safeError(err)}`);
+    }
+    if (activeTurnTargetsSide && entry.currentTurn) {
+      const turn = entry.currentTurn;
+      entry.currentTurn = null;
+      entry.activeTurnId = null;
+      if (turn.timeout) clearTimeout(turn.timeout);
+      turn.resolve({
+        ok: false,
+        cancelled: true,
+        timedOut: Boolean(turn.timedOut),
+        error: reason,
+        logs: turn.logs,
+        messages: turn.messages,
+        finalAnswerMessages: turn.finalAnswerMessages,
+        reasonings: turn.reasonings,
+        usage: turn.usage,
+        threadId: turn.threadId || normalizedThreadId,
+        meta: turn.meta,
+      });
+    }
+    if (normalizeText(entry.threadId) === normalizedThreadId) {
+      closeEntry(entry, reason);
+    } else {
+      entry.lastUsedAt = Date.now();
+      scheduleIdleClose(entry);
+    }
+    return {
+      ok: cleanup.errors.length === 0,
+      threadId: normalizedThreadId,
+      ...cleanup,
+      error: cleanup.errors.join('; '),
+    };
+  }
+
   function closeSession(sessionKey, reason = 'closed') {
     const key = normalizeText(sessionKey);
     const entry = entries.get(key);
@@ -887,7 +1037,9 @@ export function createCodexAppServerRunner({
 
   return {
     runTask,
+    forkSideThread,
     steerTask,
+    closeSideThread,
     closeSession,
     closeAll,
     getSnapshot,

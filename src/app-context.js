@@ -289,6 +289,9 @@ export function createAppContext({
       closeRuntimeSession: promptRuntime.closeRuntimeSession,
       retryLastPrompt: promptRuntime.retryLastPrompt,
       compactSession: promptRuntime.compactSession,
+      startCodexSideConversation: promptRuntime.startCodexSideConversation,
+      closeCodexSideConversation: promptRuntime.closeCodexSideConversation,
+      ensureWorkspace: sessionStore.ensureWorkspace,
     },
     textCommandOptions: {
       ...textCommandOptions,
@@ -318,6 +321,8 @@ export function createAppContext({
       cancelChannelWork: promptRuntime.cancelChannelWork,
       closeRuntimeSession: promptRuntime.closeRuntimeSession,
       compactSession: promptRuntime.compactSession,
+      startCodexSideConversation: promptRuntime.startCodexSideConversation,
+      closeCodexSideConversation: promptRuntime.closeCodexSideConversation,
     },
   });
   if (typeof commandSurface.buildWorkspaceBusyPayload === 'function') {

@@ -11,6 +11,14 @@ import {
   providerSupportsNativeFork,
 } from './codex-fork-flow.js';
 import {
+  closeCodexSideConversationFlow,
+  createCodexSideConversation,
+  formatCodexSideCloseResult,
+  formatCodexSideResult,
+  formatCodexSideStatus,
+  parseSideTextInput,
+} from './codex-side-flow.js';
+import {
   CODEX_GOAL_CONTINUATION_PROMPT,
   executeCodexGoalAction,
   formatCodexGoalResult,
@@ -122,6 +130,7 @@ export function createTextCommandHandler({
   enableConfigCmd = false,
   getSession,
   saveDb,
+  ensureWorkspace,
   getSessionId = (session) => session?.runnerSessionId || session?.codexThreadId || null,
   getSessionProvider,
   getSessionLanguage,
@@ -195,6 +204,8 @@ export function createTextCommandHandler({
   closeRuntimeSession = () => false,
   compactSession,
   forkCodexThread,
+  startCodexSideConversation,
+  closeCodexSideConversation,
   resolveForkWorkspace,
   getCodexThreadGoal,
   setCodexThreadGoal,
@@ -629,6 +640,63 @@ export function createTextCommandHandler({
           await safeReply(message, formatProviderForkResult(result, language));
         } catch (err) {
           await safeReply(message, `❌ ${getProviderDisplayName(provider)} fork 失败：${safeError(err)}`);
+        }
+        break;
+      }
+
+      case 'side': {
+        const language = getSessionLanguage(session);
+        const provider = getSessionProvider(session);
+        const parsed = parseSideTextInput(arg);
+        if (provider !== 'codex') {
+          await safeReply(message, formatCodexSideResult({ ok: false, reason: 'provider_unsupported', provider }, language));
+          return;
+        }
+        try {
+          if (parsed.action === 'status') {
+            const meta = session.openSideConversation?.status === 'open'
+              ? session.openSideConversation
+              : session.sideConversation?.status === 'open'
+                ? session.sideConversation
+                : null;
+            await safeReply(message, formatCodexSideStatus(session, language, meta ? getRuntimeSnapshot(meta.sideChannelId) : null));
+            return;
+          }
+          if (parsed.action === 'close') {
+            const result = await closeCodexSideConversationFlow({
+              key,
+              session,
+              getSession,
+              commandActions,
+              closeCodexSideConversation,
+              cancelChannelWork,
+              source: message,
+            });
+            await safeReply(message, formatCodexSideCloseResult(result, language));
+            return;
+          }
+          if (resolveRuntimeModeSetting(session).mode !== 'long') {
+            await safeReply(message, formatCodexSideResult({ ok: false, reason: 'unsupported_runtime' }, language));
+            return;
+          }
+          const result = await createCodexSideConversation({
+            key,
+            session,
+            source: message,
+            parentSessionId: normalizeForkSessionId(getSessionId(session)),
+            threadName: parsed.threadName,
+            provider,
+            getRuntimeSnapshot,
+            getSession,
+            commandActions,
+            startCodexSideConversation,
+            closeCodexSideConversation,
+            ensureWorkspace,
+            getSessionLanguage,
+          });
+          await safeReply(message, formatCodexSideResult(result, language));
+        } catch (err) {
+          await safeReply(message, `❌ Codex side 失败：${safeError(err)}`);
         }
         break;
       }

@@ -1,5 +1,21 @@
 import { withRetryAction } from './retry-action-button.js';
 
+function isOpenSideSession(session) {
+  const meta = session?.sideConversation;
+  return Boolean(meta?.status === 'open' && meta.parentChannelId);
+}
+
+function looksLikeMutatingSidePrompt(content) {
+  const text = String(content || '').trim();
+  if (!text) return false;
+  return [
+    /^(修改|修复|实现|落地|提交|删除|重命名|安装|更新|写入|改一下)/,
+    /^(push|commit|edit|fix|implement|delete|remove|rename|install|write|apply)\b/i,
+    /(帮我|请|现在|直接|把|将|给我).*(修改|修复|实现|落地|提交|删除|重命名|安装|更新|写入|push|commit|edit|fix|implement|delete|remove|rename|install|write|apply)/i,
+    /\b(apply_patch|git\s+commit|git\s+push|rm\s+-|npm\s+install|pnpm\s+add|yarn\s+add)\b/i,
+  ].some((pattern) => pattern.test(text));
+}
+
 export function createChannelQueue({
   getChannelState,
   getSession,
@@ -95,6 +111,36 @@ export function createChannelQueue({
     const state = getChannelState(key);
     const session = getSession(key, { channel: message.channel || null });
     const security = securityContext || resolveSecurityContext(message.channel, session);
+    if (isOpenSideSession(session) && looksLikeMutatingSidePrompt(content)) {
+      const parentState = getChannelState(session.sideConversation.parentChannelId);
+      if (parentState?.running || parentState?.queue?.length) {
+        await safeReply(
+          message,
+          '⏳ 父线程还有任务在跑。side 线程里的修改类请求先不接，等父线程空闲后再发，避免两个 Codex 同时改同一个 workspace。',
+        );
+        return {
+          ok: false,
+          enqueued: false,
+          reason: 'side_mutation_blocked_by_parent',
+          parentChannelId: session.sideConversation.parentChannelId,
+        };
+      }
+    }
+    if (isOpenSideSession(session)) {
+      const parentState = getChannelState(session.sideConversation.parentChannelId);
+      if (parentState?.running) {
+        await safeReply(
+          message,
+          '⏳ 父线程还有任务在跑。side 线程先等父线程空闲后再接，避免复用同一个 Codex app-server 时失败。',
+        );
+        return {
+          ok: false,
+          enqueued: false,
+          reason: 'side_blocked_by_parent_running',
+          parentChannelId: session.sideConversation.parentChannelId,
+        };
+      }
+    }
     const steerAttempt = await trySteerRunningPrompt({
       state,
       message,

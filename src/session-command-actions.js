@@ -396,6 +396,92 @@ export function createSessionCommandActions({
     };
   }
 
+  function bindSideConversation(parentSession, sideSession, {
+    sideSessionId,
+    parentSessionId,
+    parentChannelId,
+    sideChannelId,
+    requesterId = null,
+    provider = 'codex',
+    workspaceDir = null,
+  } = {}) {
+    const normalizedProvider = normalizeProvider(provider || 'codex');
+    if (normalizedProvider !== 'codex') {
+      throw new Error(`invalid side conversation provider: ${provider}`);
+    }
+    const normalizedSideSessionId = normalizeSessionKey(sideSessionId);
+    const normalizedParentSessionId = normalizeSessionKey(parentSessionId);
+    const normalizedParentChannelId = normalizeSessionKey(parentChannelId);
+    const normalizedSideChannelId = normalizeSessionKey(sideChannelId);
+    const normalizedRequesterId = normalizeSessionKey(requesterId);
+    if (!normalizedSideSessionId) throw new Error('sideSessionId is required');
+    if (!normalizedParentSessionId) throw new Error('parentSessionId is required');
+    if (!normalizedParentChannelId) throw new Error('parentChannelId is required');
+    if (!normalizedSideChannelId) throw new Error('sideChannelId is required');
+
+    if (getSessionProvider(sideSession) !== normalizedProvider) {
+      switchSessionProviderState(sideSession, normalizedProvider, { normalizeProvider });
+    }
+    setSessionId(sideSession, normalizedSideSessionId);
+    clearForkMetadata(sideSession);
+    const openedAt = new Date().toISOString();
+    const parentMeta = {
+      status: 'open',
+      provider: normalizedProvider,
+      parentSessionId: normalizedParentSessionId,
+      parentChannelId: normalizedParentChannelId,
+      sideSessionId: normalizedSideSessionId,
+      sideChannelId: normalizedSideChannelId,
+      requesterId: normalizedRequesterId,
+      openedAt,
+      closedAt: null,
+      cleanupError: null,
+    };
+    const sideMeta = {
+      status: 'open',
+      provider: normalizedProvider,
+      parentSessionId: normalizedParentSessionId,
+      parentChannelId: normalizedParentChannelId,
+      sideSessionId: normalizedSideSessionId,
+      sideChannelId: normalizedSideChannelId,
+      requesterId: normalizedRequesterId,
+      openedAt,
+      closedAt: null,
+      cleanupError: null,
+    };
+    parentSession.openSideConversation = parentMeta;
+    sideSession.sideConversation = sideMeta;
+    sideSession.workspaceDir = workspaceDir || parentSession.workspaceDir || sideSession.workspaceDir || null;
+    saveDb();
+    return {
+      parent: parentMeta,
+      side: sideMeta,
+    };
+  }
+
+  function markSideConversationClosed(parentSession, sideSession, {
+    cleanupError = null,
+    status = 'closed',
+  } = {}) {
+    const closedAt = new Date().toISOString();
+    if (parentSession?.openSideConversation) {
+      parentSession.openSideConversation.status = status;
+      parentSession.openSideConversation.closedAt = closedAt;
+      parentSession.openSideConversation.cleanupError = cleanupError;
+    }
+    if (sideSession?.sideConversation) {
+      sideSession.sideConversation.status = status;
+      sideSession.sideConversation.closedAt = closedAt;
+      sideSession.sideConversation.cleanupError = cleanupError;
+    }
+    saveDb();
+    return {
+      status,
+      closedAt,
+      cleanupError,
+    };
+  }
+
   function renameSession(session, label) {
     session.name = label;
     saveDb();
@@ -563,6 +649,8 @@ export function createSessionCommandActions({
     startNewSession,
     bindSession,
     bindForkedSession,
+    bindSideConversation,
+    markSideConversationClosed,
     renameSession,
     setWorkspaceDir,
     clearWorkspaceDir,

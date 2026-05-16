@@ -437,6 +437,437 @@ test('createSlashCommandRouter creates native Codex fork in a new thread and pre
   assert.match(state.replies[0].content, /fork-session-1/);
 });
 
+test('createSlashCommandRouter opens Codex side conversation without changing parent session', async () => {
+  const parentSession = { provider: 'codex', language: 'zh', runnerSessionId: 'parent-1', workspaceDir: '/repo' };
+  const childSession = { provider: 'codex', language: 'zh' };
+  const threadCreates = [];
+  const threadMessages = [];
+  const childThread = {
+    id: 'side-channel-1',
+    setNameCalls: [],
+    async join() {},
+    async setName(name, reason) {
+      this.setNameCalls.push({ name, reason });
+    },
+    async send(payload) {
+      threadMessages.push(payload);
+    },
+  };
+  const sideStarts = [];
+  const state = createRouterState({
+    getSession(key) {
+      return key === 'side-channel-1' ? childSession : parentSession;
+    },
+    getSessionId: (currentSession) => currentSession?.runnerSessionId || null,
+    getRuntimeSnapshot: () => ({ running: true, queued: 0 }),
+    resolveRuntimeModeSetting: () => ({ mode: 'long', supported: true, source: 'session override' }),
+    ensureWorkspace: () => '/repo',
+    commandActions: {
+      bindSideConversation(currentParent, currentChild, binding) {
+        currentParent.openSideConversation = {
+          status: 'open',
+          sideSessionId: binding.sideSessionId,
+          sideChannelId: binding.sideChannelId,
+          parentSessionId: binding.parentSessionId,
+          parentChannelId: binding.parentChannelId,
+          requesterId: binding.requesterId,
+        };
+        currentChild.runnerSessionId = binding.sideSessionId;
+        currentChild.sideConversation = {
+          status: 'open',
+          parentSessionId: binding.parentSessionId,
+          parentChannelId: binding.parentChannelId,
+          sideSessionId: binding.sideSessionId,
+          sideChannelId: binding.sideChannelId,
+          requesterId: binding.requesterId,
+        };
+        currentChild.workspaceDir = binding.workspaceDir;
+        return { parent: currentParent.openSideConversation, side: currentChild.sideConversation };
+      },
+    },
+    async startCodexSideConversation(options) {
+      sideStarts.push(options);
+      return { ok: true, parentThreadId: 'parent-1', sideThreadId: 'side-session-1' };
+    },
+  });
+  const interaction = createInteraction('cx_side', { action: 'start', name: 'ask aside' });
+  interaction.channel = {
+    id: 'channel-1',
+    threads: {
+      async create(options) {
+        threadCreates.push(options);
+        return childThread;
+      },
+    },
+  };
+
+  const handled = await state.router({
+    interaction,
+    commandName: 'side',
+    respond: async (payload) => {
+      state.replies.push(payload);
+    },
+  });
+
+  assert.equal(handled, true);
+  assert.equal(parentSession.runnerSessionId, 'parent-1');
+  assert.equal(parentSession.openSideConversation.sideSessionId, 'side-session-1');
+  assert.equal(parentSession.openSideConversation.requesterId, 'user-1');
+  assert.equal(childSession.runnerSessionId, 'side-session-1');
+  assert.equal(childSession.workspaceDir, '/repo');
+  assert.equal(threadCreates[0].name, 'ask aside');
+  assert.equal(sideStarts.length, 1);
+  assert.equal(sideStarts[0].sessionKey, 'channel-1');
+  assert.equal(sideStarts[0].boundaryItems.length, 1);
+  assert.equal(threadMessages.length, 1);
+  assert.match(threadMessages[0].content, /^<@user-1> 已从父 Discord thread <#channel-1>、父 Codex session `parent-1` 开启 side conversation。/);
+  assert.match(threadMessages[0].content, /继承上下文只用于参考/);
+  assert.match(state.replies[0].content, /已开启 Codex side conversation：<#side-channel-1>/);
+});
+
+test('createSlashCommandRouter cleans provider side thread when origin notice cannot be sent', async () => {
+  const parentSession = { provider: 'codex', language: 'zh', runnerSessionId: 'parent-1', workspaceDir: '/repo' };
+  const childSession = { provider: 'codex', language: 'zh' };
+  const deletes = [];
+  const sideStarts = [];
+  const sideCloses = [];
+  let bindCalls = 0;
+  const childThread = {
+    id: 'side-channel-1',
+    async join() {},
+    async setName() {},
+    async send() {
+      throw new Error('missing access');
+    },
+    async delete(reason) {
+      deletes.push(reason);
+    },
+  };
+  const state = createRouterState({
+    getSession(key) {
+      return key === 'side-channel-1' ? childSession : parentSession;
+    },
+    getSessionId: (currentSession) => currentSession?.runnerSessionId || null,
+    resolveRuntimeModeSetting: () => ({ mode: 'long', supported: true, source: 'session override' }),
+    ensureWorkspace: () => '/repo',
+    commandActions: {
+      bindSideConversation() {
+        bindCalls += 1;
+        throw new Error('should not bind after notice failure');
+      },
+    },
+    async startCodexSideConversation(options) {
+      sideStarts.push(options);
+      return { ok: true, parentThreadId: 'parent-1', sideThreadId: 'side-session-1' };
+    },
+    async closeCodexSideConversation(options) {
+      sideCloses.push(options);
+      return { ok: true, unsubscribed: true };
+    },
+  });
+  const interaction = createInteraction('cx_side', { action: 'start' });
+  interaction.channel = {
+    id: 'channel-1',
+    threads: {
+      async create() {
+        return childThread;
+      },
+    },
+  };
+
+  const handled = await state.router({
+    interaction,
+    commandName: 'side',
+    respond: async (payload) => {
+      state.replies.push(payload);
+    },
+  });
+
+  assert.equal(handled, true);
+  assert.equal(sideStarts.length, 1);
+  assert.equal(sideCloses.length, 1);
+  assert.equal(sideCloses[0].sessionKey, 'channel-1');
+  assert.equal(sideCloses[0].threadId, 'side-session-1');
+  assert.deepEqual(deletes, ['Codex side origin notice failed']);
+  assert.equal(bindCalls, 0);
+  assert.equal(parentSession.openSideConversation, undefined);
+  assert.match(state.replies[0].content, /开启前失败：missing access/);
+});
+
+test('createSlashCommandRouter cleans provider side thread when side binding fails', async () => {
+  const parentSession = { provider: 'codex', language: 'zh', runnerSessionId: 'parent-1', workspaceDir: '/repo' };
+  const childSession = { provider: 'codex', language: 'zh' };
+  const deletes = [];
+  const sideCloses = [];
+  const childThread = {
+    id: 'side-channel-1',
+    async join() {},
+    async setName() {},
+    async send() {},
+    async delete(reason) {
+      deletes.push(reason);
+    },
+  };
+  const state = createRouterState({
+    getSession(key) {
+      return key === 'side-channel-1' ? childSession : parentSession;
+    },
+    getSessionId: (currentSession) => currentSession?.runnerSessionId || null,
+    resolveRuntimeModeSetting: () => ({ mode: 'long', supported: true, source: 'session override' }),
+    ensureWorkspace: () => '/repo',
+    commandActions: {
+      bindSideConversation() {
+        throw new Error('db write failed');
+      },
+    },
+    async startCodexSideConversation() {
+      return { ok: true, parentThreadId: 'parent-1', sideThreadId: 'side-session-1' };
+    },
+    async closeCodexSideConversation(options) {
+      sideCloses.push(options);
+      return { ok: true, unsubscribed: true };
+    },
+  });
+  const interaction = createInteraction('cx_side', { action: 'start' });
+  interaction.channel = {
+    id: 'channel-1',
+    threads: {
+      async create() {
+        return childThread;
+      },
+    },
+  };
+
+  const handled = await state.router({
+    interaction,
+    commandName: 'side',
+    respond: async (payload) => {
+      state.replies.push(payload);
+    },
+  });
+
+  assert.equal(handled, true);
+  assert.equal(sideCloses.length, 1);
+  assert.equal(sideCloses[0].threadId, 'side-session-1');
+  assert.deepEqual(deletes, ['Codex side binding failed']);
+  assert.equal(parentSession.openSideConversation, undefined);
+  assert.match(state.replies[0].content, /绑定前失败：db write failed/);
+});
+
+test('createSlashCommandRouter closes open Codex side conversation and records cleanup failure', async () => {
+  const parentSession = {
+    provider: 'codex',
+    language: 'zh',
+    runnerSessionId: 'parent-1',
+    openSideConversation: {
+      status: 'open',
+      parentSessionId: 'parent-1',
+      parentChannelId: 'channel-1',
+      sideSessionId: 'side-session-1',
+      sideChannelId: 'side-channel-1',
+    },
+  };
+  const childSession = {
+    provider: 'codex',
+    runnerSessionId: 'side-session-1',
+    sideConversation: { status: 'open' },
+  };
+  const state = createRouterState({
+    getSession(key) {
+      return key === 'side-channel-1' ? childSession : parentSession;
+    },
+    getSessionId: (currentSession) => currentSession?.runnerSessionId || null,
+    commandActions: {
+      markSideConversationClosed(currentParent, currentChild, result) {
+        currentParent.openSideConversation.status = result.status;
+        currentParent.openSideConversation.cleanupError = result.cleanupError;
+        currentChild.sideConversation.status = result.status;
+        currentChild.sideConversation.cleanupError = result.cleanupError;
+        return result;
+      },
+    },
+    async closeCodexSideConversation() {
+      return { ok: false, error: 'unsubscribe failed' };
+    },
+  });
+
+  const handled = await state.router({
+    interaction: createInteraction('cx_side', { action: 'close' }),
+    commandName: 'side',
+    respond: async (payload) => {
+      state.replies.push(payload);
+    },
+  });
+
+  assert.equal(handled, true);
+  assert.equal(parentSession.openSideConversation.status, 'cleanup_failed');
+  assert.equal(childSession.sideConversation.status, 'cleanup_failed');
+  assert.equal(state.getCancelCalls()[0].key, 'side-channel-1');
+  assert.match(state.replies[0].content, /关闭失败：unsubscribe failed/);
+});
+
+test('createSlashCommandRouter can retry close after side cleanup failure', async () => {
+  const parentSession = {
+    provider: 'codex',
+    language: 'zh',
+    runnerSessionId: 'parent-1',
+    openSideConversation: {
+      status: 'cleanup_failed',
+      cleanupError: 'unsubscribe failed',
+      parentSessionId: 'parent-1',
+      parentChannelId: 'channel-1',
+      sideSessionId: 'side-session-1',
+      sideChannelId: 'side-channel-1',
+    },
+  };
+  const childSession = {
+    provider: 'codex',
+    runnerSessionId: 'side-session-1',
+    sideConversation: {
+      status: 'cleanup_failed',
+      cleanupError: 'unsubscribe failed',
+      parentSessionId: 'parent-1',
+      parentChannelId: 'channel-1',
+      sideSessionId: 'side-session-1',
+      sideChannelId: 'side-channel-1',
+    },
+  };
+  const state = createRouterState({
+    getSession(key) {
+      return key === 'side-channel-1' ? childSession : parentSession;
+    },
+    getSessionId: (currentSession) => currentSession?.runnerSessionId || null,
+    commandActions: {
+      markSideConversationClosed(currentParent, currentChild, result) {
+        currentParent.openSideConversation.status = result.status;
+        currentParent.openSideConversation.cleanupError = result.cleanupError;
+        currentChild.sideConversation.status = result.status;
+        currentChild.sideConversation.cleanupError = result.cleanupError;
+        return result;
+      },
+    },
+    async closeCodexSideConversation() {
+      return { ok: true, unsubscribed: true };
+    },
+  });
+
+  const handled = await state.router({
+    interaction: createInteraction('cx_side', { action: 'close' }),
+    commandName: 'side',
+    respond: async (payload) => {
+      state.replies.push(payload);
+    },
+  });
+
+  assert.equal(handled, true);
+  assert.equal(parentSession.openSideConversation.status, 'closed');
+  assert.equal(childSession.sideConversation.status, 'closed');
+  assert.match(state.replies[0].content, /已关闭 Codex side conversation/);
+});
+
+test('createSlashCommandRouter closes Codex side conversation from the side thread itself', async () => {
+  const parentSession = {
+    provider: 'codex',
+    language: 'zh',
+    runnerSessionId: 'parent-1',
+    openSideConversation: {
+      status: 'open',
+      parentSessionId: 'parent-1',
+      parentChannelId: 'channel-1',
+      sideSessionId: 'side-session-1',
+      sideChannelId: 'side-channel-1',
+    },
+  };
+  const sideSession = {
+    provider: 'codex',
+    language: 'zh',
+    runnerSessionId: 'side-session-1',
+    sideConversation: {
+      status: 'open',
+      parentSessionId: 'parent-1',
+      parentChannelId: 'channel-1',
+      sideSessionId: 'side-session-1',
+      sideChannelId: 'side-channel-1',
+    },
+  };
+  const state = createRouterState({
+    getSession(key) {
+      return key === 'channel-1' ? parentSession : sideSession;
+    },
+    getSessionId: (currentSession) => currentSession?.runnerSessionId || null,
+    commandActions: {
+      markSideConversationClosed(currentParent, currentChild, result) {
+        currentParent.openSideConversation.status = result.status;
+        currentChild.sideConversation.status = result.status;
+        return result;
+      },
+    },
+    async closeCodexSideConversation() {
+      return { ok: true, unsubscribed: true };
+    },
+  });
+  const interaction = createInteraction('cx_side', { action: 'close' });
+  interaction.channelId = 'side-channel-1';
+  const archiveCalls = [];
+  interaction.channel = {
+    id: 'side-channel-1',
+    async setLocked(value, reason) {
+      archiveCalls.push({ method: 'setLocked', value, reason });
+    },
+    async setArchived(value, reason) {
+      archiveCalls.push({ method: 'setArchived', value, reason });
+    },
+  };
+
+  const handled = await state.router({
+    interaction,
+    commandName: 'side',
+    respond: async (payload) => {
+      state.replies.push(payload);
+    },
+  });
+
+  assert.equal(handled, true);
+  assert.equal(parentSession.openSideConversation.status, 'closed');
+  assert.equal(sideSession.sideConversation.status, 'closed');
+  assert.equal(state.getCancelCalls()[0].key, 'side-channel-1');
+  assert.deepEqual(archiveCalls.map((call) => call.method), ['setLocked', 'setArchived']);
+  assert.match(state.replies[0].content, /已关闭 Codex side conversation/);
+});
+
+test('createSlashCommandRouter refuses Codex side before creating Discord thread on exec runtime', async () => {
+  const threadCreates = [];
+  const state = createRouterState({
+    getSessionId: () => 'parent-1',
+    resolveRuntimeModeSetting: () => ({ mode: 'normal', supported: true, source: 'session override' }),
+    async startCodexSideConversation() {
+      throw new Error('should not start side');
+    },
+  });
+  const interaction = createInteraction('cx_side', { action: 'start' });
+  interaction.channel = {
+    id: 'channel-1',
+    threads: {
+      async create(options) {
+        threadCreates.push(options);
+        return { id: 'side-channel-1' };
+      },
+    },
+  };
+
+  const handled = await state.router({
+    interaction,
+    commandName: 'side',
+    respond: async (payload) => {
+      state.replies.push(payload);
+    },
+  });
+
+  assert.equal(handled, true);
+  assert.deepEqual(threadCreates, []);
+  assert.match(state.replies[0].content, /需要 Codex long runtime/);
+});
+
 test('createSlashCommandRouter creates native Claude fork in a new thread and records pending fork source', async () => {
   const parentSession = { provider: 'claude', language: 'zh', runnerSessionId: 'parent-claude-1' };
   const childSession = { provider: 'claude', language: 'zh' };

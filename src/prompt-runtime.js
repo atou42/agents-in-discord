@@ -54,6 +54,15 @@ export function createPromptRuntime({
     reason: 'unsupported_runtime',
     error: 'steer unavailable',
   }));
+  const startCodexSideConversation = runnerExecutor.startCodexSideConversation || (async () => ({
+    ok: false,
+    reason: 'unavailable',
+    error: 'Codex side conversation unavailable',
+  }));
+  const closeCodexSideConversation = runnerExecutor.closeCodexSideConversation || (async () => ({
+    ok: true,
+    reason: 'unavailable',
+  }));
   const createProgressReporter = createPromptProgressReporterFactoryFn({
     ...promptOrchestratorOptions,
     presentation,
@@ -93,6 +102,8 @@ export function createPromptRuntime({
     compactSession,
     runProviderTask,
     steerProviderTask,
+    startCodexSideConversation,
+    closeCodexSideConversation,
     runCodex: runnerExecutor.runCodex || runProviderTask,
     closeRuntimeSession: runnerExecutor.closeRuntimeSession || (() => false),
     closeAllRuntimeSessions: runnerExecutor.closeAllRuntimeSessions || (() => 0),

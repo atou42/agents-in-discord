@@ -151,6 +151,7 @@ import {
   forkCodexThread,
   getCodexThreadGoal,
   setCodexThreadGoal,
+  unsubscribeCodexThread,
 } from './codex-app-server.js';
 import {
   extractInputTokensFromUsage,
@@ -602,6 +603,7 @@ const appContext = createAppContext({
       isFinalAnswerLikeAgentMessage,
       readGeminiSessionState,
       getCodexThreadGoal: (options) => getCodexThreadGoal({ ...options, codexBin: CODEX_BIN, env: SPAWN_ENV }),
+      unsubscribeCodexThread: (options) => unsubscribeCodexThread({ ...options, codexBin: CODEX_BIN, env: SPAWN_ENV }),
     },
     promptOrchestratorOptions: {
       defaultUiLanguage: DEFAULT_UI_LANGUAGE,

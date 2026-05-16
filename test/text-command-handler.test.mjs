@@ -391,6 +391,123 @@ test('createTextCommandHandler creates native Codex fork from text command', asy
   assert.match(replies[0], /已创建 Codex fork：<#fork-channel-1>/);
 });
 
+test('createTextCommandHandler opens Codex side conversation from text command', async () => {
+  const replies = [];
+  const parentSession = { provider: 'codex', language: 'zh', runnerSessionId: 'parent-1', workspaceDir: '/repo' };
+  const childSession = { provider: 'codex', language: 'zh' };
+  const threadCreates = [];
+  const threadMessages = [];
+  const sideStarts = [];
+  const childThread = {
+    id: 'side-channel-1',
+    async join() {},
+    async setName() {},
+    async send(payload) {
+      threadMessages.push(payload);
+    },
+  };
+  const handleCommand = createTextCommandHandler({
+    getSession: (key) => (key === 'side-channel-1' ? childSession : parentSession),
+    ensureWorkspace: () => '/repo',
+    getSessionId: (currentSession) => currentSession?.runnerSessionId || null,
+    getSessionProvider: (currentSession) => currentSession.provider,
+    getSessionLanguage: () => 'zh',
+    getProviderDisplayName: () => 'Codex CLI',
+    getRuntimeSnapshot: () => ({ running: true, queued: 0 }),
+    resolveRuntimeModeSetting: () => ({ mode: 'long', supported: true, source: 'session override' }),
+    commandActions: {
+      bindSideConversation(currentParent, currentChild, binding) {
+        currentParent.openSideConversation = {
+          status: 'open',
+          sideSessionId: binding.sideSessionId,
+          sideChannelId: binding.sideChannelId,
+          parentSessionId: binding.parentSessionId,
+          parentChannelId: binding.parentChannelId,
+          requesterId: binding.requesterId,
+        };
+        currentChild.runnerSessionId = binding.sideSessionId;
+        currentChild.sideConversation = {
+          status: 'open',
+          parentSessionId: binding.parentSessionId,
+          parentChannelId: binding.parentChannelId,
+          sideSessionId: binding.sideSessionId,
+          sideChannelId: binding.sideChannelId,
+          requesterId: binding.requesterId,
+        };
+        return { parent: currentParent.openSideConversation, side: currentChild.sideConversation };
+      },
+    },
+    async startCodexSideConversation(options) {
+      sideStarts.push(options);
+      return { ok: true, parentThreadId: 'parent-1', sideThreadId: 'side-session-1' };
+    },
+    safeReply: async (_message, payload) => {
+      replies.push(payload);
+    },
+  });
+
+  await handleCommand({
+    id: 'message-1',
+    author: { id: 'user-1' },
+    channel: {
+      id: 'channel-1',
+      threads: {
+        async create(options) {
+          threadCreates.push(options);
+          return childThread;
+        },
+      },
+    },
+  }, 'channel-1', '!side side notes');
+
+  assert.equal(parentSession.runnerSessionId, 'parent-1');
+  assert.equal(parentSession.openSideConversation.sideSessionId, 'side-session-1');
+  assert.equal(parentSession.openSideConversation.requesterId, 'user-1');
+  assert.equal(childSession.runnerSessionId, 'side-session-1');
+  assert.equal(threadCreates[0].name, 'side notes');
+  assert.equal(sideStarts[0].boundaryItems.length, 1);
+  assert.match(threadMessages[0].content, /^<@user-1> 已从父 Discord thread <#channel-1>、父 Codex session `parent-1` 开启 side conversation。/);
+  assert.match(threadMessages[0].content, /继承上下文只用于参考/);
+  assert.match(replies[0], /已开启 Codex side conversation：<#side-channel-1>/);
+});
+
+test('createTextCommandHandler refuses Codex side on exec runtime before creating a thread', async () => {
+  const replies = [];
+  const session = { provider: 'codex', language: 'zh', runnerSessionId: 'parent-1' };
+  const threadCreates = [];
+  const handleCommand = createTextCommandHandler({
+    getSession: () => session,
+    getSessionId: (currentSession) => currentSession?.runnerSessionId || null,
+    getSessionProvider: (currentSession) => currentSession.provider,
+    getSessionLanguage: () => 'zh',
+    getProviderDisplayName: () => 'Codex CLI',
+    resolveRuntimeModeSetting: () => ({ mode: 'normal', supported: true, source: 'session override' }),
+    async startCodexSideConversation() {
+      throw new Error('should not start side');
+    },
+    safeReply: async (_message, payload) => {
+      replies.push(payload);
+    },
+  });
+
+  await handleCommand({
+    id: 'message-1',
+    author: { id: 'user-1' },
+    channel: {
+      id: 'channel-1',
+      threads: {
+        async create(options) {
+          threadCreates.push(options);
+          return { id: 'side-channel-1' };
+        },
+      },
+    },
+  }, 'channel-1', '!side');
+
+  assert.deepEqual(threadCreates, []);
+  assert.match(replies[0], /需要 Codex long runtime/);
+});
+
 test('createTextCommandHandler creates native Claude fork from text command', async () => {
   const replies = [];
   const parentSession = { provider: 'claude', language: 'zh', runnerSessionId: 'parent-claude-1' };
