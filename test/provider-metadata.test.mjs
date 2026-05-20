@@ -23,11 +23,12 @@ import {
 test('provider-metadata normalizes aliases and optional parsing consistently', () => {
   assert.equal(normalizeProvider('openai'), 'codex');
   assert.equal(normalizeProvider('anthropic'), 'claude');
-  assert.equal(normalizeProvider('google'), 'antigravity');
   assert.equal(normalizeProvider('agy'), 'antigravity');
-  assert.equal(normalizeProvider('gemini'), 'antigravity');
   assert.equal(normalizeProvider('antigravity'), 'antigravity');
-  assert.equal(parseOptionalProvider('google'), 'antigravity');
+  assert.equal(normalizeProvider('google'), 'codex');
+  assert.equal(normalizeProvider('gemini'), 'codex');
+  assert.equal(parseOptionalProvider('google'), null);
+  assert.equal(parseOptionalProvider('gemini'), null);
   assert.equal(parseOptionalProvider(''), null);
   assert.equal(parseProviderInput('anthropic'), 'claude');
   assert.equal(parseProviderInput('unknown'), null);
@@ -37,7 +38,7 @@ test('provider-metadata exposes provider labels, bins, and slash prefixes', () =
   assert.equal(getProviderDisplayName('codex'), 'Codex CLI');
   assert.equal(getProviderDisplayName('claude'), 'Claude Code');
   assert.equal(getProviderDisplayName('antigravity'), 'Antigravity CLI');
-  assert.equal(getProviderDisplayName('gemini'), 'Antigravity CLI');
+  assert.equal(getProviderDisplayName('gemini'), 'Codex CLI');
   assert.equal(getProviderShortName('antigravity'), 'Antigravity');
   assert.equal(getProviderDefaultBin('claude'), 'claude');
   assert.equal(getProviderDefaultBin('antigravity'), 'agy');

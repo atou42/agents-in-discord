@@ -4,13 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project follows Semantic Versioning.
 
-## [Unreleased]
+## [0.12.21] - 2026-05-20
 
 ### Added
-- Added Antigravity CLI provider support with canonical `antigravity` naming, `agy` launch support, legacy Gemini compatibility, settings-backed model updates, and documented reasoning-model choices in the model menu.
+- Added Antigravity CLI provider support with canonical `antigravity` naming, `agy` launch support, settings-backed model updates, and documented reasoning-model choices in the model menu.
 
 ### Changed
 - Kept `/goal` as one slash command with action choices while opening required modals for `set` and `budget` inputs.
+
+### Removed
+- Removed Gemini CLI provider compatibility, including `gemini`/`google` provider aliases, `gm` startup paths, `GEMINI__*` environment fallbacks, legacy session readers, and the old provider shim.
 
 ## [0.12.11] - 2026-05-05
 
@@ -71,7 +74,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Keeps `/status` compact by showing extra info state and token cost without rendering the full resolved text.
 
 ### Fixed
-- Preserved compatible per-turn extra info delivery for Gemini and Claude long-runtime sessions when no dynamic system-prompt channel is available.
+- Preserved compatible per-turn extra info delivery for Antigravity and Claude long-runtime sessions when no dynamic system-prompt channel is available.
 
 ## [0.12.2] - 2026-05-01
 
@@ -129,7 +132,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Native compact messaging is now fact-based: the bot only discloses compact-related notices when a session id actually switches, including retry paths that continue on the new session automatically.
 
 ### Fixed
-- Binding a Codex or Gemini session whose workspace no longer exists now fails explicitly instead of silently keeping a broken session binding.
+- Binding a Codex or Antigravity session whose workspace no longer exists now fails explicitly instead of silently keeping a broken session binding.
 
 ## [0.9.5] - 2026-03-24
 
@@ -149,7 +152,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Fixed
 - Auto retry now keeps the current Codex rollout session instead of silently resetting it before the next attempt, so drawing and other session-sensitive work can continue in the same context.
-- Resuming a Codex or Gemini session now reattaches the thread to the session's original workspace and clears duplicate cross-thread bindings, preventing stale session IDs from reviving in the wrong thread.
+- Resuming a Codex or Antigravity session now reattaches the thread to the session's original workspace and clears duplicate cross-thread bindings, preventing stale session IDs from reviving in the wrong thread.
 
 ## [0.9.2] - 2026-03-17
 
@@ -212,7 +215,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ## [0.6.0] - 2026-03-15
 
 ### Added
-- Provider-native runtime surface metadata for Codex, Claude, and Gemini, including session vocabulary, compact capabilities, reasoning-effort support, and runtime-store descriptions.
+- Provider-native runtime surface metadata for Codex, Claude, and Antigravity, including session vocabulary, compact capabilities, reasoning-effort support, and runtime-store descriptions.
 - Provider-specific session aliases and help surfaces such as `rollout_sessions` / `project_sessions` / `chat_sessions` and matching `resume` aliases.
 - Provider-scoped session persistence buckets so model, effort, compact config, raw config overrides, and bound session IDs survive provider switches instead of clobbering each other.
 - macOS `launchctl` guard + safe restart helper for protected bot services, with regression coverage for blocked and rewritten service operations.
@@ -230,9 +233,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ## [0.5.0] - 2026-03-14
 
 ### Added
-- Gemini CLI provider support, including dedicated bot mode, provider-aware CLI health checks, and provider-specific session/runtime handling.
+- Antigravity CLI provider support, including dedicated bot mode, provider-aware CLI health checks, and provider-specific session/runtime handling.
 - Workspace browser flows for selecting directories from Discord, plus recent/favorite workspace navigation helpers.
-- Dedicated startup paths for shared, Codex, Claude, and Gemini bot instances with provider-scoped env overrides.
+- Dedicated startup paths for shared, Codex, Claude, and Antigravity bot instances with provider-scoped env overrides.
 
 ### Changed
 - Refactored the runtime into smaller modules for app composition, orchestrator/progress/reporting, Discord lifecycle/entry handlers, and provider/runtime helpers.

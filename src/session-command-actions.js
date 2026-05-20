@@ -79,7 +79,7 @@ export function createSessionCommandActions({
   getWorkspaceBinding = () => ({ workspaceDir: null, source: 'legacy fallback' }),
   listStoredSessions = () => [],
   readCodexSessionMetaBySessionId = () => null,
-  resolveGeminiProjectRootBySessionId = () => null,
+  resolveAntigravityProjectRootBySessionId = () => null,
   resolveProviderDefaultWorkspace = () => ({ workspaceDir: null, source: 'unset', envKey: null }),
   setProviderDefaultWorkspace = () => ({ workspaceDir: null, source: 'unset', envKey: null }),
   resolveReplyDeliveryDefault = () => ({ mode: 'card_mention', source: 'env default' }),
@@ -136,7 +136,7 @@ export function createSessionCommandActions({
       return normalizeWorkspacePath(readCodexSessionMetaBySessionId(normalizedSessionId)?.cwd);
     }
     if (provider === 'antigravity') {
-      return normalizeWorkspacePath(resolveGeminiProjectRootBySessionId(normalizedSessionId));
+      return normalizeWorkspacePath(resolveAntigravityProjectRootBySessionId(normalizedSessionId));
     }
     return null;
   }

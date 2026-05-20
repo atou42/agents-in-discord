@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 
-const PROVIDER_CHOICES = new Set(['shared', 'codex', 'claude', 'antigravity', 'gemini', 'google', 'agy']);
+const PROVIDER_CHOICES = new Set(['shared', 'codex', 'claude', 'antigravity', 'agy']);
 const CHANNEL_ID_RE = /^\d{15,25}$/;
 const DISCORD_MESSAGE_LIMIT = 2000;
 

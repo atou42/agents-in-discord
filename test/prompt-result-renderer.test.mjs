@@ -11,7 +11,7 @@ function createRenderer(overrides = {}) {
     getProviderShortName: (provider) => provider === 'codex' ? 'Codex' : provider,
     formatProviderSessionTerm: (provider) => {
       if (provider === 'claude') return 'project session';
-      if (provider === 'gemini') return 'chat session';
+      if (provider === 'antigravity') return 'chat session';
       return 'rollout session';
     },
     getSessionProvider: (session) => session.provider || 'codex',

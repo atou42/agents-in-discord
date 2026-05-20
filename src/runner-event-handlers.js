@@ -1,6 +1,6 @@
 import { createClaudeProviderAdapter } from './providers/claude.js';
 import { createCodexProviderAdapter } from './providers/codex.js';
-import { createGeminiProviderAdapter } from './providers/gemini.js';
+import { createAntigravityProviderAdapter } from './providers/antigravity.js';
 import { createProviderAdapterRegistry } from './providers/index.js';
 
 export function createRunnerEventParser({
@@ -18,8 +18,8 @@ export function createRunnerEventParser({
     createClaudeProviderAdapter({
       parseEvent: (event, state, ensureSessionBridge) => handleClaudeRunnerEvent(event, state, ensureSessionBridge),
     }),
-    createGeminiProviderAdapter({
-      parseEvent: (event, state, ensureSessionBridge) => handleGeminiRunnerEvent(event, state, ensureSessionBridge),
+    createAntigravityProviderAdapter({
+      parseEvent: (event, state, ensureSessionBridge) => handleAntigravityRunnerEvent(event, state, ensureSessionBridge),
     }),
   ]);
 
@@ -104,7 +104,7 @@ export function handleCodexRunnerEvent(event, state, ensureSessionBridge, {
   }
 }
 
-export function handleGeminiRunnerEvent(event, state, ensureSessionBridge) {
+export function handleAntigravityRunnerEvent(event, state, ensureSessionBridge) {
   switch (String(event?.type || '').trim().toLowerCase()) {
     case 'init':
       state.threadId = event.session_id || event.sessionId || state.threadId;
@@ -115,7 +115,7 @@ export function handleGeminiRunnerEvent(event, state, ensureSessionBridge) {
       const text = String(event.content || '');
       if (!text) break;
       if (event.delta === true) {
-        state.meta.geminiDeltaBuffer = `${state.meta.geminiDeltaBuffer || ''}${text}`;
+        state.meta.antigravityDeltaBuffer = `${state.meta.antigravityDeltaBuffer || ''}${text}`;
       } else {
         state.messages.push(text.trim());
       }

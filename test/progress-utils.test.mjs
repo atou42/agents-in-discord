@@ -491,10 +491,10 @@ test('summarizeCodexEvent handles Claude assistant message events', () => {
   assert.equal(summary, 'agent message: 我先检查当前工作区，再继续实现。');
 });
 
-test('summarizeCodexEvent handles Gemini init and message events', () => {
+test('summarizeCodexEvent handles Antigravity init and message events', () => {
   const initSummary = summarizeCodexEvent({
     type: 'init',
-    session_id: 'gemini-session-123',
+    session_id: 'agy-session-123',
   }, { previewChars: 180 });
   const messageSummary = summarizeCodexEvent({
     type: 'message',
@@ -503,11 +503,11 @@ test('summarizeCodexEvent handles Gemini init and message events', () => {
     delta: true,
   }, { previewChars: 180 });
 
-  assert.equal(initSummary, 'session started: gemini-session-123');
+  assert.equal(initSummary, 'session started: agy-session-123');
   assert.equal(messageSummary, 'agent message: 我先读取 README，再继续接线。');
 });
 
-test('summarizeCodexEvent handles Gemini tool_use and extracts file path detail', () => {
+test('summarizeCodexEvent handles Antigravity tool_use and extracts file path detail', () => {
   const summary = summarizeCodexEvent({
     type: 'tool_use',
     tool_name: 'read_file',
@@ -625,18 +625,18 @@ test('extractRawProgressTextFromEvent ignores Claude final answer from session f
   assert.equal(raw, '');
 });
 
-test('extractRawProgressTextFromEvent reads Gemini assistant commentary messages', () => {
+test('extractRawProgressTextFromEvent reads Antigravity assistant commentary messages', () => {
   const raw = extractRawProgressTextFromEvent({
     type: 'message',
     role: 'assistant',
-    content: '正在读取 Gemini session 文件并同步最终答案。',
+    content: '正在读取 Antigravity session 文件并同步最终答案。',
     delta: true,
   });
 
-  assert.equal(raw, '正在读取 Gemini session 文件并同步最终答案。');
+  assert.equal(raw, '正在读取 Antigravity session 文件并同步最终答案。');
 });
 
-test('extractCompletedStepFromEvent recognizes Gemini tool_result completion', () => {
+test('extractCompletedStepFromEvent recognizes Antigravity tool_result completion', () => {
   const step = extractCompletedStepFromEvent({
     type: 'tool_result',
     tool_id: 'read_file_12345',

@@ -242,7 +242,7 @@ test('createSessionCommandActions.setWorkspaceDir keeps claude session when work
   assert.equal(saveCount, 1);
 });
 
-test('createSessionCommandActions.setWorkspaceDir resets gemini session when workspace changes', () => {
+test('createSessionCommandActions.setWorkspaceDir resets Antigravity session when workspace changes', () => {
   let saveCount = 0;
   const defaultState = { value: '/shared' };
   const actions = createSessionCommandActions({
@@ -260,14 +260,14 @@ test('createSessionCommandActions.setWorkspaceDir resets gemini session when wor
     getSessionProvider: (session) => session.provider || 'codex',
     getProviderShortName: (provider) => {
       if (provider === 'claude') return 'Claude';
-      if (provider === 'gemini') return 'Gemini';
+      if (provider === 'antigravity') return 'Antigravity';
       return 'Codex';
     },
     resolveTimeoutSetting: () => ({ timeoutMs: 60000, source: 'session override' }),
     listRecentSessions: () => [],
     humanAge: () => '0s',
   });
-  const session = { provider: 'gemini', workspaceDir: '/old', runnerSessionId: 'sess-1', codexThreadId: 'sess-1' };
+  const session = { provider: 'antigravity', workspaceDir: '/old', runnerSessionId: 'sess-1', codexThreadId: 'sess-1' };
 
   const result = actions.setWorkspaceDir(session, 'thread-1', '/new/project');
 

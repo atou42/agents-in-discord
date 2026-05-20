@@ -41,9 +41,7 @@ export function loadRuntimeEnv({ rootDir, env = process.env } = {}) {
 }
 
 function applyProviderScopedEnv(provider, { env, immutableKeys, loadedKeys }) {
-  const prefixes = provider === 'antigravity'
-    ? ['GEMINI__', 'ANTIGRAVITY__']
-    : [`${provider.toUpperCase()}__`];
+  const prefixes = [`${provider.toUpperCase()}__`];
   const appliedKeys = [];
   const entries = Object.entries({ ...env });
 

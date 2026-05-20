@@ -7,13 +7,12 @@ const providerArg = process.argv.find((arg, index) => index > 1 && arg !== '--dr
 const provider = String(providerArg || '').trim().toLowerCase();
 const mode = provider || 'shared';
 
-if (!['shared', 'codex', 'claude', 'antigravity', 'gemini', 'google', 'agy'].includes(mode)) {
-  console.error('Usage: node scripts/start-instance.mjs <shared|codex|claude|antigravity|gemini>');
+if (!['shared', 'codex', 'claude', 'antigravity', 'agy'].includes(mode)) {
+  console.error('Usage: node scripts/start-instance.mjs <shared|codex|claude|antigravity>');
   process.exit(1);
 }
 
-const providerMode = ['gemini', 'google', 'agy'].includes(mode) ? 'antigravity' : mode;
-const legacyGeminiMode = mode === 'gemini';
+const providerMode = mode === 'agy' ? 'antigravity' : mode;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,9 +20,6 @@ const rootDir = path.resolve(__dirname, '..');
 const childEnv = {
   ...process.env,
   ...(providerMode === 'shared' ? {} : { BOT_PROVIDER: providerMode }),
-  ...(legacyGeminiMode && !process.env.SLASH_PREFIX && !process.env.ANTIGRAVITY__SLASH_PREFIX && !process.env.GEMINI__SLASH_PREFIX
-    ? { SLASH_PREFIX: 'gm' }
-    : {}),
 };
 
 if (dryRun) {

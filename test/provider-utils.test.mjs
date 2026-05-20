@@ -18,8 +18,8 @@ process.env.CODEX_OPENAI_CURATED_MARKETPLACE_SOURCE = '/tmp/agents-in-discord-mi
 test('normalizeCliProvider falls back to codex', () => {
   assert.equal(normalizeCliProvider('claude'), 'claude');
   assert.equal(normalizeCliProvider('anthropic'), 'claude');
-  assert.equal(normalizeCliProvider('gemini'), 'antigravity');
-  assert.equal(normalizeCliProvider('google'), 'antigravity');
+  assert.equal(normalizeCliProvider('gemini'), 'codex');
+  assert.equal(normalizeCliProvider('google'), 'codex');
   assert.equal(normalizeCliProvider('agy'), 'antigravity');
   assert.equal(normalizeCliProvider('antigravity'), 'antigravity');
   assert.equal(normalizeCliProvider('CODEX'), 'codex');
@@ -274,12 +274,12 @@ test('buildRunnerArgs can start a Claude fork from a parent session', () => {
 
 test('buildRunnerArgs builds Antigravity command with provider-specific permissions', () => {
   const args = buildRunnerArgs({
-    provider: 'gemini',
+    provider: 'antigravity',
     sessionId: 'ghi-789',
     workspaceDir: '/tmp/work',
     prompt: 'run pwd',
     mode: 'safe',
-    model: 'gemini-2.5-pro',
+    model: 'Claude Opus 4.6 (Thinking)',
     effort: 'medium',
     extraConfigs: ['ignored=true'],
     compactStrategy: 'native',

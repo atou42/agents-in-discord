@@ -2,9 +2,9 @@
 set -euo pipefail
 
 UID_VALUE="$(id -u)"
+USER_AGENTS_DIR="${HOME}/Library/LaunchAgents"
 PROJECT_LABEL_PREFIX="com.atou.agents-in-discord"
 LEGACY_LABEL_PREFIX="com.atou.codex-discord-bot"
-USER_AGENTS_DIR="${HOME}/Library/LaunchAgents"
 
 resolve_label() {
   local raw="${1:-}"
@@ -17,13 +17,6 @@ resolve_label() {
       ;;
     antigravity|agy|"${PROJECT_LABEL_PREFIX}.antigravity")
       printf '%s\n' "${PROJECT_LABEL_PREFIX}.antigravity"
-      ;;
-    gemini|"${PROJECT_LABEL_PREFIX}.gemini"|"${LEGACY_LABEL_PREFIX}.gemini")
-      if [[ -f "${USER_AGENTS_DIR}/${PROJECT_LABEL_PREFIX}.antigravity.plist" ]]; then
-        printf '%s\n' "${PROJECT_LABEL_PREFIX}.antigravity"
-      else
-        printf '%s\n' "${PROJECT_LABEL_PREFIX}.gemini"
-      fi
       ;;
     *)
       return 1
@@ -54,14 +47,14 @@ restart_label() {
 main() {
   local raw="${1:-}"
   if [[ -z "${raw}" ]]; then
-    printf 'usage: %s <codex|claude|antigravity|gemini|all|label>\n' "$0" >&2
+    printf 'usage: %s <codex|claude|antigravity|all|label>\n' "$0" >&2
     exit 64
   fi
 
   if [[ "${raw}" == "all" ]]; then
     restart_label "${PROJECT_LABEL_PREFIX}"
     restart_label "${PROJECT_LABEL_PREFIX}.claude"
-    restart_label "${PROJECT_LABEL_PREFIX}.antigravity" || restart_label "${PROJECT_LABEL_PREFIX}.gemini"
+    restart_label "${PROJECT_LABEL_PREFIX}.antigravity"
     exit 0
   fi
 

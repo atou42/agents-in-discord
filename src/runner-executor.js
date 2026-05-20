@@ -40,7 +40,7 @@ export function createRunnerExecutor({
   startSessionProgressBridge,
   extractAgentMessageText,
   isFinalAnswerLikeAgentMessage,
-  readGeminiSessionState = () => null,
+  readAntigravitySessionState = () => null,
   getCodexThreadGoal = null,
   unsubscribeCodexThread = null,
   codexGoalMonitorIntervalMs = 2000,
@@ -258,7 +258,7 @@ export function createRunnerExecutor({
       const meta = {
         claudeSawAgentToolUse: false,
         claudeStopReason: '',
-        geminiDeltaBuffer: '',
+        antigravityDeltaBuffer: '',
       };
       let usage = null;
       let threadId = null;
@@ -412,7 +412,7 @@ export function createRunnerExecutor({
         }
 
         if (normalizeProvider(provider) === 'antigravity' && source === 'stdout') {
-          meta.geminiDeltaBuffer = `${meta.geminiDeltaBuffer || ''}${meta.geminiDeltaBuffer ? '\n' : ''}${trimmed}`;
+          meta.antigravityDeltaBuffer = `${meta.antigravityDeltaBuffer || ''}${meta.antigravityDeltaBuffer ? '\n' : ''}${trimmed}`;
           return;
         }
         if (provider === 'codex' && trimmed.includes('state db missing rollout path for thread')) return;
@@ -491,7 +491,7 @@ export function createRunnerExecutor({
       child.on('close', (code, signal) => {
         flushRemainders();
         if (normalizeProvider(provider) === 'antigravity') {
-          const sessionState = readGeminiSessionState({
+          const sessionState = readAntigravitySessionState({
             sessionId: threadId,
             workspaceDir,
             notOlderThanMs: startedAtMs - 1000,
@@ -509,7 +509,7 @@ export function createRunnerExecutor({
           if (finalAnswer && finalAnswerMessages.length === 0) {
             finalAnswerMessages.push(finalAnswer);
           } else if (finalAnswerMessages.length === 0) {
-            const buffered = String(meta.geminiDeltaBuffer || '').trim();
+            const buffered = String(meta.antigravityDeltaBuffer || '').trim();
             if (buffered) finalAnswerMessages.push(buffered);
           }
         }

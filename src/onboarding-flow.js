@@ -485,7 +485,7 @@ export function createOnboardingFlow({
     if (parsed.action === 'set_provider' && !botProvider) {
       const provider = PROVIDER_CHOICES.includes(parsed.value)
         ? parsed.value
-        : (parsed.value === 'gemini' || parsed.value === 'google' || parsed.value === 'agy' ? 'antigravity' : null);
+        : (parsed.value === 'agy' ? 'antigravity' : null);
       if (provider) {
         if (typeof commandActions.setProvider === 'function') {
           commandActions.setProvider(session, provider);

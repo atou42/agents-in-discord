@@ -35,7 +35,7 @@ test('getProviderBin respects configured provider bins', () => {
   assert.equal(getProviderBin('codex', { codexBin: '/bin/codex-custom' }), '/bin/codex-custom');
   assert.equal(getProviderBin('claude', { claudeBin: '/bin/claude-custom' }), '/bin/claude-custom');
   assert.equal(getProviderBin('antigravity', { antigravityBin: '/bin/agy-custom' }), '/bin/agy-custom');
-  assert.equal(getProviderBin('gemini', { legacyGeminiBin: '/bin/agy-legacy' }), '/bin/agy-legacy');
+  assert.equal(getProviderBin('gemini', { codexBin: '/bin/codex-custom' }), '/bin/codex-custom');
 });
 
 test('formatCliHealth renders not-found and success states', () => {

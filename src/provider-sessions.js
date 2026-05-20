@@ -72,36 +72,7 @@ function listRecentAntigravitySessions(limit = 10, workspaceDir = '') {
       mtime: antigravityConversation.mtime,
     }];
   }
-
-  const roots = getGeminiSearchRoots(workspaceDir);
-  if (!roots.length) return [];
-
-  const latestById = new Map();
-  for (const root of roots) {
-    for (const file of findGeminiSessionFiles(root)) {
-      const snapshot = readGeminiSessionFile(file);
-      const id = String(snapshot?.sessionId || '').trim();
-      if (!id) continue;
-
-      let mtime = Date.parse(String(snapshot?.lastUpdated || snapshot?.startTime || ''));
-      if (!Number.isFinite(mtime)) {
-        try {
-          mtime = fs.statSync(file).mtimeMs;
-        } catch {
-          mtime = 0;
-        }
-      }
-
-      const previous = latestById.get(id);
-      if (!previous || mtime > previous.mtime) {
-        latestById.set(id, { id, mtime });
-      }
-    }
-  }
-
-  return [...latestById.values()]
-    .sort((a, b) => b.mtime - a.mtime)
-    .slice(0, limit);
+  return [];
 }
 
 export function findLatestRolloutFileBySessionId(sessionId, notOlderThanMs = 0) {
@@ -347,48 +318,24 @@ export function buildClaudeSessionRescueSummary({
   };
 }
 
-function findLatestGeminiSessionFileBySessionId(sessionId, workspaceDir = '', notOlderThanMs = 0) {
-  const targetId = String(sessionId || '').trim().toLowerCase();
+export function resolveAntigravityProjectRootBySessionId(sessionId, workspaceDir = '', notOlderThanMs = 0) {
+  const targetId = String(sessionId || '').trim();
   if (!targetId) return null;
 
-  let latest = null;
-  for (const root of getGeminiSearchRoots(workspaceDir)) {
-    for (const file of findGeminiSessionFiles(root)) {
-      const snapshot = readGeminiSessionFile(file);
-      const id = String(snapshot?.sessionId || '').trim().toLowerCase();
-      if (!id || id !== targetId) continue;
-
-      let stat = null;
-      try {
-        stat = fs.statSync(file);
-      } catch {
-        continue;
-      }
-      if (!stat?.isFile()) continue;
-      if (notOlderThanMs > 0 && stat.mtimeMs < notOlderThanMs) continue;
-
-      if (!latest || stat.mtimeMs > latest.mtimeMs) {
-        latest = { file, mtimeMs: stat.mtimeMs, sizeBytes: stat.size };
-      }
-    }
-    if (latest) return latest;
-  }
-
-  return latest;
-}
-
-export function resolveAntigravityProjectRootBySessionId(sessionId, workspaceDir = '', notOlderThanMs = 0) {
   const antigravityConversation = readAntigravityLastConversation(workspaceDir);
-  if (antigravityConversation?.id && antigravityConversation.id === String(sessionId || '').trim()) {
+  if (antigravityConversation?.id && antigravityConversation.id === targetId) {
     return path.resolve(workspaceDir);
   }
 
-  const match = findLatestGeminiSessionFileBySessionId(sessionId, workspaceDir, notOlderThanMs);
-  if (!match?.file) return null;
-  const projectDir = path.dirname(path.dirname(match.file));
-  const projectRoot = safeReadText(path.join(projectDir, '.project_root'));
-  if (!projectRoot) return null;
-  return path.resolve(projectRoot);
+  const conversations = readAntigravityLastConversationsFile();
+  if (!conversations) return null;
+  if (notOlderThanMs > 0 && conversations.mtime < notOlderThanMs) return null;
+  for (const [candidateWorkspace, conversationId] of Object.entries(conversations.map)) {
+    if (String(conversationId || '').trim() === targetId && candidateWorkspace) {
+      return path.resolve(candidateWorkspace);
+    }
+  }
+  return null;
 }
 
 function getCodexSessionsDir() {
@@ -397,51 +344,50 @@ function getCodexSessionsDir() {
   return path.join(home, '.codex', 'sessions');
 }
 
-function getGeminiRootDir() {
+function getAntigravityDataRootDir() {
   const home = process.env.HOME || process.env.USERPROFILE || '';
   if (!home) return '';
   return path.join(home, '.gemini');
 }
 
-function getGeminiTmpDir() {
-  const root = getGeminiRootDir();
-  if (!root) return '';
-  return path.join(root, 'tmp');
-}
-
 function getAntigravityCliDir() {
-  const root = getGeminiRootDir();
+  const root = getAntigravityDataRootDir();
   if (!root) return '';
   return path.join(root, 'antigravity-cli');
 }
 
-function readAntigravityLastConversation(workspaceDir = '', notOlderThanMs = 0) {
-  const rawWorkspace = String(workspaceDir || '').trim();
-  if (!rawWorkspace) return null;
-
+function readAntigravityLastConversationsFile() {
   const cliDir = getAntigravityCliDir();
   if (!cliDir) return null;
-
   const file = path.join(cliDir, 'cache', 'last_conversations.json');
   const parsed = readJsonFile(file);
-  if (!parsed || typeof parsed !== 'object') return null;
-
-  const normalizedWorkspace = path.resolve(rawWorkspace);
-  const directId = String(parsed[normalizedWorkspace] || parsed[rawWorkspace] || '').trim();
-  if (!directId) return null;
-
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
   let mtime = Date.now();
   try {
     const stat = fs.statSync(file);
     if (stat?.isFile()) mtime = stat.mtimeMs;
   } catch {
   }
-  if (notOlderThanMs > 0 && mtime < notOlderThanMs) return null;
+  return { map: parsed, file, mtime };
+}
+
+function readAntigravityLastConversation(workspaceDir = '', notOlderThanMs = 0) {
+  const rawWorkspace = String(workspaceDir || '').trim();
+  if (!rawWorkspace) return null;
+
+  const conversations = readAntigravityLastConversationsFile();
+  if (!conversations) return null;
+
+  const normalizedWorkspace = path.resolve(rawWorkspace);
+  const directId = String(conversations.map[normalizedWorkspace] || conversations.map[rawWorkspace] || '').trim();
+  if (!directId) return null;
+
+  if (notOlderThanMs > 0 && conversations.mtime < notOlderThanMs) return null;
 
   return {
     id: directId,
-    mtime,
-    file,
+    mtime: conversations.mtime,
+    file: conversations.file,
   };
 }
 
@@ -462,55 +408,6 @@ function encodeClaudeProjectPath(workspaceDir = '') {
   const raw = String(workspaceDir || '').trim();
   if (!raw) return '';
   return path.resolve(raw).replace(/[\\/]/g, '-');
-}
-
-function getGeminiProjectDir(workspaceDir = '') {
-  const tmpRoot = getGeminiTmpDir();
-  const slug = resolveGeminiProjectSlug(workspaceDir);
-  if (!tmpRoot || !slug) return '';
-  return path.join(tmpRoot, slug);
-}
-
-function resolveGeminiProjectSlug(workspaceDir = '') {
-  const raw = String(workspaceDir || '').trim();
-  if (!raw) return '';
-  const normalizedWorkspace = path.resolve(raw);
-
-  const projects = readGeminiProjectsMap();
-  const direct = projects.get(normalizedWorkspace);
-  if (direct) return direct;
-
-  const tmpRoot = getGeminiTmpDir();
-  if (!tmpRoot || !fs.existsSync(tmpRoot)) return '';
-  try {
-    const entries = fs.readdirSync(tmpRoot, { withFileTypes: true });
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      const fullPath = path.join(tmpRoot, entry.name);
-      const projectRootFile = path.join(fullPath, '.project_root');
-      const projectRoot = safeReadText(projectRootFile);
-      if (projectRoot && path.resolve(projectRoot) === normalizedWorkspace) {
-        return entry.name;
-      }
-    }
-  } catch {
-  }
-
-  return '';
-}
-
-function readGeminiProjectsMap() {
-  const file = path.join(getGeminiRootDir(), 'projects.json');
-  const parsed = readJsonFile(file);
-  const projects = parsed?.projects && typeof parsed.projects === 'object' ? parsed.projects : {};
-  const out = new Map();
-  for (const [workspacePath, slug] of Object.entries(projects)) {
-    const normalizedWorkspace = String(workspacePath || '').trim();
-    const normalizedSlug = String(slug || '').trim();
-    if (!normalizedWorkspace || !normalizedSlug) continue;
-    out.set(path.resolve(normalizedWorkspace), normalizedSlug);
-  }
-  return out;
 }
 
 function readJsonLines(filePath) {
@@ -592,28 +489,6 @@ function truncateText(value, maxChars) {
   return `${text.slice(0, max - 3)}...`;
 }
 
-function getGeminiSearchRoots(workspaceDir = '') {
-  const roots = [];
-  const preferredRoot = getGeminiProjectDir(workspaceDir);
-  if (preferredRoot && fs.existsSync(preferredRoot)) roots.push(preferredRoot);
-
-  const tmpRoot = getGeminiTmpDir();
-  if (!tmpRoot || !fs.existsSync(tmpRoot)) return roots;
-
-  try {
-    const entries = fs.readdirSync(tmpRoot, { withFileTypes: true });
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      const fullPath = path.join(tmpRoot, entry.name);
-      if (!fs.existsSync(path.join(fullPath, '.project_root'))) continue;
-      if (!roots.includes(fullPath)) roots.push(fullPath);
-    }
-  } catch {
-  }
-
-  return roots;
-}
-
 function findFilesRecursive(root, predicate) {
   const out = [];
   const stack = [root];
@@ -650,12 +525,6 @@ function findClaudeSessionFiles(root) {
   return findFilesRecursive(root, (name) => /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\.jsonl$/i.test(name));
 }
 
-function findGeminiSessionFiles(root) {
-  const chatsDir = path.join(root, 'chats');
-  if (!fs.existsSync(chatsDir)) return [];
-  return findFilesRecursive(chatsDir, (name) => /^session-.*\.json$/i.test(name));
-}
-
 function parseSessionIdFromRolloutFile(filename) {
   const match = filename.match(/^rollout-.*-([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})\.jsonl$/i);
   return match?.[1] || null;
@@ -674,18 +543,6 @@ function readJsonFile(filePath) {
   }
 }
 
-function safeReadText(filePath) {
-  try {
-    return fs.readFileSync(filePath, 'utf8').trim();
-  } catch {
-    return '';
-  }
-}
-
-function readGeminiSessionFile(filePath) {
-  return readJsonFile(filePath);
-}
-
 export function readAntigravitySessionState({ sessionId, workspaceDir = '', notOlderThanMs = 0 } = {}) {
   const antigravityConversation = readAntigravityLastConversation(workspaceDir, notOlderThanMs);
   if (antigravityConversation?.id && (!sessionId || antigravityConversation.id === String(sessionId || '').trim())) {
@@ -697,34 +554,5 @@ export function readAntigravitySessionState({ sessionId, workspaceDir = '', notO
       file: antigravityConversation.file,
     };
   }
-
-  const match = findLatestGeminiSessionFileBySessionId(sessionId, workspaceDir);
-  if (!match?.file) return null;
-
-  const snapshot = readGeminiSessionFile(match.file);
-  if (!snapshot || typeof snapshot !== 'object') return null;
-
-  const assistantMessages = Array.isArray(snapshot.messages)
-    ? snapshot.messages
-      .filter((item) => item && typeof item === 'object' && String(item.type || '').trim().toLowerCase() === 'gemini')
-      .map((item) => String(item.content || '').trim())
-      .filter(Boolean)
-    : [];
-
-  const finalAnswer = assistantMessages.at(-1) || '';
-  const messages = finalAnswer ? assistantMessages.slice(0, -1) : assistantMessages;
-  const lastAssistant = Array.isArray(snapshot.messages)
-    ? [...snapshot.messages].reverse().find((item) => item && typeof item === 'object' && String(item.type || '').trim().toLowerCase() === 'gemini')
-    : null;
-
-  return {
-    sessionId: String(snapshot?.sessionId || sessionId || '').trim() || null,
-    messages,
-    finalAnswer,
-    usage: lastAssistant?.tokens && typeof lastAssistant.tokens === 'object' ? lastAssistant.tokens : null,
-    file: match.file,
-  };
+  return null;
 }
-
-export const resolveGeminiProjectRootBySessionId = resolveAntigravityProjectRootBySessionId;
-export const readGeminiSessionState = readAntigravitySessionState;

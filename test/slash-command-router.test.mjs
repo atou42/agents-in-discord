@@ -968,7 +968,7 @@ test('createSlashCommandRouter rejects fork for providers without native fork', 
       throw new Error('should not fork');
     },
   });
-  state.session.provider = 'gemini';
+  state.session.provider = 'antigravity';
 
   const handled = await state.router({
     interaction: createInteraction('cx_fork'),
@@ -1354,7 +1354,7 @@ test('createSlashCommandRouter rejects only unsupported compact actions for non-
     providerSupportsCompactConfigAction: () => false,
     formatCompactConfigUnsupported: () => '⚠️ 当前 provider Antigravity CLI 不支持 `native` 压缩。',
   });
-  state.session.provider = 'gemini';
+  state.session.provider = 'antigravity';
   const interaction = createInteraction('cx_compact');
   interaction.options.getString = (name) => (name === 'key' ? 'strategy' : 'native');
 

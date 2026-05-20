@@ -1,3 +1,5 @@
+import { parseOptionalProvider } from './provider-metadata.js';
+
 const PROVIDER_SCOPED_SESSION_DEFAULTS = Object.freeze({
   runnerSessionId: null,
   codexThreadId: null,
@@ -38,7 +40,10 @@ export const PROVIDER_SCOPED_SESSION_FIELDS = Object.freeze([
   'configOverrides',
 ]);
 
-function normalizeProviderKey(provider, normalizeProvider) {
+function normalizeProviderKey(provider, normalizeProvider, { allowUnknownFallback = true } = {}) {
+  const parsed = parseOptionalProvider(provider);
+  if (parsed) return parsed;
+  if (!allowUnknownFallback) return null;
   if (typeof normalizeProvider === 'function') return normalizeProvider(provider);
   return String(provider || '').trim().toLowerCase() || 'codex';
 }
@@ -130,7 +135,12 @@ export function ensureSessionProviderStates(session, {
   }
 
   for (const [providerKey, rawState] of Object.entries({ ...session.providers })) {
-    const normalizedProvider = normalizeProviderKey(providerKey, normalizeProvider);
+    const normalizedProvider = normalizeProviderKey(providerKey, normalizeProvider, { allowUnknownFallback: false });
+    if (!normalizedProvider) {
+      delete session.providers[providerKey];
+      changed = true;
+      continue;
+    }
     const nextState = ensureProviderEntryShape(rawState);
     if (normalizedProvider !== providerKey) {
       delete session.providers[providerKey];

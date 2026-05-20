@@ -12,7 +12,7 @@ test('uniqueDirs removes blanks and duplicates while keeping order', () => {
   );
 });
 
-test('createRunnerArgsBuilder builds gemini args instead of codex args', () => {
+test('createRunnerArgsBuilder builds Antigravity args instead of codex args', () => {
   const { buildSessionRunnerArgs } = createRunnerArgsBuilder({
     defaultModel: null,
     normalizeProvider: (value) => value,
@@ -25,12 +25,12 @@ test('createRunnerArgsBuilder builds gemini args instead of codex args', () => {
   });
 
   const args = buildSessionRunnerArgs({
-    provider: 'gemini',
+    provider: 'antigravity',
     session: {
-      provider: 'gemini',
+      provider: 'antigravity',
       mode: 'dangerous',
-      model: 'gemini-2.5-pro',
-      runnerSessionId: 'sess-gm-1',
+      model: 'Claude Opus 4.6 (Thinking)',
+      runnerSessionId: 'sess-agy-1',
     },
     workspaceDir: '/tmp/workspace',
     prompt: 'summarize the repo',
@@ -39,7 +39,7 @@ test('createRunnerArgsBuilder builds gemini args instead of codex args', () => {
   assert.deepEqual(args, [
     '--dangerously-skip-permissions',
     '--conversation',
-    'sess-gm-1',
+    'sess-agy-1',
     '--prompt',
     'summarize the repo',
   ]);
@@ -472,7 +472,7 @@ test('createRunnerArgsBuilder uses Claude fork-session from pending fork parent'
   assert.equal(args.at(-1), 'first fork turn');
 });
 
-test('createRunnerArgsBuilder falls back to prompt context for Gemini', () => {
+test('createRunnerArgsBuilder falls back to prompt context for Antigravity', () => {
   const { buildSessionRunnerArgs } = createRunnerArgsBuilder({
     defaultModel: null,
     normalizeProvider: (value) => value,
@@ -485,9 +485,9 @@ test('createRunnerArgsBuilder falls back to prompt context for Gemini', () => {
   });
 
   const args = buildSessionRunnerArgs({
-    provider: 'gemini',
+    provider: 'antigravity',
     session: {
-      provider: 'gemini',
+      provider: 'antigravity',
       mode: 'safe',
       runnerSessionId: null,
     },

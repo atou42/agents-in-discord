@@ -11,13 +11,13 @@ test('extractProtectedServiceLabels matches service refs and plist paths', () =>
   const labels = extractProtectedServiceLabels([
     'gui/501/com.atou.agents-in-discord',
     '/Users/atou/Library/LaunchAgents/com.atou.agents-in-discord.claude.plist',
-    'com.atou.agents-in-discord.gemini',
+    'com.atou.agents-in-discord.antigravity',
   ]);
 
   assert.deepEqual(labels, [
     'com.atou.agents-in-discord',
     'com.atou.agents-in-discord.claude',
-    'com.atou.agents-in-discord.gemini',
+    'com.atou.agents-in-discord.antigravity',
   ]);
 });
 

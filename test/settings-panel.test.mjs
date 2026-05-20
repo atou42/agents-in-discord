@@ -174,9 +174,9 @@ function createPanel({
     getProviderDisplayName: (provider) => ({
       codex: 'Codex CLI',
       claude: 'Claude Code',
-      gemini: 'Antigravity CLI',
+      antigravity: 'Antigravity CLI',
     }[provider] || provider),
-    getSupportedReasoningEffortLevels: (provider) => provider === 'gemini' ? [] : (provider === 'claude' ? ['high', 'medium', 'low'] : ['xhigh', 'high', 'medium', 'low']),
+    getSupportedReasoningEffortLevels: (provider) => provider === 'antigravity' ? [] : (provider === 'claude' ? ['high', 'medium', 'low'] : ['xhigh', 'high', 'medium', 'low']),
     getModelCatalog: () => modelCatalog || {
       models: [
         {
@@ -204,7 +204,7 @@ function createPanel({
       value: currentSession?.codexProfile || currentSession?.inheritedCodexProfile || null,
       source: currentSession?.codexProfileSource
         || (currentSession?.codexProfile ? 'session override' : (currentSession?.inheritedCodexProfile ? 'parent channel' : 'provider default')),
-      supported: currentSession?.provider !== 'claude' && currentSession?.provider !== 'gemini',
+      supported: currentSession?.provider !== 'claude' && currentSession?.provider !== 'antigravity',
       valid: currentSession?.codexProfileValid !== false,
       isExplicit: Boolean(currentSession?.codexProfile || currentSession?.inheritedCodexProfile),
       error: currentSession?.codexProfileError || null,
@@ -399,7 +399,7 @@ test('createSettingsPanel updates fast mode through button interaction', async (
 
 test('createSettingsPanel shows Antigravity models from local catalog', () => {
   const session = {
-    provider: 'gemini',
+    provider: 'antigravity',
     language: 'zh',
     mode: 'safe',
     inheritedModel: 'Claude Opus 4.6 (Thinking)',

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   handleClaudeRunnerEvent,
   handleCodexRunnerEvent,
-  handleGeminiRunnerEvent,
+  handleAntigravityRunnerEvent,
 } from '../src/runner-event-handlers.js';
 import {
   extractAgentMessageText,
@@ -196,7 +196,7 @@ test('handleCodexRunnerEvent does not surface subagent notification blocks as fi
   assert.deepEqual(state.finalAnswerMessages, ['第一段正常总结。\n\n第二段正常总结。']);
 });
 
-test('handleGeminiRunnerEvent captures init, delta messages, and result stats', () => {
+test('handleAntigravityRunnerEvent captures init, delta messages, and result stats', () => {
   const state = {
     messages: [],
     finalAnswerMessages: [],
@@ -205,24 +205,24 @@ test('handleGeminiRunnerEvent captures init, delta messages, and result stats', 
     usage: null,
     threadId: null,
     meta: {
-      geminiDeltaBuffer: '',
+      antigravityDeltaBuffer: '',
     },
   };
   const bridges = [];
 
-  handleGeminiRunnerEvent({
+  handleAntigravityRunnerEvent({
     type: 'init',
-    session_id: 'gemini-session-123',
+    session_id: 'agy-session-123',
   }, state, (threadId) => bridges.push(threadId));
 
-  handleGeminiRunnerEvent({
+  handleAntigravityRunnerEvent({
     type: 'message',
     role: 'assistant',
     content: 'I will inspect the repo.',
     delta: true,
   }, state, () => {});
 
-  handleGeminiRunnerEvent({
+  handleAntigravityRunnerEvent({
     type: 'result',
     stats: {
       input_tokens: 18,
@@ -230,9 +230,9 @@ test('handleGeminiRunnerEvent captures init, delta messages, and result stats', 
     },
   }, state, () => {});
 
-  assert.deepEqual(bridges, ['gemini-session-123']);
-  assert.equal(state.threadId, 'gemini-session-123');
-  assert.equal(state.meta.geminiDeltaBuffer, 'I will inspect the repo.');
+  assert.deepEqual(bridges, ['agy-session-123']);
+  assert.equal(state.threadId, 'agy-session-123');
+  assert.equal(state.meta.antigravityDeltaBuffer, 'I will inspect the repo.');
   assert.deepEqual(state.usage, {
     input_tokens: 18,
     output_tokens: 7,

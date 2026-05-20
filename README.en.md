@@ -120,7 +120,7 @@ npm run start:claude
 npm run start:antigravity
 ```
 
-Use plain keys for shared Discord/runtime settings, then put dedicated bot settings under `CODEX__*`, `CLAUDE__*`, and `ANTIGRAVITY__*` sections in the same file. In practice, you usually only need `DISCORD_TOKEN`, optional `DEFAULT_MODEL`, optional `DEFAULT_MODE`, and optional CLI path overrides. Antigravity currently has no public `--model` launch flag, so this bridge applies Antigravity model choices through `~/.gemini/antigravity-cli/settings.json`; the model menu merges the current settings value, Antigravity's documented reasoning models, and models observed in local CLI logs. Each locked instance uses its own state files (`data/sessions.codex.json`, `data/sessions.claude.json`, `data/sessions.antigravity.json`) and its own process lock, so channel/session context does not mix across bots. Legacy `GEMINI__*`, `npm run start:gemini`, and `gm_` remain supported as compatibility names.
+Use plain keys for shared Discord/runtime settings, then put dedicated bot settings under `CODEX__*`, `CLAUDE__*`, and `ANTIGRAVITY__*` sections in the same file. In practice, you usually only need `DISCORD_TOKEN`, optional `DEFAULT_MODEL`, optional `DEFAULT_MODE`, and optional CLI path overrides. Antigravity currently has no public `--model` launch flag, so this bridge applies Antigravity model choices through `~/.gemini/antigravity-cli/settings.json`; the model menu merges the current settings value, Antigravity's documented reasoning models, and models observed in local CLI logs. Each locked instance uses its own state files (`data/sessions.codex.json`, `data/sessions.claude.json`, `data/sessions.antigravity.json`) and its own process lock, so channel/session context does not mix across bots.
 
 ## Configuration (.env)
 
@@ -135,7 +135,7 @@ Important knobs:
 - `ANTIGRAVITY__*`: Antigravity bot section in the same `.env` (normally `ANTIGRAVITY__DISCORD_TOKEN`, plus optional `ANTIGRAVITY__DEFAULT_MODE`, `ANTIGRAVITY__DEFAULT_WORKSPACE_DIR`, `ANTIGRAVITY__SLASH_PREFIX`)
 - `BOT_PROVIDER`: leave empty for shared mode, or set `codex` / `claude` / `antigravity` to lock one bot instance to a single provider; `npm run start:codex` / `npm run start:claude` / `npm run start:antigravity` set this automatically
 - `ENV_FILE`: optional extra overlay file if you really need one, but the normal setup is now a single grouped `.env`
-- `DISCORD_TOKEN_CODEX` / `DISCORD_TOKEN_CLAUDE` / `DISCORD_TOKEN_GEMINI`: legacy fallback for older single-file setups
+- `DISCORD_TOKEN_CODEX` / `DISCORD_TOKEN_CLAUDE`: legacy fallback for older single-file setups
 - Provider auth is outside this project's config surface; keep CLI-specific login or secrets outside this `.env` unless you intentionally need them for your own runtime
 - `SECURITY_PROFILE`: `auto | solo | team | public`
   - `auto`: DM -> `solo`; guild channel where `@everyone` can view -> `public`; else `team`
@@ -158,7 +158,7 @@ Important knobs:
 - `WORKSPACE_ROOT`: legacy fallback root used only when neither thread override nor provider default is configured
 - `CODEX_BIN`: codex command/path (default `codex`)
 - `CLAUDE_BIN`: claude command/path (default `claude`)
-- `ANTIGRAVITY_BIN`: agy command/path (default `agy`; `GEMINI_BIN` still works as a legacy fallback)
+- `ANTIGRAVITY_BIN`: agy command/path (default `agy`)
 - Codex provider defaults for `model`, `effort`, and `fast mode` are read from `~/.codex/config.toml`; unless `[features].fast_mode = false` is set explicitly, fast mode defaults to on, and channel-level `!model`, `!effort`, and `!fast` only override the current thread
 - `CODEX_TIMEOUT_MS`: default runner hard timeout (ms). Today all three providers share this default; `0` disables timeout, and `/cx_timeout` / `!timeout` can still override it per thread.
 - `PROGRESS_UPDATES_ENABLED`: enable/disable live progress updates in channel (default `true`)

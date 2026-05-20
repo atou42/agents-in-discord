@@ -538,7 +538,7 @@ export function readProviderModelCatalog({
   if (normalized === 'claude') {
     return readClaudeModelCatalog({ claudeBin, env, execFileSyncFn, now, ttlMs });
   }
-  if (normalized === 'gemini' || normalized === 'agy' || normalized === 'antigravity') {
+  if (normalized === 'agy' || normalized === 'antigravity') {
     return readAntigravityModelCatalog({ env, now, ttlMs });
   }
   return { models: [], error: null };
@@ -638,13 +638,12 @@ export function normalizeSlashPrefix(value) {
 export function renderMissingDiscordTokenHint({ botProvider = null, env = process.env } = {}) {
   if (botProvider) {
     const providerKey = String(botProvider || '').trim().toUpperCase();
-    const legacy = providerKey === 'ANTIGRAVITY' ? ' or DISCORD_TOKEN_GEMINI' : '';
-    return `Missing Discord token in environment (${`DISCORD_TOKEN_${providerKey}`}${legacy} or DISCORD_TOKEN)`;
+    return `Missing Discord token in environment (${`DISCORD_TOKEN_${providerKey}`} or DISCORD_TOKEN)`;
   }
 
   const hasCodexScopedToken = Boolean(String(env.CODEX__DISCORD_TOKEN || env.DISCORD_TOKEN_CODEX || '').trim());
   const hasClaudeScopedToken = Boolean(String(env.CLAUDE__DISCORD_TOKEN || env.DISCORD_TOKEN_CLAUDE || '').trim());
-  const hasAntigravityScopedToken = Boolean(String(env.ANTIGRAVITY__DISCORD_TOKEN || env.DISCORD_TOKEN_ANTIGRAVITY || env.GEMINI__DISCORD_TOKEN || env.DISCORD_TOKEN_GEMINI || '').trim());
+  const hasAntigravityScopedToken = Boolean(String(env.ANTIGRAVITY__DISCORD_TOKEN || env.DISCORD_TOKEN_ANTIGRAVITY || '').trim());
 
   if (hasCodexScopedToken || hasClaudeScopedToken || hasAntigravityScopedToken) {
     const availableProviders = [

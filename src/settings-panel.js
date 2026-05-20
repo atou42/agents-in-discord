@@ -1324,7 +1324,7 @@ function formatOverviewSection(snapshot) {
         commandActions.setModel?.(session, selectedModel);
         closeRuntimeForKey(key);
       } else if (parsed.target === 'provider' && !botProvider) {
-        commandActions.setProvider?.(session, parsed.value === 'gemini' ? 'antigravity' : parsed.value);
+        commandActions.setProvider?.(session, parsed.value);
         closeRuntimeForKey(key);
       } else if (parsed.target === 'profile') {
         commandActions.setCodexProfile?.(session, parsed.value === 'follow' ? null : parsed.value);

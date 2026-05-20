@@ -55,10 +55,10 @@ import {
   findLatestClaudeSessionFileBySessionId,
   findLatestRolloutFileBySessionId,
   listRecentSessions as listRecentProviderSessions,
+  readAntigravitySessionState,
   readClaudeSessionMetaBySessionId,
   readCodexSessionMetaBySessionId,
-  readGeminiSessionState,
-  resolveGeminiProjectRootBySessionId,
+  resolveAntigravityProjectRootBySessionId,
 } from './provider-sessions.js';
 import { stopChildProcess } from './channel-runtime.js';
 import { loadRuntimeEnv } from './env-loader.js';
@@ -186,16 +186,6 @@ const BOT_MODE = describeBotMode(BOT_PROVIDER);
 const DATA_FILE = path.join(DATA_DIR, appendProviderSuffix('sessions.json', BOT_PROVIDER));
 const LOCK_FILE = path.join(DATA_DIR, appendProviderSuffix('bot.lock', BOT_PROVIDER));
 
-function importLegacyAntigravityDataFile() {
-  if (BOT_PROVIDER !== 'antigravity') return;
-  const legacyFile = path.join(DATA_DIR, 'sessions.gemini.json');
-  if (DATA_FILE === legacyFile || fs.existsSync(DATA_FILE) || !fs.existsSync(legacyFile)) return;
-  const raw = fs.readFileSync(legacyFile, 'utf8');
-  JSON.parse(raw);
-  fs.writeFileSync(DATA_FILE, raw);
-  console.warn(`⚠️ Imported legacy Gemini state into ${path.relative(ROOT, DATA_FILE)}; kept ${path.relative(ROOT, legacyFile)} for compatibility.`);
-}
-
 if (envState.loadedFiles.length) {
   const rendered = envState.loadedFiles
     .map((filePath) => path.relative(ROOT, filePath) || path.basename(filePath))
@@ -281,7 +271,7 @@ const SHARED_CHILD_THREAD_WORKSPACE_MODE = process.env.CHILD_THREAD_WORKSPACE_MO
 const PROVIDER_CHILD_THREAD_WORKSPACE_MODE_OVERRIDES = {
   codex: process.env.CODEX__CHILD_THREAD_WORKSPACE_MODE,
   claude: process.env.CLAUDE__CHILD_THREAD_WORKSPACE_MODE,
-  antigravity: process.env.ANTIGRAVITY__CHILD_THREAD_WORKSPACE_MODE || process.env.GEMINI__CHILD_THREAD_WORKSPACE_MODE,
+  antigravity: process.env.ANTIGRAVITY__CHILD_THREAD_WORKSPACE_MODE,
 };
 const {
   resolve: resolveChildThreadWorkspaceMode,
@@ -296,7 +286,7 @@ const SHARED_DEFAULT_WORKSPACE_DIR = resolveConfiguredWorkspaceDir(process.env.D
 const PROVIDER_DEFAULT_WORKSPACE_OVERRIDES = {
   codex: resolveConfiguredWorkspaceDir(process.env.CODEX__DEFAULT_WORKSPACE_DIR),
   claude: resolveConfiguredWorkspaceDir(process.env.CLAUDE__DEFAULT_WORKSPACE_DIR),
-  antigravity: resolveConfiguredWorkspaceDir(process.env.ANTIGRAVITY__DEFAULT_WORKSPACE_DIR || process.env.GEMINI__DEFAULT_WORKSPACE_DIR),
+  antigravity: resolveConfiguredWorkspaceDir(process.env.ANTIGRAVITY__DEFAULT_WORKSPACE_DIR),
 };
 const {
   resolve: resolveProviderDefaultWorkspace,
@@ -339,7 +329,7 @@ const TASK_RETRY_MAX_DELAY_MS = Math.max(
 );
 const CODEX_BIN = (process.env.CODEX_BIN || 'codex').trim() || 'codex';
 const CLAUDE_BIN = (process.env.CLAUDE_BIN || 'claude').trim() || 'claude';
-const ANTIGRAVITY_BIN = (process.env.ANTIGRAVITY_BIN || process.env.GEMINI_BIN || 'agy').trim() || 'agy';
+const ANTIGRAVITY_BIN = (process.env.ANTIGRAVITY_BIN || 'agy').trim() || 'agy';
 const SHOW_REASONING = String(process.env.SHOW_REASONING || 'false').toLowerCase() === 'true';
 const DEBUG_EVENTS = String(process.env.DEBUG_EVENTS || 'false').toLowerCase() === 'true';
 const PROGRESS_UPDATES_ENABLED = String(process.env.PROGRESS_UPDATES_ENABLED || 'true').toLowerCase() !== 'false';
@@ -465,7 +455,6 @@ const getProjectUpgradeStatus = (options = {}) => (
 
 ensureDir(DATA_DIR);
 ensureDir(WORKSPACE_ROOT);
-importLegacyAntigravityDataFile();
 
 const bootCliHealth = getCliHealth(DEFAULT_PROVIDER);
 if (bootCliHealth.ok) {
@@ -558,7 +547,7 @@ const appContext = createAppContext({
     readCodexDefaults,
     writeCodexDefaults,
     readCodexSessionMetaBySessionId,
-    resolveGeminiProjectRootBySessionId,
+    resolveAntigravityProjectRootBySessionId,
     formatProviderSessionLabel,
     formatRecentSessionsTitle,
     formatRecentSessionsLookup,
@@ -617,7 +606,7 @@ const appContext = createAppContext({
       stopChildProcess,
       extractAgentMessageText,
       isFinalAnswerLikeAgentMessage,
-      readGeminiSessionState,
+      readAntigravitySessionState,
       applyProviderModelSetting: ({ provider, modelSetting }) => {
         if (normalizeProvider(provider) !== 'antigravity') return null;
         return writeAntigravityModelSetting({

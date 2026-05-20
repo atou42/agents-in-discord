@@ -16,12 +16,12 @@ function createFormatters(overrides = {}) {
     normalizeUiLanguage: (value) => (String(value || '').trim().toLowerCase() === 'en' ? 'en' : 'zh'),
     getSessionProvider: (session) => session?.provider || 'codex',
     getProviderDisplayName: (provider) => {
-      if (provider === 'antigravity' || provider === 'gemini') return 'Antigravity CLI';
+      if (provider === 'antigravity' || provider === 'antigravity') return 'Antigravity CLI';
       if (provider === 'claude') return 'Claude Code';
       return 'Codex CLI';
     },
     getProviderShortName: (provider) => {
-      if (provider === 'antigravity' || provider === 'gemini') return 'Antigravity';
+      if (provider === 'antigravity' || provider === 'antigravity') return 'Antigravity';
       if (provider === 'claude') return 'Claude';
       return 'Codex';
     },
@@ -33,7 +33,7 @@ function createFormatters(overrides = {}) {
     providerSupportsRawConfigOverrides: (provider) => provider === 'codex',
     formatProviderSessionTerm: (provider) => {
       if (provider === 'claude') return 'project session';
-      if (provider === 'antigravity' || provider === 'gemini') return 'conversation';
+      if (provider === 'antigravity' || provider === 'antigravity') return 'conversation';
       return 'rollout session';
     },
     formatProviderRuntimeSummary: (provider) => `runtime:${provider}`,
@@ -43,7 +43,7 @@ function createFormatters(overrides = {}) {
     formatProviderRawConfigSurface: (provider) => `config:${provider}`,
     formatProviderReasoningSurface: (provider) => `reasoning:${provider}`,
     getSupportedReasoningEffortLevels: (provider) => {
-      if (provider === 'antigravity' || provider === 'gemini') return [];
+      if (provider === 'antigravity' || provider === 'antigravity') return [];
       if (provider === 'claude') return ['low', 'medium', 'high'];
       return ['low', 'medium', 'high', 'xhigh'];
     },
@@ -56,7 +56,7 @@ function createFormatters(overrides = {}) {
       value: session?.codexProfile || session?.inheritedCodexProfile || null,
       source: session?.codexProfileSource
         || (session?.codexProfile ? 'session override' : (session?.inheritedCodexProfile ? 'parent channel' : 'provider default')),
-      supported: session?.provider !== 'claude' && session?.provider !== 'antigravity' && session?.provider !== 'gemini',
+      supported: session?.provider !== 'claude' && session?.provider !== 'antigravity' && session?.provider !== 'antigravity',
       valid: session?.codexProfileValid !== false,
       isExplicit: Boolean(session?.codexProfile || session?.inheritedCodexProfile),
       error: session?.codexProfileError || null,
@@ -85,7 +85,7 @@ function createFormatters(overrides = {}) {
     resolveTimeoutSetting: () => ({ timeoutMs: 60_000, source: 'session override' }),
     resolveFastModeSetting: (session) => ({
       enabled: session?.fastMode ?? true,
-      supported: session?.provider !== 'claude' && session?.provider !== 'antigravity' && session?.provider !== 'gemini',
+      supported: session?.provider !== 'claude' && session?.provider !== 'antigravity' && session?.provider !== 'antigravity',
       source: session?.fastMode === null || session?.fastMode === undefined ? 'config.toml' : 'session override',
     }),
     getEffectiveSecurityProfile: () => ({ profile: 'public', source: 'session override' }),
@@ -528,29 +528,29 @@ test('createReportFormatters config helpers and reports remain available from on
   const formatters = createFormatters();
 
   const compactHelp = formatters.formatCompactStrategyConfigHelp('en');
-  const geminiCompactHelp = formatters.formatCompactStrategyConfigHelp('en', 'gemini');
+  const antigravityCompactHelp = formatters.formatCompactStrategyConfigHelp('en', 'antigravity');
   const compactReport = formatters.formatCompactConfigReport('zh', {}, true);
-  const geminiCompactReport = formatters.formatCompactConfigReport('en', { provider: 'gemini', language: 'en' }, false);
+  const antigravityCompactReport = formatters.formatCompactConfigReport('en', { provider: 'antigravity', language: 'en' }, false);
   const timeoutHelp = formatters.formatTimeoutConfigHelp('en');
   const languageReport = formatters.formatLanguageConfigReport('en', true);
   const profileReport = formatters.formatProfileConfigReport('zh', 'team', false);
   const effortHelp = formatters.formatReasoningEffortHelp('zh', 'claude');
-  const geminiEffortHelp = formatters.formatReasoningEffortHelp('en', 'gemini');
+  const antigravityEffortHelp = formatters.formatReasoningEffortHelp('en', 'antigravity');
 
   assert.match(compactHelp, /\/bot-compact key:<\.\.\.> value:<\.\.\.>/);
   assert.match(compactHelp, /native_limit/);
   assert.doesNotMatch(compactHelp, /compact continue/);
   assert.match(compactHelp, /continue automatically/);
-  assert.match(geminiCompactHelp, /!compact <status\|strategy\|token_limit\|enabled\|reset>/);
+  assert.match(antigravityCompactHelp, /!compact <status\|strategy\|token_limit\|enabled\|reset>/);
   assert.match(compactReport, /compact 配置已更新/);
   assert.match(compactReport, /策略:native（频道覆盖）/);
   assert.doesNotMatch(compactReport, /!compact continue/);
   assert.match(compactReport, /bot 会明确显示新的 session id/);
-  assert.match(geminiCompactReport, /native compact: provider default behavior/);
-  assert.doesNotMatch(geminiCompactReport, /native compact limit:/);
+  assert.match(antigravityCompactReport, /native compact: provider default behavior/);
+  assert.doesNotMatch(antigravityCompactReport, /native compact limit:/);
   assert.match(timeoutHelp, /\/bot-timeout <ms\|off\|status>/);
   assert.equal(languageReport, '✅ Message language set to en (English)');
   assert.equal(profileReport, 'ℹ️ 当前安全策略 profile 为 team');
   assert.equal(effortHelp, '用法：`!effort <high|medium|low|default>`');
-  assert.match(geminiEffortHelp, /does not expose reasoning effort/);
+  assert.match(antigravityEffortHelp, /does not expose reasoning effort/);
 });

@@ -5,10 +5,6 @@ import {
 
 export { parseOptionalProvider };
 
-function getLegacyProviderAliases(provider) {
-  return provider === 'antigravity' ? ['gemini'] : [];
-}
-
 export function resolveProviderScopedEnv(envKey, provider = null, env = process.env) {
   const lockedProvider = parseOptionalProvider(provider);
   if (lockedProvider) {
@@ -19,16 +15,6 @@ export function resolveProviderScopedEnv(envKey, provider = null, env = process.
     const scopedKey = `${envKey}_${lockedProvider.toUpperCase()}`;
     const scopedValue = String(env?.[scopedKey] || '').trim();
     if (scopedValue) return scopedValue;
-
-    for (const legacyProvider of getLegacyProviderAliases(lockedProvider)) {
-      const legacyProviderPrefixKey = `${legacyProvider.toUpperCase()}__${envKey}`;
-      const legacyProviderPrefixValue = String(env?.[legacyProviderPrefixKey] || '').trim();
-      if (legacyProviderPrefixValue) return legacyProviderPrefixValue;
-
-      const legacyScopedKey = `${envKey}_${legacyProvider.toUpperCase()}`;
-      const legacyScopedValue = String(env?.[legacyScopedKey] || '').trim();
-      if (legacyScopedValue) return legacyScopedValue;
-    }
   }
 
   const fallbackValue = String(env?.[envKey] || '').trim();
@@ -58,6 +44,5 @@ export function describeBotMode(provider = null) {
 }
 
 export function getDefaultSlashPrefix(provider = null) {
-  if (String(provider || '').trim().toLowerCase() === 'gemini') return 'gm';
   return getProviderDefaultSlashPrefix(provider);
 }

@@ -562,7 +562,7 @@ test('session-settings provides compact descriptions and provider defaults', () 
   assert.equal(normalizeCompactStrategy('weird', { logger: { warn: (line) => warnings.push(line) } }), 'hard');
   assert.match(warnings[0], /Unknown COMPACT_STRATEGY=weird/);
   assert.equal(describeCompactStrategy('native', 'zh'), 'native（由 provider CLI 原生压缩并继续当前 session）');
-  assert.deepEqual(settings.resolveCompactStrategySetting({ provider: 'gemini' }), {
+  assert.deepEqual(settings.resolveCompactStrategySetting({ provider: 'antigravity' }), {
     strategy: 'native',
     source: 'env default',
   });
@@ -574,7 +574,7 @@ test('session-settings provides compact descriptions and provider defaults', () 
     fastMode: true,
     source: 'config.toml',
   });
-  assert.deepEqual(settings.getProviderDefaults('gemini'), {
+  assert.deepEqual(settings.getProviderDefaults('antigravity'), {
     model: 'Claude Opus 4.6 (Thinking)',
     modelConfigured: true,
     profile: null,
@@ -612,11 +612,11 @@ test('session-settings uses DEFAULT_MODEL only where the provider supports share
     value: 'gpt-5.4',
     source: 'env default',
   });
-  assert.deepEqual(settings.resolveModelSetting({ provider: 'gemini', model: null }), {
+  assert.deepEqual(settings.resolveModelSetting({ provider: 'antigravity', model: null }), {
     value: null,
     source: 'provider',
   });
-  assert.deepEqual(settings.getProviderDefaults('gemini'), {
+  assert.deepEqual(settings.getProviderDefaults('antigravity'), {
     model: null,
     modelConfigured: false,
     profile: null,
@@ -633,9 +633,9 @@ test('session-settings uses DEFAULT_MODEL only where the provider supports share
 
 test('session-settings resolves Antigravity model from session parent and settings.json', () => {
   const parentSession = {
-    provider: 'gemini',
+    provider: 'antigravity',
     providers: {
-      gemini: {
+      antigravity: {
         model: 'Gemini 3.5 Flash (High)',
       },
     },
@@ -651,11 +651,11 @@ test('session-settings resolves Antigravity model from session parent and settin
     normalizeProvider: testNormalizeProvider,
   });
 
-  assert.deepEqual(settings.resolveModelSetting({ provider: 'gemini', model: 'Gemini 3.5 Pro' }), {
+  assert.deepEqual(settings.resolveModelSetting({ provider: 'antigravity', model: 'Gemini 3.5 Pro' }), {
     value: 'Gemini 3.5 Pro',
     source: 'session override',
   });
-  assert.deepEqual(settings.resolveModelSetting({ provider: 'gemini', model: null, parentChannelId: 'parent-1' }), {
+  assert.deepEqual(settings.resolveModelSetting({ provider: 'antigravity', model: null, parentChannelId: 'parent-1' }), {
     value: 'Gemini 3.5 Flash (High)',
     source: 'parent channel',
   });
@@ -669,7 +669,7 @@ test('session-settings resolves Antigravity model from session parent and settin
     }),
     normalizeProvider: testNormalizeProvider,
   });
-  assert.deepEqual(providerSettings.resolveModelSetting({ provider: 'gemini', model: null }), {
+  assert.deepEqual(providerSettings.resolveModelSetting({ provider: 'antigravity', model: null }), {
     value: 'Claude Opus 4.6 (Thinking)',
     source: 'settings.json',
   });

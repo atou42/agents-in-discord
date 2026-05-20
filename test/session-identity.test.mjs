@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { createSessionIdentityHelpers } from '../src/session-identity.js';
 
 test('createSessionIdentityHelpers normalizes provider and session ids', () => {
-  const helpers = createSessionIdentityHelpers({ defaultProvider: 'gemini' });
+  const helpers = createSessionIdentityHelpers({ defaultProvider: 'antigravity' });
   const session = {
     provider: 'Claude',
     runnerSessionId: ' sess-1 ',

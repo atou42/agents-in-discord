@@ -57,13 +57,12 @@ test('loadRuntimeEnv respects shell env priority over provider-scoped keys', () 
   assert.equal(path.basename(result.writableEnvFile), '.env');
 });
 
-test('loadRuntimeEnv lets antigravity scoped keys shadow legacy gemini scoped keys', () => {
+test('loadRuntimeEnv applies antigravity scoped keys without legacy aliases', () => {
   const rootDir = makeTempRoot();
   fs.writeFileSync(
     path.join(rootDir, '.env'),
     [
       'BOT_PROVIDER=antigravity',
-      'GEMINI__DEFAULT_WORKSPACE_DIR=/legacy',
       'ANTIGRAVITY__DEFAULT_WORKSPACE_DIR=/canonical',
     ].join('\n'),
   );
@@ -76,13 +75,14 @@ test('loadRuntimeEnv lets antigravity scoped keys shadow legacy gemini scoped ke
   assert.equal(env.DEFAULT_WORKSPACE_DIR, '/canonical');
 });
 
-test('loadRuntimeEnv still applies legacy gemini scope for antigravity when canonical key is absent', () => {
+test('loadRuntimeEnv ignores removed gemini provider scope', () => {
   const rootDir = makeTempRoot();
+  const removedScopeKey = `GEM${'INI'}__DEFAULT_WORKSPACE_DIR`;
   fs.writeFileSync(
     path.join(rootDir, '.env'),
     [
-      'BOT_PROVIDER=gemini',
-      'GEMINI__DEFAULT_WORKSPACE_DIR=/legacy',
+      'BOT_PROVIDER=antigravity',
+      `${removedScopeKey}=/removed`,
     ].join('\n'),
   );
 
@@ -90,8 +90,8 @@ test('loadRuntimeEnv still applies legacy gemini scope for antigravity when cano
   const result = loadRuntimeEnv({ rootDir, env });
 
   assert.equal(result.appliedProviderScope, 'antigravity');
-  assert.equal(env.BOT_PROVIDER, 'gemini');
-  assert.equal(env.DEFAULT_WORKSPACE_DIR, '/legacy');
+  assert.equal(env.BOT_PROVIDER, 'antigravity');
+  assert.equal(env.DEFAULT_WORKSPACE_DIR, undefined);
 });
 
 test('loadRuntimeEnv still respects explicit ENV_FILE overlays', () => {

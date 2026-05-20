@@ -74,7 +74,6 @@ function createFlow({
       codex: 'Codex CLI',
       claude: 'Claude Code',
       antigravity: 'Antigravity CLI',
-      gemini: 'Antigravity CLI',
     }[provider] || provider),
     getCliHealth: (provider) => ({ ok: true, version: '1.2.3', bin: provider }),
     resolveSecurityContext: () => ({ mentionOnly: false }),

@@ -40,7 +40,7 @@ const PROVIDER_METADATA = Object.freeze({
     }),
   }),
   antigravity: Object.freeze({
-    aliases: Object.freeze(['antigravity', 'agy', 'gemini', 'google']),
+    aliases: Object.freeze(['antigravity', 'agy']),
     displayName: 'Antigravity CLI',
     shortName: 'Antigravity',
     defaultBin: 'agy',

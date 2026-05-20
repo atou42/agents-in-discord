@@ -193,6 +193,5 @@ export function createRunnerArgsBuilder({
     buildCodexArgs,
     buildClaudeArgs,
     buildAntigravityArgs,
-    buildGeminiArgs: buildAntigravityArgs,
   };
 }

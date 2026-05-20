@@ -15,7 +15,7 @@ function normalizeProvider(value) {
 function normalizeProviderWithAntigravity(value) {
   const raw = String(value || '').trim().toLowerCase();
   if (raw === 'claude') return 'claude';
-  if (raw === 'antigravity' || raw === 'gemini' || raw === 'google' || raw === 'agy') return 'antigravity';
+  if (raw === 'antigravity' || raw === 'agy') return 'antigravity';
   return 'codex';
 }
 
@@ -521,14 +521,14 @@ test('createSessionStore projects current provider state and preserves other pro
   assert.equal(persisted.threads['thread-1'].providers.codex.model, 'gpt-5.3-codex');
 });
 
-test('createSessionStore migrates legacy gemini provider bucket to antigravity without losing session id', () => {
+test('createSessionStore keeps canonical antigravity provider state', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-cli-discord-session-store-'));
   const dataFile = path.join(root, 'sessions.json');
   const workspaceRoot = path.join(root, 'workspaces');
   fs.writeFileSync(dataFile, JSON.stringify({
     threads: {
       'thread-1': {
-        provider: 'gemini',
+        provider: 'antigravity',
         runnerSessionId: 'agy-conv-1',
         codexThreadId: 'agy-conv-1',
         model: 'Claude Opus 4.6 (Thinking)',
@@ -536,7 +536,7 @@ test('createSessionStore migrates legacy gemini provider bucket to antigravity w
         language: 'zh',
         onboardingEnabled: true,
         providers: {
-          gemini: {
+          antigravity: {
             runnerSessionId: 'agy-conv-1',
             codexThreadId: 'agy-conv-1',
             model: 'Claude Opus 4.6 (Thinking)',
@@ -573,17 +573,16 @@ test('createSessionStore migrates legacy gemini provider bucket to antigravity w
   assert.equal(session.model, 'Claude Opus 4.6 (Thinking)');
   assert.ok(persisted.threads['thread-1'].providers.antigravity);
   assert.equal(persisted.threads['thread-1'].providers.antigravity.runnerSessionId, 'agy-conv-1');
-  assert.equal(persisted.threads['thread-1'].providers.gemini, undefined);
 });
 
-test('createSessionStore keeps canonical antigravity values when legacy gemini bucket conflicts', () => {
+test('createSessionStore does not merge removed gemini provider state into antigravity', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-cli-discord-session-store-'));
   const dataFile = path.join(root, 'sessions.json');
   const workspaceRoot = path.join(root, 'workspaces');
   fs.writeFileSync(dataFile, JSON.stringify({
     threads: {
       'thread-1': {
-        provider: 'gemini',
+        provider: 'antigravity',
         mode: 'safe',
         language: 'zh',
         onboardingEnabled: true,
@@ -630,7 +629,8 @@ test('createSessionStore keeps canonical antigravity values when legacy gemini b
   assert.equal(session.model, 'new-model');
   assert.equal(persisted.threads['thread-1'].providers.antigravity.runnerSessionId, 'new');
   assert.equal(persisted.threads['thread-1'].providers.gemini, undefined);
-  assert.match(persisted.threads['thread-1'].providerMigrationWarnings.join('\n'), /legacy provider state gemini\.runnerSessionId conflicts/);
+  assert.equal(persisted.threads['thread-1'].providers.codex, undefined);
+  assert.equal(persisted.threads['thread-1'].providerMigrationWarnings, undefined);
 });
 
 test('createSessionStore surfaces malformed state instead of replacing it with empty DB', () => {

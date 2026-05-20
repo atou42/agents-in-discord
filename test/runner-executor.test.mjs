@@ -37,8 +37,8 @@ test('createRunnerExecutor builds Antigravity args instead of codex args', () =>
     session: {
       provider: 'antigravity',
       mode: 'dangerous',
-      model: 'gemini-2.5-pro',
-      runnerSessionId: 'sess-gm-1',
+      model: 'Claude Opus 4.6 (Thinking)',
+      runnerSessionId: 'sess-agy-1',
     },
     workspaceDir: '/tmp/workspace',
     prompt: 'summarize the repo',
@@ -47,7 +47,7 @@ test('createRunnerExecutor builds Antigravity args instead of codex args', () =>
   assert.deepEqual(args, [
     '--dangerously-skip-permissions',
     '--conversation',
-    'sess-gm-1',
+    'sess-agy-1',
     '--prompt',
     'summarize the repo',
   ]);
@@ -78,7 +78,7 @@ test('createRunnerExecutor reads Antigravity stdout and conversation id', async 
     startSessionProgressBridge: () => () => {},
     extractAgentMessageText,
     isFinalAnswerLikeAgentMessage,
-    readGeminiSessionState: () => ({
+    readAntigravitySessionState: () => ({
       sessionId: 'agy-conversation-1',
       messages: [],
       finalAnswer: '',
@@ -135,7 +135,7 @@ test('createRunnerExecutor applies Antigravity model setting before spawning', a
     startSessionProgressBridge: () => () => {},
     extractAgentMessageText,
     isFinalAnswerLikeAgentMessage,
-    readGeminiSessionState: () => null,
+    readAntigravitySessionState: () => null,
     spawnFn: () => {
       spawned = true;
       setImmediate(() => {

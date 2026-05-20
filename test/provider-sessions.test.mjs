@@ -9,66 +9,9 @@ import {
   listRecentSessions,
   readClaudeSessionMetaBySessionId,
   readCodexSessionMetaBySessionId,
-  readGeminiSessionState,
-  resolveGeminiProjectRootBySessionId,
+  readAntigravitySessionState,
+  resolveAntigravityProjectRootBySessionId,
 } from '../src/provider-sessions.js';
-
-test('provider-sessions reads gemini session state from project-scoped files', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agents-in-discord-gemini-'));
-  const workspaceDir = path.join(root, 'workspace');
-  fs.mkdirSync(workspaceDir, { recursive: true });
-
-  const previousHome = process.env.HOME;
-  process.env.HOME = root;
-
-  try {
-    const geminiRoot = path.join(root, '.gemini');
-    const slug = '-tmp-workspace';
-    const projectDir = path.join(geminiRoot, 'tmp', slug);
-    const chatsDir = path.join(projectDir, 'chats');
-    fs.mkdirSync(chatsDir, { recursive: true });
-    fs.writeFileSync(path.join(geminiRoot, 'projects.json'), JSON.stringify({
-      projects: {
-        [path.resolve(workspaceDir)]: slug,
-      },
-    }, null, 2));
-    fs.writeFileSync(path.join(projectDir, '.project_root'), `${path.resolve(workspaceDir)}\n`);
-
-    const sessionId = '03c6d6dd-8920-42a6-ab7b-883d824ab355';
-    fs.writeFileSync(path.join(chatsDir, 'session-test.json'), JSON.stringify({
-      sessionId,
-      lastUpdated: '2026-03-13T07:54:38.393Z',
-      messages: [
-        { type: 'user', content: [{ text: 'hi' }] },
-        {
-          type: 'gemini',
-          content: 'I will inspect files.',
-          tokens: { input: 10, output: 2, total: 12 },
-        },
-        {
-          type: 'gemini',
-          content: 'Final answer',
-          tokens: { input: 11, output: 3, total: 14 },
-        },
-      ],
-    }, null, 2));
-
-    const recent = listRecentSessions({ provider: 'gemini', workspaceDir, limit: 5 });
-    const sessionState = readGeminiSessionState({ sessionId, workspaceDir });
-
-    assert.equal(recent.length, 1);
-    assert.equal(recent[0].id, sessionId);
-    assert.deepEqual(sessionState.messages, ['I will inspect files.']);
-    assert.equal(sessionState.finalAnswer, 'Final answer');
-    assert.deepEqual(sessionState.usage, { input: 11, output: 3, total: 14 });
-  } finally {
-    if (previousHome === undefined) {
-      delete process.env.HOME;
-    } else {
-      process.env.HOME = previousHome;
-    }
-  }
-});
 
 test('provider-sessions reads Antigravity conversation id from workspace cache', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agents-in-discord-antigravity-'));
@@ -85,10 +28,10 @@ test('provider-sessions reads Antigravity conversation id from workspace cache',
       [path.resolve(workspaceDir)]: conversationId,
     }, null, 2));
 
-    const recent = listRecentSessions({ provider: 'gemini', workspaceDir, limit: 5 });
-    const sessionState = readGeminiSessionState({ workspaceDir });
-    const staleSessionState = readGeminiSessionState({ workspaceDir, notOlderThanMs: Date.now() + 60_000 });
-    const resolved = resolveGeminiProjectRootBySessionId(conversationId, workspaceDir);
+    const recent = listRecentSessions({ provider: 'antigravity', workspaceDir, limit: 5 });
+    const sessionState = readAntigravitySessionState({ workspaceDir });
+    const staleSessionState = readAntigravitySessionState({ workspaceDir, notOlderThanMs: Date.now() + 60_000 });
+    const resolved = resolveAntigravityProjectRootBySessionId(conversationId, workspaceDir);
 
     assert.equal(recent.length, 1);
     assert.equal(recent[0].id, conversationId);
@@ -246,41 +189,6 @@ test('provider-sessions reads claude session meta cwd from project session file'
     const meta = readClaudeSessionMetaBySessionId(sessionId);
     assert.equal(meta.cwd, path.resolve(workspaceDir));
     assert.equal(meta.file, sessionFile);
-  } finally {
-    if (previousHome === undefined) {
-      delete process.env.HOME;
-    } else {
-      process.env.HOME = previousHome;
-    }
-  }
-});
-
-test('provider-sessions resolves gemini project root by session id', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agents-in-discord-gemini-root-'));
-  const workspaceDir = path.join(root, 'workspace');
-  fs.mkdirSync(workspaceDir, { recursive: true });
-
-  const previousHome = process.env.HOME;
-  process.env.HOME = root;
-
-  try {
-    const geminiRoot = path.join(root, '.gemini');
-    const slug = '-tmp-workspace';
-    const projectDir = path.join(geminiRoot, 'tmp', slug);
-    const chatsDir = path.join(projectDir, 'chats');
-    fs.mkdirSync(chatsDir, { recursive: true });
-    fs.writeFileSync(path.join(geminiRoot, 'projects.json'), JSON.stringify({
-      projects: {
-        [path.resolve(workspaceDir)]: slug,
-      },
-    }, null, 2));
-    fs.writeFileSync(path.join(projectDir, '.project_root'), `${path.resolve(workspaceDir)}\n`);
-
-    const sessionId = '03c6d6dd-8920-42a6-ab7b-883d824ab355';
-    fs.writeFileSync(path.join(chatsDir, 'session-test.json'), JSON.stringify({ sessionId }, null, 2));
-
-    const resolved = resolveGeminiProjectRootBySessionId(sessionId, workspaceDir);
-    assert.equal(resolved, path.resolve(workspaceDir));
   } finally {
     if (previousHome === undefined) {
       delete process.env.HOME;

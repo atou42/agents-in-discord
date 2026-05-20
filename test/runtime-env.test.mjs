@@ -82,7 +82,7 @@ test('createProviderDefaultWorkspaceStore.set updates env and persists provider-
     providerDefaultWorkspaceOverrides: {
       codex: null,
       claude: null,
-      gemini: null,
+      antigravity: null,
     },
   });
 

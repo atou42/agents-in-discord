@@ -467,7 +467,7 @@ test('readProviderModelCatalog dispatches Claude Antigravity and unknown provide
     model: 'Claude Opus 4.6 (Thinking)',
   }));
   const antigravity = readProviderModelCatalog({
-    provider: 'gemini',
+    provider: 'antigravity',
     env: { HOME: homeDir },
     now: () => 5000,
     ttlMs: 0,
@@ -486,7 +486,7 @@ test('normalizeSlashPrefix trims strips and truncates invalid input', () => {
 test('renderMissingDiscordTokenHint explains provider-scoped and shared token states', () => {
   assert.equal(
     renderMissingDiscordTokenHint({ botProvider: 'antigravity', env: {} }),
-    'Missing Discord token in environment (DISCORD_TOKEN_ANTIGRAVITY or DISCORD_TOKEN_GEMINI or DISCORD_TOKEN)',
+    'Missing Discord token in environment (DISCORD_TOKEN_ANTIGRAVITY or DISCORD_TOKEN)',
   );
   assert.match(
     renderMissingDiscordTokenHint({

@@ -235,13 +235,13 @@ test('createTextCommandHandler reports dequeue permission and started-task failu
 
 test('createTextCommandHandler rejects only unsupported compact actions for non-native providers', async () => {
   const replies = [];
-  const session = { provider: 'gemini' };
+  const session = { provider: 'antigravity' };
 
   const handleCommand = createTextCommandHandler({
     getSession: () => session,
     getSessionProvider: (currentSession) => currentSession.provider,
     getSessionLanguage: () => 'zh',
-    getProviderDisplayName: (provider) => provider === 'gemini' ? 'Antigravity CLI' : provider,
+    getProviderDisplayName: (provider) => provider === 'antigravity' ? 'Antigravity CLI' : provider,
     parseCompactConfigFromText: () => ({ type: 'set_strategy', strategy: 'native' }),
     providerSupportsCompactConfigAction: () => false,
     formatCompactConfigUnsupported: () => '⚠️ 当前 provider Antigravity CLI 不支持 `native` 压缩。',
@@ -580,12 +580,12 @@ test('createTextCommandHandler creates native Claude fork from text command', as
 
 test('createTextCommandHandler rejects fork for providers without native fork', async () => {
   const replies = [];
-  const session = { provider: 'gemini', language: 'zh' };
+  const session = { provider: 'antigravity', language: 'zh' };
   const handleCommand = createTextCommandHandler({
     getSession: () => session,
     getSessionProvider: (currentSession) => currentSession.provider,
     getSessionLanguage: () => 'zh',
-    getProviderDisplayName: () => 'Gemini',
+    getProviderDisplayName: () => 'Antigravity',
     async forkCodexThread() {
       throw new Error('should not fork');
     },

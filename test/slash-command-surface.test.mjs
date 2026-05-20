@@ -187,22 +187,22 @@ test('buildSlashCommands gives provider-native alias descriptions to session ali
 test('buildSlashCommands narrows locked-provider surfaces to native aliases and supported knobs', () => {
   const commands = buildSlashCommands({
     SlashCommandBuilder: MockSlashCommandBuilder,
-    slashPrefix: 'gm',
-    botProvider: 'gemini',
+    slashPrefix: 'ag',
+    botProvider: 'antigravity',
   }).map((command) => command.toJSON());
 
   const names = commands.map((command) => command.name);
-  const compact = commands.find((command) => command.name === 'gm_compact');
-  const sessions = commands.find((command) => command.name === 'gm_sessions');
-  const resume = commands.find((command) => command.name === 'gm_resume');
+  const compact = commands.find((command) => command.name === 'ag_compact');
+  const sessions = commands.find((command) => command.name === 'ag_sessions');
+  const resume = commands.find((command) => command.name === 'ag_resume');
 
-  assert.ok(!names.includes('gm_provider'));
-  assert.ok(!names.includes('gm_fork'));
-  assert.ok(!names.includes('gm_effort'));
-  assert.ok(names.includes('gm_chat_sessions'));
-  assert.ok(!names.includes('gm_project_sessions'));
-  assert.ok(names.includes('gm_chat_resume'));
-  assert.ok(!names.includes('gm_rollout_resume'));
+  assert.ok(!names.includes('ag_provider'));
+  assert.ok(!names.includes('ag_fork'));
+  assert.ok(!names.includes('ag_effort'));
+  assert.ok(names.includes('ag_chat_sessions'));
+  assert.ok(!names.includes('ag_project_sessions'));
+  assert.ok(names.includes('ag_chat_resume'));
+  assert.ok(!names.includes('ag_rollout_resume'));
   assert.equal(sessions.description, '列出最近的 conversations');
   assert.equal(resume.description, '继承一个已有的 conversation');
   assert.deepEqual(compact.options[0].choices.map((choice) => choice.value), [
