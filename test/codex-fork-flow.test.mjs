@@ -104,6 +104,78 @@ test('createCodexForkThread uses an optional requested Discord thread name', asy
   assert.deepEqual(setNameCalls, []);
 });
 
+test('createCodexForkThread replays the latest parent agent message into the fork thread', async () => {
+  const childSession = {};
+  const threadMessages = [];
+  const parentMessages = new Map([
+    ['agent-old', {
+      id: 'agent-old',
+      createdTimestamp: 1000,
+      author: { id: 'bot-1', bot: true },
+      content: 'older answer',
+    }],
+    ['user-later', {
+      id: 'user-later',
+      createdTimestamp: 2000,
+      author: { id: 'user-1', bot: false },
+      content: 'thanks',
+    }],
+    ['agent-latest', {
+      id: 'agent-latest',
+      createdTimestamp: 3000,
+      author: { id: 'bot-1', bot: true },
+      content: 'latest agent answer',
+    }],
+  ]);
+
+  const result = await createCodexForkThread({
+    key: 'parent-channel',
+    source: {
+      ...createForkSource(),
+      id: 'source-2',
+      client: { user: { id: 'bot-1' } },
+      channel: {
+        id: 'parent-channel',
+        messages: {
+          async fetch() {
+            return parentMessages;
+          },
+        },
+        threads: {
+          async create() {
+            return {
+              id: 'child-channel',
+              async join() {},
+              async setName() {},
+              async send(payload) {
+                threadMessages.push(payload);
+              },
+            };
+          },
+        },
+      },
+    },
+    parentSessionId: 'parent-session',
+    getSession: () => childSession,
+    commandActions: {
+      bindForkedSession(currentSession, binding) {
+        currentSession.runnerSessionId = binding.sessionId;
+        return binding;
+      },
+    },
+    async forkCodexThread() {
+      return { threadId: 'fork-session' };
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(threadMessages.length, 2);
+  assert.match(threadMessages[0].content, /这是从 Codex session `parent-session` fork 过来的/);
+  assert.match(threadMessages[1].content, /最近一次 agent 输出/);
+  assert.match(threadMessages[1].content, /latest agent answer/);
+  assert.doesNotMatch(threadMessages[1].content, /older answer/);
+});
+
 test('parseForkTextInput treats its only argument as the requested thread name', () => {
   assert.deepEqual(parseForkTextInput('  Demo   fork  '), { threadName: 'Demo fork' });
   assert.deepEqual(parseForkTextInput(''), { threadName: '' });

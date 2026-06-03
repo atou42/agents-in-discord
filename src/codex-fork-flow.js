@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { splitForDiscord } from './discord-message-splitter.js';
 
 const FORKABLE_PROVIDERS = new Set(['codex', 'claude']);
 
@@ -34,6 +35,101 @@ function shortenId(value) {
 
 function getForkRequesterId(source) {
   return String(source?.user?.id || source?.author?.id || '').trim() || null;
+}
+
+function getForkBotUserId(source) {
+  return String(
+    source?.client?.user?.id
+    || source?.channel?.client?.user?.id
+    || source?.guild?.client?.user?.id
+    || '',
+  ).trim() || null;
+}
+
+function normalizeMessageContent(message) {
+  const text = String(message?.content || '').trim();
+  return text || null;
+}
+
+function collectionToArray(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value.values === 'function') return [...value.values()];
+  if (typeof value[Symbol.iterator] === 'function') return [...value].map((entry) => (
+    Array.isArray(entry) && entry.length >= 2 ? entry[1] : entry
+  ));
+  return [];
+}
+
+function compareMessageRecency(a, b) {
+  const aTime = Number(a?.createdTimestamp || 0);
+  const bTime = Number(b?.createdTimestamp || 0);
+  if (aTime !== bTime) return bTime - aTime;
+  try {
+    const aId = BigInt(String(a?.id || '0'));
+    const bId = BigInt(String(b?.id || '0'));
+    if (aId === bId) return 0;
+    return aId > bId ? -1 : 1;
+  } catch {
+    return String(b?.id || '').localeCompare(String(a?.id || ''));
+  }
+}
+
+async function fetchParentMessages(source) {
+  const fetch = source?.channel?.messages?.fetch;
+  if (typeof fetch !== 'function') return [];
+  const options = { limit: 25 };
+  const sourceId = String(source?.id || '').trim();
+  if (sourceId) options.before = sourceId;
+  return collectionToArray(await fetch.call(source.channel.messages, options));
+}
+
+function findLatestParentAgentMessage(messages, source) {
+  const botUserId = getForkBotUserId(source);
+  const sourceId = String(source?.id || '').trim();
+  return messages
+    .filter((message) => {
+      if (!message || String(message.id || '') === sourceId) return false;
+      if (!normalizeMessageContent(message)) return false;
+      const authorId = String(message.author?.id || '').trim();
+      if (botUserId) return authorId === botUserId;
+      return Boolean(message.author?.bot);
+    })
+    .sort(compareMessageRecency)[0] || null;
+}
+
+function formatLatestAgentReplayContent(text, language = 'zh') {
+  const body = String(text || '').trim();
+  if (!body) return [];
+  const title = language === 'en' ? 'Latest agent message:' : '最近一次 agent 输出：';
+  const combined = `${title}\n\n${body}`;
+  const chunks = splitForDiscord(combined, 1900);
+  return chunks.length ? chunks : [combined.slice(0, 1900).trim()];
+}
+
+async function replayLatestParentAgentMessage(childThread, {
+  source,
+  language = 'zh',
+} = {}) {
+  if (typeof childThread?.send !== 'function') {
+    return { ok: false, skipped: true, error: 'child thread cannot send messages' };
+  }
+  try {
+    const latest = findLatestParentAgentMessage(await fetchParentMessages(source), source);
+    const text = normalizeMessageContent(latest);
+    if (!text) return { ok: false, skipped: true, reason: 'no_parent_agent_message' };
+    const messages = [];
+    for (const content of formatLatestAgentReplayContent(text, language)) {
+      messages.push(await childThread.send({ content }));
+    }
+    return { ok: true, sourceMessageId: latest.id || null, messages };
+  } catch (err) {
+    return {
+      ok: false,
+      skipped: false,
+      error: String(err?.message || err || 'unknown error'),
+    };
+  }
 }
 
 export function parseForkTextInput(input) {
@@ -292,6 +388,10 @@ export async function createProviderForkThread({
     forkedSessionId,
     language: session?.language || childSession?.language || 'zh',
   });
+  const latestAgentReplay = await replayLatestParentAgentMessage(childThread, {
+    source,
+    language: session?.language || childSession?.language || 'zh',
+  });
 
   const normalizedPrompt = String(prompt || '').trim();
   let promptQueue = null;
@@ -325,6 +425,7 @@ export async function createProviderForkThread({
     childSession,
     binding,
     notice,
+    latestAgentReplay,
     promptQueue,
   };
 }
@@ -376,6 +477,9 @@ export function formatProviderForkResult(result, language = 'zh') {
   const noticeError = result.notice && !result.notice.ok && !result.notice.skipped
     ? String(result.notice.error || '').trim()
     : '';
+  const replayError = result.latestAgentReplay && !result.latestAgentReplay.ok && !result.latestAgentReplay.skipped
+    ? String(result.latestAgentReplay.error || '').trim()
+    : '';
   if (language === 'en') {
     return [
       promptError
@@ -386,6 +490,7 @@ export function formatProviderForkResult(result, language = 'zh') {
       promptQueued ? `• prompt queued in fork${queuedAhead > 0 ? ` (${queuedAhead} ahead)` : ''}` : null,
       promptError ? `• error: ${promptError}` : null,
       noticeError ? `• notice failed: ${noticeError}` : null,
+      replayError ? `• latest agent message replay failed: ${replayError}` : null,
     ].filter(Boolean).join('\n');
   }
   return [
@@ -397,5 +502,6 @@ export function formatProviderForkResult(result, language = 'zh') {
     promptQueued ? `• prompt 已进入 fork 队列${queuedAhead > 0 ? `，前面还有 ${queuedAhead} 条` : ''}` : null,
     promptError ? `• 错误：${promptError}` : null,
     noticeError ? `• 通知发送失败：${noticeError}` : null,
+    replayError ? `• 最近一次 agent 输出转发失败：${replayError}` : null,
   ].filter(Boolean).join('\n');
 }
