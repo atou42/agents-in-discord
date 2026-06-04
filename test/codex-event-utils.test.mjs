@@ -103,12 +103,12 @@ test('composeFinalAnswerText preserves paragraph structure in final answer', () 
   assert.equal(text, '结论：\n- A\n- B\n\n证据：\n```txt\nx\ny\n```');
 });
 
-test('composeFinalAnswerText falls back to latest message when no final segments', () => {
+test('composeFinalAnswerText does not promote process messages when no final segments exist', () => {
   const text = composeFinalAnswerText({
     messages: ['过程消息 A', '过程消息 B'],
     finalAnswerMessages: [],
   });
-  assert.equal(text, '过程消息 B');
+  assert.equal(text, '');
 });
 
 test('buildProgressEventDedupeKey prefers raw activity and normalizes case/space', () => {

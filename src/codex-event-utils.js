@@ -89,10 +89,7 @@ export function isFinalAnswerLikeAgentMessage(item) {
 export function composeFinalAnswerText({ messages = [], finalAnswerMessages = [] } = {}) {
   const preferred = normalizeTextList(finalAnswerMessages);
   if (preferred.length) return preferred.join('\n\n');
-
-  const fallback = normalizeTextList(messages);
-  if (!fallback.length) return '';
-  return fallback[fallback.length - 1];
+  return '';
 }
 
 export function buildProgressEventDedupeKey({

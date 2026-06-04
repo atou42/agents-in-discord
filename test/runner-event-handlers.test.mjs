@@ -152,6 +152,56 @@ test('handleCodexRunnerEvent captures final answer from bridged session events',
   assert.deepEqual(state.messages, []);
 });
 
+test('handleCodexRunnerEvent does not promote task_complete commentary to final answer', () => {
+  const state = {
+    messages: [],
+    finalAnswerMessages: [],
+    reasonings: [],
+    logs: [],
+    usage: null,
+    threadId: null,
+    meta: {},
+  };
+
+  handleCodexRunnerEvent({
+    type: 'event_msg',
+    payload: {
+      type: 'agent_message',
+      message: '先看工作区和现有文档，确认 cohub 指的是项目还是产品设想。',
+      phase: 'commentary',
+    },
+  }, state, () => {}, {
+    extractAgentMessageText,
+    isFinalAnswerLikeAgentMessage,
+  });
+
+  handleCodexRunnerEvent({
+    type: 'event_msg',
+    payload: {
+      type: 'agent_message',
+      message: '',
+      phase: 'final_answer',
+    },
+  }, state, () => {}, {
+    extractAgentMessageText,
+    isFinalAnswerLikeAgentMessage,
+  });
+
+  handleCodexRunnerEvent({
+    type: 'event_msg',
+    payload: {
+      type: 'task_complete',
+      last_agent_message: '先看工作区和现有文档，确认 cohub 指的是项目还是产品设想。',
+    },
+  }, state, () => {}, {
+    extractAgentMessageText,
+    isFinalAnswerLikeAgentMessage,
+  });
+
+  assert.deepEqual(state.messages, ['先看工作区和现有文档，确认 cohub 指的是项目还是产品设想。']);
+  assert.deepEqual(state.finalAnswerMessages, []);
+});
+
 test('handleCodexRunnerEvent does not surface subagent notification blocks as final answer', () => {
   const state = {
     messages: [],

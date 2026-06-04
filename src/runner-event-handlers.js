@@ -84,6 +84,7 @@ export function handleCodexRunnerEvent(event, state, ensureSessionBridge, {
     }
     case 'task_complete': {
       const text = String(event.last_agent_message || '').trim();
+      if (matchesAnyComparableText(state.messages, text)) break;
       if (text) appendUniqueText(state.finalAnswerMessages, text);
       break;
     }
@@ -194,6 +195,13 @@ function appendUniqueText(list, text) {
 
 function normalizeComparableText(value) {
   return String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function matchesAnyComparableText(list, text) {
+  const normalized = normalizeComparableText(text);
+  if (!normalized) return false;
+  if (!Array.isArray(list)) return false;
+  return list.some((item) => normalizeComparableText(item) === normalized);
 }
 
 function appendClaudeToolResultText(state, event) {
