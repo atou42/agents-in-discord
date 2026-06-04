@@ -293,7 +293,23 @@ export function createPromptOrchestrator({
     return String(text || '').replace(/\s+/g, ' ').trim().toLowerCase();
   }
 
-  function stripStreamedProcessMessagesFromFinalBody(body, channelState) {
+  function isResultMetadataOnly(text) {
+    const lines = String(text || '')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (!lines.length) return true;
+    if (lines[0] !== '—') return false;
+    return lines.slice(1).every((line) => line.startsWith('• '));
+  }
+
+  function formatStreamedProcessOnlyFinalText(language) {
+    return language === 'en'
+      ? '✅ Done (process output was already sent live; no new final text).'
+      : '✅ 完成（过程输出已实时发送，无新增最终文本）。';
+  }
+
+  function stripStreamedProcessMessagesFromFinalBody(body, channelState, { language = 'zh' } = {}) {
     const streamed = Array.isArray(channelState?.activeRun?.streamedProcessActivityKeys)
       ? channelState.activeRun.streamedProcessActivityKeys
       : [];
@@ -319,7 +335,10 @@ export function createPromptOrchestrator({
     }
 
     const stripped = filtered.join('').trim();
-    return stripped || body;
+    if (!stripped || isResultMetadataOnly(stripped)) {
+      return formatStreamedProcessOnlyFinalText(language);
+    }
+    return stripped;
   }
 
   async function sendStreamProcessMessageIfEnabled(message, session, channelState, text) {
@@ -888,6 +907,7 @@ export function createPromptOrchestrator({
       const body = stripStreamedProcessMessagesFromFinalBody(
         composeResultText(result, session),
         channelState,
+        { language },
       );
       const parts = splitForDiscord(body, resultChunkChars);
 

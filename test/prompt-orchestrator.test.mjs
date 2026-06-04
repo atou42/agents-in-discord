@@ -648,6 +648,93 @@ test('createPromptOrchestrator.handlePrompt removes streamed process paragraphs 
   assert.match(replyLog[0], /3 并发已经改好/);
 });
 
+test('createPromptOrchestrator.handlePrompt does not send metadata-only final replies after stripping streamed process text', async () => {
+  let channelStateRef = null;
+  const streamedText = '30 天 guest 邀请生成并校验了，现在把邀请链接嵌到五个 space 卡片里。';
+  const harness = createOrchestrator({
+    resolveReplyDeliverySetting: () => ({ mode: 'stream_mention', source: 'session override' }),
+    composeFinalAnswerText: ({ messages, finalAnswerMessages }) => {
+      if (finalAnswerMessages.length) return finalAnswerMessages.join('\n\n');
+      return messages[messages.length - 1] || '';
+    },
+    runTask: async (options) => {
+      options.onSpawn?.({ pid: 123 });
+      channelStateRef.activeRun.streamedProcessActivityKeys = [streamedText];
+      return {
+        ok: true,
+        cancelled: false,
+        timedOut: false,
+        error: '',
+        logs: [],
+        notes: [],
+        reasonings: [],
+        messages: [streamedText],
+        finalAnswerMessages: [],
+        threadId: 'sess-1',
+        usage: { input_tokens: 321 },
+      };
+    },
+  });
+  const { replyLog, orchestrator } = harness;
+  const message = {
+    id: 'msg-avoid-metadata-only',
+    channel: {
+      async sendTyping() {},
+      async send(payload) {
+        replyLog.push(payload);
+      },
+    },
+  };
+  const channelState = { queue: [], cancelRequested: false, activeRun: null };
+  channelStateRef = channelState;
+
+  const outcome = await orchestrator.handlePrompt(message, 'thread-1', 'do work', channelState);
+
+  assert.deepEqual(outcome, { ok: true, cancelled: false });
+  assert.doesNotMatch(replyLog[0], /30 天 guest 邀请生成并校验了/);
+  assert.doesNotMatch(replyLog[0], /• rollout session: \*\*demo\*\* \(`sess-1`\)/);
+  assert.match(replyLog[0], /过程输出已实时发送/);
+});
+
+test('createPromptOrchestrator.handlePrompt reports no visible final answer instead of promoting process messages', async () => {
+  const harness = createOrchestrator({
+    runTask: async (options) => {
+      options.onSpawn?.({ pid: 123 });
+      return {
+        ok: true,
+        cancelled: false,
+        timedOut: false,
+        error: '',
+        logs: [],
+        notes: [],
+        reasonings: [],
+        messages: ['先看工作区和现有文档，确认 cohub 指的是项目还是产品设想。'],
+        finalAnswerMessages: [],
+        threadId: 'sess-1',
+        usage: { input_tokens: 321 },
+      };
+    },
+  });
+  const { replyLog, orchestrator } = harness;
+  const message = {
+    id: 'msg-no-final-answer',
+    channel: {
+      async sendTyping() {},
+      async send(payload) {
+        replyLog.push(payload);
+      },
+    },
+  };
+  const channelState = { queue: [], cancelRequested: false, activeRun: null };
+
+  const outcome = await orchestrator.handlePrompt(message, 'thread-1', 'do work', channelState);
+
+  assert.deepEqual(outcome, { ok: true, cancelled: false });
+  assert.match(replyLog[0], /Codex 没有返回可见文本/);
+  assert.doesNotMatch(replyLog[0], /先看工作区和现有文档/);
+  assert.match(replyLog[0], /• rollout session: \*\*demo\*\* \(`sess-1`\)/);
+});
+
 test('createPromptOrchestrator.handlePrompt adds retry button after final failure', async () => {
   let runCount = 0;
   const delays = [];
