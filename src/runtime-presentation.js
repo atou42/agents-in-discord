@@ -153,15 +153,16 @@ export function createRuntimePresentation({
     return formatCodexPermissionsLabel(session.mode, language);
   }
 
-  function summarizeCodexEvent(ev) {
+  function summarizeCodexEvent(ev, runtimeOptions = {}) {
     return summarizeCodexEventBase(ev, {
       showReasoning,
       previewChars: progressTextPreviewChars,
+      ...runtimeOptions,
     });
   }
 
-  function extractRawProgressTextFromEvent(ev) {
-    return extractRawProgressTextFromEventBase(ev);
+  function extractRawProgressTextFromEvent(ev, runtimeOptions = {}) {
+    return extractRawProgressTextFromEventBase(ev, runtimeOptions);
   }
 
   function cloneProgressPlan(planState) {
@@ -176,9 +177,10 @@ export function createRuntimePresentation({
     });
   }
 
-  function extractCompletedStepFromEvent(ev) {
+  function extractCompletedStepFromEvent(ev, runtimeOptions = {}) {
     return extractCompletedStepFromEventBase(ev, {
       previewChars: progressTextPreviewChars,
+      ...runtimeOptions,
     });
   }
 

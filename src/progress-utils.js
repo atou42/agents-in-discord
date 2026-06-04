@@ -161,9 +161,19 @@ function compactAgentId(rawId) {
   return id.length <= 14 ? id : id.slice(0, 14);
 }
 
-function formatSubagentLabel({ agentId = '', nickname = '' } = {}) {
+function resolveSubagentNickname(agentId, options = {}) {
+  const id = normalizeWhitespace(agentId);
+  if (!id) return '';
+  const source = options.subagentDisplayNames || options.subagentNames || null;
+  if (!source) return '';
+  if (source instanceof Map) return normalizeWhitespace(source.get(id));
+  if (typeof source === 'object') return normalizeWhitespace(source[id]);
+  return '';
+}
+
+function formatSubagentLabel({ agentId = '', nickname = '' } = {}, options = {}) {
   const compactId = compactAgentId(agentId);
-  const name = normalizeWhitespace(nickname);
+  const name = normalizeWhitespace(nickname) || resolveSubagentNickname(agentId, options);
   if (name && compactId) return `${name} (${compactId})`;
   return name || compactId || 'subagent';
 }
@@ -210,14 +220,14 @@ function extractSubagentTaskPreview(args, options = {}) {
   return '';
 }
 
-function formatSubagentTargets(rawTargets) {
+function formatSubagentTargets(rawTargets, options = {}) {
   const list = Array.isArray(rawTargets)
     ? rawTargets
     : rawTargets
       ? [rawTargets]
       : [];
   const labels = list
-    .map((item) => formatSubagentLabel({ agentId: item }))
+    .map((item) => formatSubagentLabel({ agentId: item }, options))
     .filter(Boolean);
   if (!labels.length) return '';
   if (labels.length <= 2) return labels.join(', ');
@@ -236,24 +246,24 @@ function summarizeSubagentToolCall(toolName, args, options = {}) {
   }
 
   if (normalizedTool === 'send_input') {
-    const target = formatSubagentTargets(args?.target || args?.targets);
+    const target = formatSubagentTargets(args?.target || args?.targets, options);
     const task = extractSubagentTaskPreview(args, options);
     const prefix = target ? `subagent update ${target}` : 'subagent update';
     return task ? `${prefix}: ${task}` : prefix;
   }
 
   if (normalizedTool === 'wait_agent') {
-    const target = formatSubagentTargets(args?.targets || args?.target);
+    const target = formatSubagentTargets(args?.targets || args?.target, options);
     return target ? `waiting for subagent ${target}` : 'waiting for subagent';
   }
 
   if (normalizedTool === 'resume_agent') {
-    const target = formatSubagentTargets(args?.id || args?.target);
+    const target = formatSubagentTargets(args?.id || args?.target, options);
     return target ? `resuming subagent ${target}` : 'resuming subagent';
   }
 
   if (normalizedTool === 'close_agent') {
-    const target = formatSubagentTargets(args?.target);
+    const target = formatSubagentTargets(args?.target, options);
     return target ? `closing subagent ${target}` : 'closing subagent';
   }
 
@@ -284,7 +294,7 @@ function extractSubagentStatusInfo(status) {
   };
 }
 
-function summarizeSubagentToolOutput(payload) {
+function summarizeSubagentToolOutput(payload, options = {}) {
   const output = extractFunctionCallOutputObject(payload);
   if (!output) return '';
 
@@ -292,7 +302,7 @@ function summarizeSubagentToolOutput(payload) {
     return `subagent started: ${formatSubagentLabel({
       agentId: output.agent_id,
       nickname: output.nickname,
-    })}`;
+    }, options)}`;
   }
 
   if (output.submission_id) return 'subagent message queued';
@@ -338,12 +348,12 @@ function extractSubagentNotification(item) {
   return null;
 }
 
-function summarizeSubagentNotification(notification) {
+function summarizeSubagentNotification(notification, options = {}) {
   if (!notification || typeof notification !== 'object') return '';
   const label = formatSubagentLabel({
     agentId: notification.agent_path || notification.agent_id,
     nickname: notification.nickname,
-  });
+  }, options);
   const statusInfo = extractSubagentStatusInfo(notification.status);
   const state = statusInfo.state || 'updated';
   return label ? `subagent ${state}: ${label}` : `subagent ${state}`;
@@ -352,12 +362,12 @@ function summarizeSubagentNotification(notification) {
 function extractSubagentNotificationReportPreview(notification, options = {}) {
   if (!notification || typeof notification !== 'object') return '';
   const statusInfo = extractSubagentStatusInfo(notification.status);
-  if (!statusInfo.detail) return summarizeSubagentNotification(notification);
+  if (!statusInfo.detail) return summarizeSubagentNotification(notification, options);
   const previewChars = Math.max(60, Number(options.previewChars || DEFAULT_PREVIEW_CHARS));
   const label = formatSubagentLabel({
     agentId: notification.agent_path || notification.agent_id,
     nickname: notification.nickname,
-  });
+  }, options);
   const preview = truncate(statusInfo.detail, previewChars);
   return label ? `subagent report ${label}: ${preview}` : `subagent report: ${preview}`;
 }
@@ -474,7 +484,7 @@ function summarizeResponseItem(payload, options = {}) {
 
   if (payloadType === 'message') {
     const notification = extractSubagentNotification(payload);
-    if (notification) return summarizeSubagentNotification(notification);
+    if (notification) return summarizeSubagentNotification(notification, options);
     const preview = extractPayloadTextPreview(payload, options);
     return preview ? `agent message: ${preview}` : 'agent message';
   }
@@ -495,7 +505,7 @@ function summarizeResponseItem(payload, options = {}) {
   }
 
   if (payloadType === 'function_call_output') {
-    const subagentSummary = summarizeSubagentToolOutput(payload);
+    const subagentSummary = summarizeSubagentToolOutput(payload, options);
     if (subagentSummary) return subagentSummary;
   }
 
@@ -505,7 +515,7 @@ function summarizeResponseItem(payload, options = {}) {
 export function summarizeCodexEvent(ev, options = {}) {
   const previewChars = Math.max(60, Number(options.previewChars || DEFAULT_PREVIEW_CHARS));
   const showReasoning = Boolean(options.showReasoning);
-  const opts = { previewChars, showReasoning };
+  const opts = { ...options, previewChars, showReasoning };
 
   if (!ev || typeof ev !== 'object') return 'received event';
 
@@ -800,7 +810,7 @@ function isLowSignalProcessText(text) {
   return false;
 }
 
-export function extractRawProgressTextFromEvent(ev) {
+export function extractRawProgressTextFromEvent(ev, options = {}) {
   if (!ev || typeof ev !== 'object') return '';
   const type = normalizeEventType(ev.type || '');
   const payload = extractEventPayload(ev);
@@ -826,7 +836,7 @@ export function extractRawProgressTextFromEvent(ev) {
       return extractRawProgressTextFromEvent({
         ...payload,
         type: payload.type,
-      });
+      }, options);
     }
   }
 
@@ -839,7 +849,7 @@ export function extractRawProgressTextFromEvent(ev) {
       ...ev.event,
       type: ev.event.type,
       session_id: ev.session_id || ev.sessionId,
-    });
+    }, options);
   }
 
   if (type === 'assistant') {
@@ -874,7 +884,7 @@ export function extractRawProgressTextFromEvent(ev) {
   if (type === 'message') {
     const notification = extractSubagentNotification(ev) || extractSubagentNotification(payload);
     if (notification) {
-      const preview = extractSubagentNotificationReportPreview(notification);
+      const preview = extractSubagentNotificationReportPreview(notification, options);
       return isLowSignalProcessText(preview) ? '' : preview;
     }
     const role = normalizeEventType(ev.role || payload?.role || '');
@@ -922,17 +932,17 @@ export function extractRawProgressTextFromEvent(ev) {
     const payloadType = normalizeEventType(payload.type || '');
     if (payloadType === 'function_call' || payloadType === 'custom_tool_call') {
       const toolName = extractItemToolName(payload) || normalizeWhitespace(payload.name || payload.tool_name || '');
-      const subagentSummary = summarizeSubagentToolCall(toolName, extractToolCallArguments(payload) || payload);
+      const subagentSummary = summarizeSubagentToolCall(toolName, extractToolCallArguments(payload) || payload, options);
       if (subagentSummary) return subagentSummary;
     }
     if (payloadType === 'function_call_output') {
-      const subagentSummary = summarizeSubagentToolOutput(payload);
+      const subagentSummary = summarizeSubagentToolOutput(payload, options);
       if (subagentSummary) return subagentSummary;
     }
     if (payloadType === 'message') {
       const notification = extractSubagentNotification(payload);
       if (notification) {
-        const preview = extractSubagentNotificationReportPreview(notification);
+        const preview = extractSubagentNotificationReportPreview(notification, options);
         return isLowSignalProcessText(preview) ? '' : preview;
       }
       const phase = normalizeEventType(payload.phase || '');
@@ -1177,7 +1187,7 @@ function summarizeCompletedPayload(payload, options = {}) {
     if (!output) return '';
     if (output.timed_out === true) return '';
     const statusInfo = extractSubagentStatusInfo(output.status);
-    if (statusInfo.state === 'completed') return summarizeSubagentToolOutput(payload);
+    if (statusInfo.state === 'completed') return summarizeSubagentToolOutput(payload, options);
     return '';
   }
 
@@ -1188,7 +1198,7 @@ function summarizeCompletedPayload(payload, options = {}) {
 
 export function extractCompletedStepFromEvent(ev, options = {}) {
   const previewChars = Math.max(60, Number(options.previewChars || DEFAULT_PREVIEW_CHARS));
-  const opts = { previewChars };
+  const opts = { ...options, previewChars };
 
   if (!ev || typeof ev !== 'object') return '';
   const type = normalizeEventType(ev.type || '');
@@ -1200,7 +1210,7 @@ export function extractCompletedStepFromEvent(ev, options = {}) {
       const notification = extractSubagentNotification(payload);
       if (notification) {
         const statusInfo = extractSubagentStatusInfo(notification.status);
-        return statusInfo.state === 'completed' ? summarizeSubagentNotification(notification) : '';
+        return statusInfo.state === 'completed' ? summarizeSubagentNotification(notification, opts) : '';
       }
     }
     const status = normalizeStatus(payload.status || '');

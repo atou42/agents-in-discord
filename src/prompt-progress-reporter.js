@@ -143,6 +143,87 @@ function parseProgressJsonMaybe(value) {
   }
 }
 
+function extractProgressPayload(event) {
+  if (!event || typeof event !== 'object') return null;
+  if (event.payload && typeof event.payload === 'object') return event.payload;
+  if (event.message && typeof event.message === 'object') return event.message;
+  return null;
+}
+
+function parseSubagentNotificationFromText(rawText) {
+  const text = String(rawText || '');
+  if (!text.includes('<subagent_notification>')) return null;
+  const match = text.match(/<subagent_notification>\s*([\s\S]*?)\s*<\/subagent_notification>/i);
+  if (!match?.[1]) return null;
+  const parsed = parseProgressJsonMaybe(match[1].trim());
+  return parsed && typeof parsed === 'object' ? parsed : null;
+}
+
+function collectTextParts(value, out = []) {
+  if (typeof value === 'string') {
+    out.push(value);
+    return out;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectTextParts(item, out);
+    return out;
+  }
+  if (!value || typeof value !== 'object') return out;
+  collectTextParts(value.text, out);
+  collectTextParts(value.message, out);
+  collectTextParts(value.content, out);
+  collectTextParts(value.output_text, out);
+  collectTextParts(value.input_text, out);
+  return out;
+}
+
+function createCodexSubagentDisplayNameTracker() {
+  const displayNames = new Map();
+
+  const remember = (agentId, nickname) => {
+    const id = normalizeProgressText(agentId);
+    const name = normalizeProgressText(nickname);
+    if (!id || !name) return;
+    displayNames.set(id, name);
+  };
+
+  const rememberOutput = (rawOutput) => {
+    const output = typeof rawOutput === 'string'
+      ? parseProgressJsonMaybe(rawOutput)
+      : rawOutput;
+    if (!output || typeof output !== 'object' || Array.isArray(output)) return;
+    remember(output.agent_id || output.agent_path, output.nickname);
+  };
+
+  const rememberNotifications = (event, payload) => {
+    for (const text of collectTextParts([event, payload])) {
+      const notification = parseSubagentNotificationFromText(text);
+      if (!notification) continue;
+      remember(notification.agent_id || notification.agent_path, notification.nickname);
+    }
+  };
+
+  const capture = (event) => {
+    if (!event || typeof event !== 'object') return;
+    const payload = extractProgressPayload(event);
+    const candidates = [event, payload].filter((item) => item && typeof item === 'object');
+    for (const item of candidates) {
+      const type = normalizeProgressEventType(item.type || '');
+      if (type === 'function_call_output') {
+        rememberOutput(item.output ?? item.result ?? item.data);
+      }
+    }
+    rememberNotifications(event, payload);
+  };
+
+  return {
+    capture,
+    snapshot() {
+      return new Map(displayNames);
+    },
+  };
+}
+
 function formatClaudePathLabel(rawPath, truncateText, previewChars) {
   const filePath = normalizeProgressText(rawPath);
   if (!filePath) return '';
@@ -595,6 +676,7 @@ export function createPromptProgressReporterFactory({
       truncateText: truncate,
       previewChars: progressTextPreviewChars,
     });
+    const codexSubagentDisplayNameTracker = createCodexSubagentDisplayNameTracker();
 
     const syncActiveRun = () => {
       if (!channelState?.activeRun) return;
@@ -768,18 +850,24 @@ export function createPromptProgressReporterFactory({
       const providerProgress = session?.provider === 'claude'
         ? (claudeProgressTracker.capture(event) || null)
         : null;
-      const summaryStep = providerProgress?.summaryStep || summarizeCodexEvent(event);
+      if (session?.provider !== 'claude') {
+        codexSubagentDisplayNameTracker.capture(event);
+      }
+      const codexProgressOptions = {
+        subagentDisplayNames: codexSubagentDisplayNameTracker.snapshot(),
+      };
+      const summaryStep = providerProgress?.summaryStep || summarizeCodexEvent(event, codexProgressOptions);
       const rawActivities = providerProgress?.rawActivities?.length
         ? providerProgress.rawActivities
         : (() => {
-          const raw = extractRawProgressTextFromEvent(event);
+          const raw = extractRawProgressTextFromEvent(event, codexProgressOptions);
           return raw ? [raw] : [];
         })();
       const nextPlan = extractPlanStateFromEvent(event);
       const completedStepsFromEvent = providerProgress?.completedSteps?.length
         ? providerProgress.completedSteps
         : (() => {
-          const step = extractCompletedStepFromEvent(event);
+          const step = extractCompletedStepFromEvent(event, codexProgressOptions);
           return step ? [step] : [];
         })();
       const safeSummaryStep = sanitizeProgressDisplayText(summaryStep);

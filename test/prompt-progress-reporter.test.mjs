@@ -594,11 +594,11 @@ test('createPromptProgressReporterFactory renders codex subagent lifecycle event
 
   const finalCard = harness.edits[harness.edits.length - 1].content;
   assert.match(finalCard, /subagent started: Harvey \(019d5809-05fe\)/);
-  assert.match(finalCard, /subagent update 019d5809-05fe: Re-check the sub flow after the parent task changed\./);
-  assert.match(finalCard, /waiting for subagent 019d5809-05fe/);
+  assert.match(finalCard, /subagent update Harvey \(019d5809-05fe\): Re-check the sub flow after the parent task changed\./);
+  assert.match(finalCard, /waiting for subagent Harvey \(019d5809-05fe\)/);
   assert.match(finalCard, /subagent wait timed out/);
-  assert.match(finalCard, /subagent report 019d5809-05fe: Subagent finished the verification run and attached evidence\./);
-  assert.match(finalCard, /subagent completed: 019d5809-05fe/);
+  assert.match(finalCard, /subagent report Harvey \(019d5809-05fe\): Subagent finished the verification run and attached evidence\./);
+  assert.match(finalCard, /subagent completed: Harvey \(019d5809-05fe\)/);
 });
 
 test('createPromptProgressReporterFactory sanitizes Discord spoiler markers in surfaced progress text', async () => {
