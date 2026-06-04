@@ -1,93 +1,93 @@
-# World First Frame Product Design
+# get the 10 产品设计
 
-Date: 2026-06-04
+日期：2026-06-04
 
-## Why This Exists
+## 为什么做
 
-This product serves creators who have a creative impulse but do not yet have a precise visual target. They may start with a single emotion, theme, genre, character idea, reference image, or short phrase. They are not the users who already know the exact image they want and only need a prompt editor or image-to-image tool.
+get the 10 服务的是有创作冲动、但还没有明确视觉目标的创作者。用户可能只从一个情绪、一个主题、一个类型、一个人物想法、一张参考图，或者一句很短的话开始。他们不是那些已经清楚知道自己要什么图，只需要提示词编辑器或以图生图工具的人。
 
-The product helps these creators discover and sharpen intent through repeated visual presentation, confirmation, rejection, and selection. The user does not need to understand prompt writing. The system turns a small starting intent into many visual possibilities, forces the user to make tradeoffs, and uses those choices to converge toward a world that feels alive enough to continue creating.
+这个产品通过反复的视觉呈现、确认、拒绝和选择，帮助创作者发现并收紧自己的真实意图。用户不需要懂提示词。系统把一个很小的起点变成大量可看的视觉可能性，逼迫用户做取舍，并用这些选择逐步逼近一个能激发后续创作的世界。
 
-The first version should not become a complete worldbuilding suite. Its job is narrower. It should help the user produce one primary world direction, one first-frame image that feels like a photograph from that world, and an exportable pack of up to ten images that express the world strongly enough for future creative work.
+第一版不做完整世界观套件。它只做一件更窄的事：帮助用户得到一个主方向、一张像是从这个世界里拍出来的首帧，以及一个最多十张图的世界照片包。
 
-## Target User
+## 目标用户
 
-The target user has a feeling but not a finished concept. They may say only "anger", "a lonely future city", "a girl who should not be there", or upload a loose reference image. They want visual stimulus that helps them notice what attracts them and what does not.
+目标用户有感觉，但没有成型概念。他们可能只说「愤怒」「一座孤独的未来城市」「一个不该出现在这里的女孩」，或者上传一张松散的参考图。他们需要的是视觉刺激，让自己发现哪些东西有吸引力，哪些东西不属于这个世界。
 
-The product should avoid optimizing for expert prompt users, strict reference reproduction, detailed design-system control, full lore management, or users who already have a finished mental image. Those users have better tools elsewhere.
+产品不优先服务高级提示词用户、严格复刻参考图的用户、需要完整设定管理的用户，或者已经有明确脑内画面的用户。那些用户有更合适的工具。
 
-## Product Shape
+## 产品形态
 
-The product is a desktop web application. The first version should use a simple staged interaction rather than a complex canvas. The core loop is generation, selection, context update, and regeneration.
+产品是一个桌面端网页。第一版采用简单的分阶段交互，不做复杂画布。核心循环是生成、选择、更新上下文、再生成。
 
-Each round has a finite goal and a clear exit. The user must make choices and give things up. If every image and every element can be kept, the product will produce a weak collage instead of a strong world direction.
+每一轮都有有限目标和明确结束条件。用户必须做选择，也必须放弃东西。如果每张图、每个元素都可以保留，最终只会得到一个弱拼盘，而不是一个强世界方向。
 
-## Starting Input
+## 初始输入
 
-The user starts with a short intent. Shorter is better. A single word is allowed. A short phrase is allowed. The user may upload one reference image, but the reference image should be treated as inspiration, not as a strict target for composition, subject, or identity.
+用户从一个很短的意图开始。越短越好，一个词也可以，一句短语也可以。用户可以上传一张参考图，但参考图只作为灵感来源，不作为构图、主体或身份的严格目标。
 
-The product should frame the reference image as a source of mood, theme, element, texture, or emotional direction. It should not imply faithful image reproduction.
+产品对参考图的定位应该是提取气质、主题、元素、材质或情绪方向，而不是承诺还原图片。
 
-## Round One: Primary Direction
+## Round One：主方向
 
-Round One finds the primary direction. It does not produce the final first frame.
+Round One 的任务是找到主方向。它不产出最终首帧。
 
-The system generates three 3x3 grids through ImageTool. Each grid is cut into nine separate images, giving the user twenty-seven visual candidates while requiring only three generation calls. The prompt design for these three grids should intentionally spread the candidates across meaningfully different visual directions. The value of twenty-seven images is not volume alone. It is the feeling of a rich field of possibilities.
+系统通过 ImageTool 生成三张九宫格。每张九宫格切成九张独立图片，总共给用户二十七个视觉候选，但只需要三次生成。三张九宫格的提示词要有意识地拉开方向差异。二十七张图的价值不是数量本身，而是让用户感觉自己看到了一个足够丰富的可能性空间。
 
-The user must choose exactly one primary direction from the twenty-seven candidates. This primary direction becomes the anchor for later rounds.
+用户必须从二十七张候选图里选出一个主方向。这个主方向会成为后续所有轮次的锚点。
 
-The user may also mark limited auxiliary elements from other candidates. An auxiliary element can be a subject, texture, material, lighting quality, spatial feeling, object, color relation, or mood detail. Auxiliary elements must remain subordinate to the primary direction. They cannot have equal weight.
+用户可以从其他候选图里标记少量辅助元素。辅助元素可以是主体、纹理、材质、光线、空间感、物件、色彩关系或情绪细节。辅助元素只能辅助主方向，不能和主方向平权。
 
-The user should also reject directions that do not belong. Rejected directions are part of the context because they help prevent later generations from drifting into attractive but wrong territory.
+用户也应该拒绝不属于这个世界的方向。被拒绝的方向也要进入上下文，因为它们能防止后续生成漂向好看但错误的地方。
 
-Round One ends when the user has one primary direction, a small set of auxiliary elements, and a set of rejected directions. If the user cannot choose one primary direction, the round should continue with another twenty-seven candidates rather than moving forward with an unclear anchor.
+Round One 的结束条件是用户已经选出一个主方向、一组少量辅助元素，以及一组被拒绝的方向。如果用户无法选出一个主方向，就继续生成下一组二十七张，而不是带着不清楚的锚点进入下一轮。
 
-## Round Two: First Frame
+## Round Two：首帧
 
-Round Two finds the first frame. The first frame should feel like a photograph taken inside the world, not a prompt collage, mood board, or generic concept art.
+Round Two 的任务是找到首帧。首帧应该像是从这个世界里拍出来的一张照片，而不是提示词拼贴、情绪板或泛泛的概念图。
 
-The system again uses twenty-seven candidates per generation pass. These candidates must align with the Round One primary direction and may use only the limited auxiliary elements as supporting material.
+系统每轮仍然给二十七张候选图。这些候选图必须对齐 Round One 的主方向，并且只能把少量辅助元素作为支持材料。
 
-The user searches for one image that truly feels like it comes from the world. The first version requires one chosen first frame, not alternates.
+用户要找到一张真正感觉来自这个世界的图。第一版只要求一张首帧，不设置并列备选。
 
-If the user repeatedly finds that the generated images are not right, the product should allow the user to return to Round One and adjust the primary direction or auxiliary elements. This prevents infinite random generation when the real problem is an unstable anchor.
+如果用户连续觉得生成结果不对，产品应该允许用户回到 Round One 调整主方向或辅助元素。这样可以避免在锚点错误时用无限生成硬耗。
 
-Round Two ends when the user selects the first frame.
+Round Two 的结束条件是用户选定那张首帧。
 
-## Round Three: World Photo Pack
+## Round Three：世界照片包
 
-Round Three expands outward from the first frame. It does not attempt to complete the whole world.
+Round Three 从首帧向外扩展。它不试图补完整个世界。
 
-The system generates images that feel like additional photographs from the same world. These may show other places, people, moments, objects, incidents, scales, or textures of life, but they must remain aligned with the first frame and the Round One primary direction.
+系统生成一组像是来自同一个世界的其他照片。它们可以展示其他地点、人物、瞬间、物件、事件、尺度或生活质感，但必须和首帧以及 Round One 的主方向保持一致。
 
-Each Round Three generation gives the user ten candidates. The user may keep images for the final pack and reject images that do not belong. The final pack has a hard limit of ten images.
+Round Three 每轮给用户十张候选图。用户可以把图加入最终 pack，也可以拒绝不属于这个世界的图。最终 pack 的硬上限是十张图。
 
-This round should stop before the product becomes a full worldbuilding or lore-completion tool. Ten images are enough for a compact visual expression of creative intent. Larger expansion belongs to a later product stage.
+这一轮要在产品变成完整世界观工具之前停住。十张图足够表达一个紧凑的创作意图。更大的扩展属于之后的产品阶段。
 
-Round Three ends when the user chooses to export the pack or reaches ten kept images and accepts the pack.
+Round Three 的结束条件是用户选择导出 pack，或者已经保留十张图并确认完成。
 
-## Context Model
+## 上下文模型
 
-The system context should record the short starting intent, the optional reference image, the Round One primary direction, the limited auxiliary elements, rejected directions, the selected first frame, rejected first-frame attempts, kept pack images, and rejected pack images.
+系统上下文要记录用户的初始短意图、可选参考图、Round One 主方向、少量辅助元素、被拒绝的方向、选定的首帧、被拒绝的首帧尝试、保留进 pack 的图，以及被拒绝的 pack 候选图。
 
-Positive and negative choices matter equally. Positive choices show what the user wants. Negative choices show where the system should stop drifting. The prompt context for later rounds must use both.
+正向选择和负向选择同样重要。正向选择说明用户要什么，负向选择说明系统不要再往哪里漂。后续轮次的生成上下文必须同时使用这两类信息。
 
-The context should stay small enough to remain usable. The product should not store every incidental preference as an equal rule. It should preserve only the choices that affect convergence.
+上下文要保持小而有用。产品不能把每一个偶然偏好都当成平权规则，只保留真正影响收敛的选择。
 
-## Export
+## 导出
 
-The final export is a zip archive containing up to ten images.
+最终导出是一个 zip 包，里面最多包含十张图片。
 
-The export should also include a short text summary with the original user intent, the primary direction, the selected first frame, the confirmed auxiliary elements, and the rejected directions. This lets the pack serve as input for other people, agents, or future products.
+导出包还应该包含一份简短文本，总结用户原始意图、主方向、选定首帧、确认过的辅助元素，以及被拒绝的方向。这样这个 pack 可以交给其他人、agent 或后续产品继续使用。
 
-## First Version Scope
+## 第一版范围
 
-The first version should prove the staged visual convergence loop. It should not include a canvas, complex annotation tools, full prompt editing, collaboration, version trees, long document import, detailed lore fields, map systems, character sheets, timeline tools, or downstream product integrations.
+第一版只验证分阶段视觉收敛循环。不做画布、复杂标注工具、完整提示词编辑、多人协作、版本树、长文档导入、详细设定字段、地图系统、角色卡、时间线工具，也不做下游产品串接。
 
-The minimum useful product is a desktop web flow where a user enters a short intent, optionally uploads one reference image, chooses one primary direction from twenty-seven visual candidates, converges on one first-frame image, expands into a ten-image world photo pack, and exports the result.
+最小可用产品是一个桌面网页流程：用户输入短意图，可选上传一张参考图，从二十七张候选里选一个主方向，收敛到一张首帧，扩展出最多十张世界照片，并导出结果。
 
-## Success Criteria
+## 成功标准
 
-The first version succeeds if a creator with only a vague starting impulse can complete the flow without writing prompts and leave with a first frame and a compact image pack that makes them want to continue creating.
+第一版成功的标准是，一个只有模糊创作冲动的创作者，不写提示词也能完成流程，并带走一张首帧和一组让他想继续创作的图片 pack。
 
-The product fails if it becomes a prompt editor, a loose image gallery, a reference reproduction tool, or a worldbuilding database before the core convergence loop is proven.
+产品失败的表现是，它在核心收敛循环被验证之前，就变成提示词编辑器、松散图库、参考图复刻工具，或者世界观数据库。
