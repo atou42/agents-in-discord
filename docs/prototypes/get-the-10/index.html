@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>get the 10</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="side-panel" aria-label="流程状态">
+        <div class="brand-block">
+          <p class="eyebrow">get the 10</p>
+          <h1>把一个短意图逼近成十张世界照片</h1>
+        </div>
+
+        <nav class="round-nav" aria-label="轮次">
+          <button class="round-tab active" type="button" data-round-tab="1">
+            <span>第一轮</span>
+            <strong>主方向</strong>
+          </button>
+          <button class="round-tab" type="button" data-round-tab="2" disabled>
+            <span>第二轮</span>
+            <strong>首帧</strong>
+          </button>
+          <button class="round-tab" type="button" data-round-tab="3" disabled>
+            <span>第三轮</span>
+            <strong>照片包</strong>
+          </button>
+        </nav>
+
+        <section class="context-panel" aria-label="上下文">
+          <h2>已确认</h2>
+          <dl class="context-list">
+            <div>
+              <dt>短意图</dt>
+              <dd id="contextIntent">未开始</dd>
+            </div>
+            <div>
+              <dt>主方向</dt>
+              <dd id="contextPrimary">未选择</dd>
+            </div>
+            <div>
+              <dt>首帧</dt>
+              <dd id="contextFirstFrame">未选择</dd>
+            </div>
+            <div>
+              <dt>照片包</dt>
+              <dd id="contextPackCount">0 / 10</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="context-panel" aria-label="选择记录">
+          <h2>选择记录</h2>
+          <div class="token-group" id="auxList"></div>
+          <div class="token-group rejected" id="rejectList"></div>
+        </section>
+      </aside>
+
+      <section class="work-surface" aria-live="polite">
+        <header class="work-header">
+          <div>
+            <p class="eyebrow" id="roundEyebrow">第一轮 / 主方向</p>
+            <h2 id="roundTitle">从二十七张图里选一个主方向</h2>
+          </div>
+          <div class="header-actions">
+            <button class="ghost-button" type="button" id="resetButton">重置</button>
+            <button class="ghost-button" type="button" id="failToggleButton">模拟生成失败</button>
+          </div>
+        </header>
+
+        <section class="start-panel" id="startPanel">
+          <label for="intentInput">短意图</label>
+          <div class="intent-row">
+            <input id="intentInput" type="text" maxlength="60" placeholder="例如：愤怒">
+            <button class="primary-button" type="button" id="startButton">生成二十七张</button>
+          </div>
+          <label class="reference-upload" for="referenceInput">
+            <input id="referenceInput" type="file" accept="image/*">
+            <span>可选参考图</span>
+            <strong id="referenceName">未上传</strong>
+          </label>
+          <p class="form-note">参考图只参与气质和元素，不作为复刻目标。</p>
+        </section>
+
+        <section class="notice" id="notice" hidden></section>
+
+        <section class="candidate-toolbar" id="candidateToolbar" hidden>
+          <div>
+            <strong id="candidateCount">0 张候选</strong>
+            <span id="generationMeta">等待生成</span>
+          </div>
+          <div class="toolbar-actions">
+            <button class="ghost-button" type="button" id="backToRoundOneButton" hidden>回到第一轮</button>
+            <button class="primary-button" type="button" id="continueButton" disabled>进入下一步</button>
+            <button class="primary-button" type="button" id="exportButton" hidden disabled>导出照片包</button>
+          </div>
+        </section>
+
+        <section class="candidate-grid" id="candidateGrid" aria-label="候选图"></section>
+      </section>
+    </main>
+
+    <template id="candidateTemplate">
+      <article class="candidate-card">
+        <button class="image-button" type="button">
+          <img alt="">
+        </button>
+        <div class="candidate-meta">
+          <strong></strong>
+          <span></span>
+        </div>
+        <div class="candidate-actions"></div>
+      </article>
+    </template>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
