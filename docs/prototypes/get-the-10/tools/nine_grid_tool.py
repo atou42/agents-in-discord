@@ -18,6 +18,8 @@ class CellMeta:
     cell_index: int
     path: str
     prompt: str
+    width: int
+    height: int
 
 
 PALETTES = [
@@ -26,6 +28,8 @@ PALETTES = [
     ("#1d2117", "#5d754d", "#f2d38a", "#c14f3c"),
     ("#211b25", "#62384d", "#d8c4a0", "#2c4c55"),
 ]
+
+SUPPORTED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="生成或切割 get the 10 九宫格素材")
@@ -49,7 +53,7 @@ def parse_args() -> argparse.Namespace:
     batch = sub.add_parser("batch-cut", help="切割目录下的多张九宫格图片")
     batch.add_argument("--input-dir", required=True, type=Path)
     batch.add_argument("--output-dir", required=True, type=Path)
-    batch.add_argument("--pattern", default="*.png")
+    batch.add_argument("--pattern", default="*")
     batch.add_argument("--web-root", type=Path, default=None, help="网页根目录，用来把切片路径写成可访问的相对路径")
     return parser.parse_args()
 
@@ -64,7 +68,8 @@ def main() -> int:
         return 0
     if args.command == "batch-cut":
         all_meta: list[CellMeta] = []
-        for grid_index, path in enumerate(sorted(args.input_dir.glob(args.pattern)), start=1):
+        paths = [path for path in sorted(args.input_dir.glob(args.pattern)) if is_supported_image(path)]
+        for grid_index, path in enumerate(paths, start=1):
             all_meta.extend(cut_grid(path, args.output_dir, grid_index, path.stem))
         write_manifest(args.output_dir, all_meta, args.web_root)
         return 0
@@ -137,20 +142,23 @@ def cut_grid(path: Path, output_dir: Path, grid_index: int, prefix: str, intent:
         raise FileNotFoundError(path)
     output_dir.mkdir(parents=True, exist_ok=True)
     img = Image.open(path).convert("RGB")
-    side = min(img.width, img.height)
-    left = (img.width - side) // 2
-    top = (img.height - side) // 2
-    img = img.crop((left, top, left + side, top + side))
-    cell = side // 3
+    cell_w = img.width // 3
+    cell_h = img.height // 3
+    if cell_w < 1 or cell_h < 1:
+        raise ValueError(f"图片太小，无法切成九宫格：{path}")
     metas: list[CellMeta] = []
     for idx in range(9):
-        x = (idx % 3) * cell
-        y = (idx // 3) * cell
-        tile = img.crop((x, y, x + cell, y + cell))
+        col = idx % 3
+        row = idx // 3
+        x0 = col * cell_w
+        y0 = row * cell_h
+        x1 = img.width if col == 2 else (col + 1) * cell_w
+        y1 = img.height if row == 2 else (row + 1) * cell_h
+        tile = img.crop((x0, y0, x1, y1))
         out = output_dir / f"{prefix}-{idx + 1:02d}.png"
         tile.save(out)
         prompt = f"{intent or 'unknown'} / 九宫格 {grid_index} / 切片 {idx + 1}"
-        metas.append(CellMeta(grid_index, idx + 1, str(out), prompt))
+        metas.append(CellMeta(grid_index, idx + 1, str(out), prompt, tile.width, tile.height))
     return metas
 
 
@@ -163,6 +171,8 @@ def write_manifest(output_dir: Path, metas: list[CellMeta], web_root: Path | Non
                 "cell_index": item.cell_index,
                 "path": to_web_path(Path(item.path), web_root),
                 "prompt": item.prompt,
+                "width": item.width,
+                "height": item.height,
             }
             for item in metas
         ],
@@ -178,6 +188,10 @@ def to_web_path(path: Path, web_root: Path | None) -> str:
         index = parts.index("get-the-10")
         return Path(*parts[index + 1 :]).as_posix()
     return path.as_posix()
+
+
+def is_supported_image(path: Path) -> bool:
+    return path.is_file() and path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
 
 
 def hex_to_rgb(value: str) -> tuple[int, int, int]:

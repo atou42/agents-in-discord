@@ -6,6 +6,6 @@
 
 打开 `index.html` 后，可以从一个短意图开始，进入三轮流程。第一轮生成二十七张候选并强制选择一个主方向。第二轮基于主方向收敛到一张首帧。第三轮生成十张候选，最终最多保留十张并导出压缩包。
 
-当前版本使用本地演示生成器模拟 ImageTool 的三张九宫格切片逻辑。它用于验证交互、状态和导出流程，不把演示图伪装成真实模型输出。接入真实 ImageTool 时，应替换 `app.js` 中的生成适配层，保留同样的轮次、选择和上下文规则。
+当前版本已经放入一批真实 image2 生成素材：`assets/real-anger-mixed/`。输入「生气」或「愤怒」会默认读取这批真实切片，也可以通过 `?manifest=assets/real-anger-mixed/slices/manifest.json` 明确指定。`assets/demo-mystery/` 只是演示素材，用于验证工具链，不代表真实模型输出。
 
 真实素材准备脚本在 `tools/nine_grid_tool.py`，说明在 `tools/README.md`。

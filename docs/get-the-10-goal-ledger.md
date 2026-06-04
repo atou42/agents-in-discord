@@ -53,3 +53,13 @@
 已用浏览器复验：manifest 图片真实加载；第一轮是 27 张、9 列、3 行；前五次点击结果是 `MAIN` 加 4 个 `AUX`；放大视图从 `7 / 27` 通过右箭头切到 `8 / 27`；第三轮是 10 张、2 行；点击第 3 和第 5 张后出现 `PICK`，所有图片坐标保持不变；第三轮没有成功提示遮挡。已保存截图 `verification-fill-9x3.png` 和 `verification-round3-pick.png`。
 
 已覆盖上传到 Cohub 3000 端口，并在公网地址带 `?manifest=assets/demo-mystery/manifest.json` 复验通过：第一轮 27 张真实切片按 9 列 3 行显示；前五次点击得到 `MAIN` 加 4 个 `AUX`；放大浏览右箭头有效；第三轮 10 张、2 行；pick 后位置不变；页面没有成功提示遮挡。已保存公网验证截图 `verification-cohub-fill-9x3.png`。
+
+## 2026-06-04 真实图和混合画幅修正
+
+继续反馈指出上一版仍然强行追求一屏填满，而且没有真正生成模型图。已确认上一版 `assets/demo-mystery/` 是演示素材，不是真实模型输出。
+
+已用 image2 真实生成三张「生气」九宫格源图，分别覆盖横版、竖版和方版，并整理到 `assets/real-anger-mixed/grids/`。切割后得到 27 张真实切片，清单在 `assets/real-anger-mixed/slices/manifest.json`。页面输入「生气」或「愤怒」时，会默认读取这批真实切片；也可以用 `?manifest=assets/real-anger-mixed/slices/manifest.json` 指定。
+
+已修正九宫格切割规则：不再按短边裁成正方形，而是按原图宽高分别三等分，保留每个格子的真实画幅。manifest 现在写入每张切片的宽高。批量切割默认支持 png、jpg、jpeg、webp，并跳过非图片文件。
+
+已把第一轮布局从固定 9x3 改成瀑布流，图片按原始比例显示，不使用 `object-fit: cover` 裁切。已用浏览器验证真实横图 682x384、竖图 341x512、方图 341x341 都保持原比例显示。默认入口输入「生气」会加载真实素材，27 张数量正确。第一轮前五次点击仍得到 `MAIN` 加 4 个 `AUX`，放大浏览右箭头有效。第三轮 pick 后文档坐标稳定，不发生重排。已保存 `verification-real-masonry.png`、`verification-real-default.png` 和 `verification-real-round3.png`。

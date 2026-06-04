@@ -1,6 +1,7 @@
 const MAX_AUX = 4;
 const MAX_PACK = 10;
 const SPACE_ID = "6b9e799d-3711-4143-8a03-0b082a46c261";
+const REAL_ANGER_MANIFEST = "assets/real-anger-mixed/slices/manifest.json";
 
 const state = {
   round: 1,
@@ -187,11 +188,13 @@ function buildCandidate(round, index, total, gridIndex, cellIndex) {
     detail,
     label: `${direction} / ${subject}`,
     image: makeImageSvg({ title, intent: state.intent, direction, subject, detail, palette, round, index, random }),
+    width: 420,
+    height: 420,
   };
 }
 
 async function loadManifestCandidates() {
-  const manifestPath = new URLSearchParams(window.location.search).get("manifest");
+  const manifestPath = resolveManifestPath();
   if (!manifestPath) return null;
   const response = await fetch(manifestPath, { cache: "no-store" });
   if (!response.ok) {
@@ -219,8 +222,17 @@ async function loadManifestCandidates() {
       detail: `九宫格 ${gridIndex} / 切片 ${cellIndex}`,
       label,
       image: item.path,
+      width: Number(item.width) || undefined,
+      height: Number(item.height) || undefined,
     };
   });
+}
+
+function resolveManifestPath() {
+  const explicitPath = new URLSearchParams(window.location.search).get("manifest");
+  if (explicitPath) return explicitPath;
+  if (state.intent.includes("生气") || state.intent.includes("愤怒")) return REAL_ANGER_MANIFEST;
+  return null;
 }
 
 function makeImageSvg({ title, intent, direction, subject, detail, palette, round, index, random }) {
@@ -299,7 +311,7 @@ function handleTileClick(candidate, event) {
   } else {
     togglePack(candidate);
   }
-  render();
+  renderPreservingScroll();
 }
 
 function toggleRejected(candidate) {
@@ -314,7 +326,15 @@ function toggleRejected(candidate) {
     state.auxiliary = state.auxiliary.filter((item) => item.id !== candidate.id);
     state.pack = state.pack.filter((item) => item.id !== candidate.id);
   }
+  renderPreservingScroll();
+}
+
+function renderPreservingScroll() {
+  const x = window.scrollX;
+  const y = window.scrollY;
   render();
+  window.scrollTo(x, y);
+  requestAnimationFrame(() => window.scrollTo(x, y));
 }
 
 function togglePack(candidate) {
@@ -408,6 +428,10 @@ function renderGrid() {
     const tileMark = tile.querySelector(".tile-mark");
     img.src = candidate.image;
     img.alt = `${candidate.label}，${candidate.detail}`;
+    if (candidate.width && candidate.height) {
+      img.width = candidate.width;
+      img.height = candidate.height;
+    }
     tileIndex.textContent = index + 1;
     const mark = getMark(candidate);
     tileMark.textContent = mark;
