@@ -114,7 +114,7 @@ function assertCanGenerate() {
   }
 }
 
-function startFlow() {
+async function startFlow() {
   state.intent = refs.intentInput.value.trim();
   state.round = 1;
   state.primary = null;
@@ -124,7 +124,7 @@ function startFlow() {
   state.pack = [];
   state.packRejected = [];
   try {
-    generateCandidates(1);
+    await generateCandidates(1);
     clearNotice();
   } catch (error) {
     state.candidates = [];
@@ -133,9 +133,15 @@ function startFlow() {
   }
 }
 
-function generateCandidates(round) {
+async function generateCandidates(round) {
   assertCanGenerate();
   state.generationIndex += 1;
+  const manifestCandidates = round === 1 ? await loadManifestCandidates() : null;
+  if (manifestCandidates) {
+    state.candidates = manifestCandidates;
+    render();
+    return;
+  }
   const total = round === 3 ? 10 : 27;
   state.candidates = Array.from({ length: total }, (_, index) => {
     const gridIndex = round === 3 ? 0 : Math.floor(index / 9);
@@ -184,6 +190,39 @@ function buildCandidate(round, index, total, gridIndex, cellIndex) {
   };
 }
 
+async function loadManifestCandidates() {
+  const manifestPath = new URLSearchParams(window.location.search).get("manifest");
+  if (!manifestPath) return null;
+  const response = await fetch(manifestPath, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`素材 manifest 读取失败：${response.status}`);
+  }
+  const manifest = await response.json();
+  const items = Array.isArray(manifest.items) ? manifest.items : [];
+  if (items.length < 27) {
+    throw new Error("素材 manifest 不足 27 张。");
+  }
+  return items.slice(0, 27).map((item, index) => {
+    const gridIndex = Number(item.grid_index || Math.floor(index / 9) + 1);
+    const cellIndex = Number(item.cell_index || index % 9 + 1);
+    const label = item.prompt || `真实素材 ${index + 1}`;
+    return {
+      id: `manifest-${index}`,
+      round: 1,
+      index,
+      total: 27,
+      gridIndex: gridIndex - 1,
+      cellIndex: cellIndex - 1,
+      title: `真实素材 ${index + 1}`,
+      direction: label.split("/")[0]?.trim() || "真实素材",
+      subject: label.split("/")[1]?.trim() || `切片 ${cellIndex}`,
+      detail: `九宫格 ${gridIndex} / 切片 ${cellIndex}`,
+      label,
+      image: item.path,
+    };
+  });
+}
+
 function makeImageSvg({ title, intent, direction, subject, detail, palette, round, index, random }) {
   const [a, b, c, d] = palette;
   const rot = Math.floor(random() * 26) - 13;
@@ -204,8 +243,6 @@ function makeImageSvg({ title, intent, direction, subject, detail, palette, roun
     const r = 1 + Math.floor(random() * 4);
     return `<circle cx="${x}" cy="${y}" r="${r}" fill="${markIndex % 2 ? c : a}" opacity="${0.22 + random() * 0.42}"/>`;
   }).join("");
-  const label = [intent, direction, subject].join(" · ");
-  const roundName = round === 1 ? "方向" : round === 2 ? "首帧" : "照片";
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="420" height="420" viewBox="0 0 300 300">
       <defs>
@@ -225,10 +262,6 @@ function makeImageSvg({ title, intent, direction, subject, detail, palette, roun
       <path d="M0 ${horizon} C70 ${horizon - 28} 122 ${horizon + 28} 185 ${horizon - 2} S262 ${horizon - 16} 300 ${horizon + 8} L300 300 L0 300 Z" fill="${d}" opacity="0.72"/>
       <g transform="rotate(${rot} 150 170)">${strips}<path d="M42 238 C88 176 119 173 154 226 S239 214 262 151" fill="none" stroke="${c}" stroke-width="7" stroke-linecap="round" opacity="0.34"/><rect x="76" y="126" width="148" height="84" fill="${b}" opacity="0.18"/></g>
       ${marks}
-      <rect y="236" width="300" height="64" fill="${b}" opacity="0.62"/>
-      <text x="18" y="259" fill="${c}" font-family="Georgia, serif" font-size="16" font-weight="700">${escapeXml(title)} · ${escapeXml(roundName)}</text>
-      <text x="18" y="278" fill="${c}" font-family="Arial, sans-serif" font-size="10">${escapeXml(label.slice(0, 42))}</text>
-      <text x="18" y="292" fill="${c}" font-family="Arial, sans-serif" font-size="9" opacity="0.78">${escapeXml(detail)}</text>
       <rect width="300" height="300" filter="url(#grain${index})"/>
     </svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
@@ -250,9 +283,9 @@ function handleTileClick(candidate, event) {
   if (state.round === 1) {
     if (!state.primary) {
       state.primary = candidate;
-      showNotice("主视觉已确定。继续点击可选辅助。", "ok");
+      clearNotice();
     } else if (state.primary.id === candidate.id) {
-      showNotice("这是主视觉。双击可以放大看。", "ok");
+      clearNotice();
     } else if (state.auxiliary.some((item) => item.id === candidate.id)) {
       state.auxiliary = state.auxiliary.filter((item) => item.id !== candidate.id);
     } else if (state.auxiliary.length < MAX_AUX) {
@@ -262,7 +295,7 @@ function handleTileClick(candidate, event) {
     }
   } else if (state.round === 2) {
     state.firstFrame = candidate;
-    showNotice("首帧已选定。", "ok");
+    clearNotice();
   } else {
     togglePack(candidate);
   }
@@ -298,21 +331,21 @@ function togglePack(candidate) {
   }
 }
 
-function goNext() {
+async function goNext() {
   try {
     if (state.round === 1) {
       if (!state.primary) return showNotice("先选主视觉。");
       state.round = 2;
-      generateCandidates(2);
+      await generateCandidates(2);
       return;
     }
     if (state.round === 2) {
       if (!state.firstFrame) return showNotice("先选首帧。");
       state.round = 3;
-      generateCandidates(3);
+      await generateCandidates(3);
       return;
     }
-    generateCandidates(3);
+    await generateCandidates(3);
   } catch (error) {
     showNotice(error.message);
     render();
@@ -367,6 +400,7 @@ function buildSelectionText() {
 
 function renderGrid() {
   refs.candidateGrid.innerHTML = "";
+  refs.candidateGrid.dataset.round = String(state.round);
   state.candidates.forEach((candidate, index) => {
     const tile = refs.template.content.firstElementChild.cloneNode(true);
     const img = tile.querySelector("img");
@@ -540,7 +574,7 @@ function crc32(bytes) {
 
 refs.intentForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  startFlow();
+  void startFlow();
 });
 refs.referenceInput.addEventListener("change", () => {
   const file = refs.referenceInput.files?.[0];
@@ -553,7 +587,7 @@ refs.failToggleButton.addEventListener("click", () => {
   showNotice(state.simulateFailure ? "已开启失败模拟。" : "已关闭失败模拟。", "ok");
   render();
 });
-refs.nextButton.addEventListener("click", goNext);
+refs.nextButton.addEventListener("click", () => void goNext());
 refs.exportButton.addEventListener("click", exportPack);
 refs.zoomButton.addEventListener("click", () => openLightbox(0));
 refs.closeLightboxButton.addEventListener("click", closeLightbox);

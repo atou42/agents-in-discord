@@ -43,3 +43,11 @@
 已用 Playwright 验证：第一轮 27 张密集图正常显示；没有旧卡片按钮和侧栏；第一次点击得到 1 个主视觉；第二到第五次点击得到 4 个辅助；第五个辅助会被阻止；双击打开放大浏览；右箭头可切到下一张；Esc 可关闭；第二轮 27 张正常；第三轮 10 张正常；第三轮 pick 留在原位置。已保存 `verification-dense-round-one.png`、`verification-dense-redesign.png` 和 `verification-dense-pack.zip`。
 
 已覆盖上传到 Cohub，并确认 3000 端口返回新版 `visual-grid` 和 `lightbox` 结构。已在公网地址上验证：第一轮 27 张密集图正常；单击得到 1 个主视觉和 4 个辅助；双击可打开横向放大；右箭头切到下一张；第三轮 pick 留在原位置。已保存公网新版截图 `verification-cohub-dense.png`。
+
+## 2026-06-04 视觉填满和九宫格素材管线
+
+根据继续反馈，密集视图仍然不够大。已把第一轮和第二轮固定为 9 列 3 行，让 27 张图尽量填满首屏；第三轮固定为 5 列 2 行，让 10 张照片也填满首屏。选择动作继续发生在图上：第一下是主视觉，第二到第五下是辅助；第三轮点击就是 pick，pick 后图片留在原位置。成功提示不再浮在图上，避免遮挡视觉。
+
+已新增 `docs/prototypes/get-the-10/tools/nine_grid_tool.py`。它支持生成演示九宫格、切割单张九宫格、批量切割三张九宫格，并输出网页可直接读取的 `manifest.json`。已生成演示素材包 `assets/demo-mystery/`，包含 3 张九宫格、27 张切片和 manifest。页面支持通过 `?manifest=assets/demo-mystery/manifest.json` 读取真实切片进入第一轮。
+
+已用浏览器复验：manifest 图片真实加载；第一轮是 27 张、9 列、3 行；前五次点击结果是 `MAIN` 加 4 个 `AUX`；放大视图从 `7 / 27` 通过右箭头切到 `8 / 27`；第三轮是 10 张、2 行；点击第 3 和第 5 张后出现 `PICK`，所有图片坐标保持不变；第三轮没有成功提示遮挡。已保存截图 `verification-fill-9x3.png` 和 `verification-round3-pick.png`。
