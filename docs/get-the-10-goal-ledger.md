@@ -29,3 +29,9 @@
 已验证空意图会明确提示，不会继续生成。已验证生成失败模拟会明确报错，不会用默认内容伪装成功。已验证第一轮生成 27 张候选，未选择主方向时不能进入第二轮，选择主方向后可以继续。已验证第二轮生成 27 张候选，可以回到第一轮重新生成并重新选择主方向。已验证选择首帧后进入第三轮，第三轮生成 10 张候选。已验证照片包计数达到 10 / 10 后，再尝试加入新图会被阻止并显示上限提示。已验证导出会生成压缩包。
 
 已保存验证截图 `docs/prototypes/get-the-10/verification-desktop.png` 和 `docs/prototypes/get-the-10/verification-mobile.png`。已保存验证导出包 `docs/prototypes/get-the-10/verification-pack.zip`，其中包含 10 张 SVG 图片和 `summary.txt`。
+
+## 2026-06-04 Cohub 部署
+
+已通过 Cohub 空间内进程把原型部署到 3000 端口。公网地址是 `https://s-6b9e799d-3711-4143-8a03-0b082a46c261-3000.cohub.run/`。
+
+已用 `curl -I` 验证公网 3000 端口返回 `HTTP/2 200`，服务端是 `SimpleHTTP/0.6 Python/3.11.2`。已用 Playwright 打开公网地址，验证页面标题是 `get the 10`，输入「孤独」后第一轮生成 27 张候选，选择主方向后第二轮也生成 27 张候选。已保存公网部署截图 `docs/prototypes/get-the-10/verification-cohub-deploy.png`。
