@@ -297,6 +297,7 @@ function handleTileClick(candidate, event) {
       state.primary = candidate;
       clearNotice();
     } else if (state.primary.id === candidate.id) {
+      state.primary = null;
       clearNotice();
     } else if (state.auxiliary.some((item) => item.id === candidate.id)) {
       state.auxiliary = state.auxiliary.filter((item) => item.id !== candidate.id);
