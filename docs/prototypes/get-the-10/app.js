@@ -1,4 +1,4 @@
-const MAX_AUX = 3;
+const MAX_AUX = 4;
 const MAX_PACK = 10;
 const SPACE_ID = "6b9e799d-3711-4143-8a03-0b082a46c261";
 
@@ -10,40 +10,37 @@ const state = {
   auxiliary: [],
   rejected: [],
   firstFrame: null,
-  firstFrameRejected: [],
   pack: [],
   packRejected: [],
   candidates: [],
   generationIndex: 0,
   simulateFailure: false,
+  lightboxIndex: 0,
 };
 
 const refs = {
-  roundEyebrow: document.querySelector("#roundEyebrow"),
-  roundTitle: document.querySelector("#roundTitle"),
-  startPanel: document.querySelector("#startPanel"),
+  stageLabel: document.querySelector("#stageLabel"),
+  intentForm: document.querySelector("#intentForm"),
   intentInput: document.querySelector("#intentInput"),
   referenceInput: document.querySelector("#referenceInput"),
   referenceName: document.querySelector("#referenceName"),
-  startButton: document.querySelector("#startButton"),
   resetButton: document.querySelector("#resetButton"),
   failToggleButton: document.querySelector("#failToggleButton"),
+  zoomButton: document.querySelector("#zoomButton"),
   notice: document.querySelector("#notice"),
-  candidateToolbar: document.querySelector("#candidateToolbar"),
-  candidateCount: document.querySelector("#candidateCount"),
-  generationMeta: document.querySelector("#generationMeta"),
-  candidateGrid: document.querySelector("#candidateGrid"),
-  continueButton: document.querySelector("#continueButton"),
+  roundSummary: document.querySelector("#roundSummary"),
+  selectionSummary: document.querySelector("#selectionSummary"),
+  packSummary: document.querySelector("#packSummary"),
+  nextButton: document.querySelector("#nextButton"),
   exportButton: document.querySelector("#exportButton"),
-  backToRoundOneButton: document.querySelector("#backToRoundOneButton"),
+  candidateGrid: document.querySelector("#candidateGrid"),
   template: document.querySelector("#candidateTemplate"),
-  contextIntent: document.querySelector("#contextIntent"),
-  contextPrimary: document.querySelector("#contextPrimary"),
-  contextFirstFrame: document.querySelector("#contextFirstFrame"),
-  contextPackCount: document.querySelector("#contextPackCount"),
-  auxList: document.querySelector("#auxList"),
-  rejectList: document.querySelector("#rejectList"),
-  tabs: Array.from(document.querySelectorAll("[data-round-tab]")),
+  lightbox: document.querySelector("#lightbox"),
+  lightboxTrack: document.querySelector("#lightboxTrack"),
+  lightboxCounter: document.querySelector("#lightboxCounter"),
+  closeLightboxButton: document.querySelector("#closeLightboxButton"),
+  prevButton: document.querySelector("#prevButton"),
+  nextImageButton: document.querySelector("#nextImageButton"),
 };
 
 const directionWords = [
@@ -108,34 +105,45 @@ function clearNotice() {
   refs.notice.textContent = "";
 }
 
-function getRoundCopy() {
-  if (state.round === 1) {
-    return ["第一轮 / 主方向", "从二十七张图里选一个主方向"];
+function assertCanGenerate() {
+  if (!state.intent.trim()) {
+    throw new Error("先输入一个短意图。");
   }
-  if (state.round === 2) {
-    return ["第二轮 / 首帧", "找到那张像是从世界里拍出来的照片"];
+  if (state.simulateFailure) {
+    throw new Error("生成失败已模拟：没有继续伪装成功。");
   }
-  return ["第三轮 / 世界照片包", "保留最多十张来自同一世界的照片"];
 }
 
-function setRound(round) {
+function startFlow() {
+  state.intent = refs.intentInput.value.trim();
+  state.round = 1;
+  state.primary = null;
+  state.auxiliary = [];
+  state.rejected = [];
+  state.firstFrame = null;
+  state.pack = [];
+  state.packRejected = [];
   try {
-    state.round = round;
-    generateCandidates(round);
+    generateCandidates(1);
     clearNotice();
   } catch (error) {
+    state.candidates = [];
     showNotice(error.message);
     render();
   }
 }
 
-function assertCanGenerate() {
-  if (!state.intent.trim()) {
-    throw new Error("先输入一个短意图。一个词也可以。");
-  }
-  if (state.simulateFailure) {
-    throw new Error("生成服务当前失败。系统没有继续假装成功，请关闭模拟失败后重试。");
-  }
+function generateCandidates(round) {
+  assertCanGenerate();
+  state.generationIndex += 1;
+  const total = round === 3 ? 10 : 27;
+  state.candidates = Array.from({ length: total }, (_, index) => {
+    const gridIndex = round === 3 ? 0 : Math.floor(index / 9);
+    const cellIndex = round === 3 ? index : index % 9;
+    return buildCandidate(round, index, total, gridIndex, cellIndex);
+  });
+  if (round === 2) state.firstFrame = null;
+  render();
 }
 
 function buildCandidate(round, index, total, gridIndex, cellIndex) {
@@ -159,21 +167,7 @@ function buildCandidate(round, index, total, gridIndex, cellIndex) {
   const detail = round === 2
     ? state.auxiliary[0]?.detail || pick(detailWords, random, index)
     : pick(detailWords, random, index);
-  const title = round === 3
-    ? `照片 ${index + 1}`
-    : `入口 ${index + 1}`;
-  const image = makeImageSvg({
-    title,
-    intent: state.intent,
-    direction,
-    subject,
-    detail,
-    palette,
-    round,
-    index,
-    random,
-  });
-
+  const title = round === 3 ? `照片 ${index + 1}` : `入口 ${index + 1}`;
   return {
     id: `r${round}-g${state.generationIndex}-${index}`,
     round,
@@ -186,7 +180,7 @@ function buildCandidate(round, index, total, gridIndex, cellIndex) {
     subject,
     detail,
     label: `${direction} / ${subject}`,
-    image,
+    image: makeImageSvg({ title, intent: state.intent, direction, subject, detail, palette, round, index, random }),
   };
 }
 
@@ -212,7 +206,6 @@ function makeImageSvg({ title, intent, direction, subject, detail, palette, roun
   }).join("");
   const label = [intent, direction, subject].join(" · ");
   const roundName = round === 1 ? "方向" : round === 2 ? "首帧" : "照片";
-
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="420" height="420" viewBox="0 0 300 300">
       <defs>
@@ -224,19 +217,13 @@ function makeImageSvg({ title, intent, direction, subject, detail, palette, roun
         <filter id="grain${index}">
           <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/>
           <feColorMatrix type="saturate" values="0"/>
-          <feComponentTransfer>
-            <feFuncA type="table" tableValues="0 0.19"/>
-          </feComponentTransfer>
+          <feComponentTransfer><feFuncA type="table" tableValues="0 0.19"/></feComponentTransfer>
         </filter>
       </defs>
       <rect width="300" height="300" fill="url(#g${index})"/>
       <circle cx="${sunX}" cy="${sunY}" r="${34 * scale}" fill="${c}" opacity="0.22"/>
       <path d="M0 ${horizon} C70 ${horizon - 28} 122 ${horizon + 28} 185 ${horizon - 2} S262 ${horizon - 16} 300 ${horizon + 8} L300 300 L0 300 Z" fill="${d}" opacity="0.72"/>
-      <g transform="rotate(${rot} 150 170)">
-        ${strips}
-        <path d="M42 238 C88 176 119 173 154 226 S239 214 262 151" fill="none" stroke="${c}" stroke-width="7" stroke-linecap="round" opacity="0.34"/>
-        <rect x="76" y="126" width="148" height="84" fill="${b}" opacity="0.18"/>
-      </g>
+      <g transform="rotate(${rot} 150 170)">${strips}<path d="M42 238 C88 176 119 173 154 226 S239 214 262 151" fill="none" stroke="${c}" stroke-width="7" stroke-linecap="round" opacity="0.34"/><rect x="76" y="126" width="148" height="84" fill="${b}" opacity="0.18"/></g>
       ${marks}
       <rect y="236" width="300" height="64" fill="${b}" opacity="0.62"/>
       <text x="18" y="259" fill="${c}" font-family="Georgia, serif" font-size="16" font-weight="700">${escapeXml(title)} · ${escapeXml(roundName)}</text>
@@ -244,7 +231,6 @@ function makeImageSvg({ title, intent, direction, subject, detail, palette, roun
       <text x="18" y="292" fill="${c}" font-family="Arial, sans-serif" font-size="9" opacity="0.78">${escapeXml(detail)}</text>
       <rect width="300" height="300" filter="url(#grain${index})"/>
     </svg>`;
-
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
@@ -256,102 +242,45 @@ function escapeXml(value) {
     .replaceAll('"', "&quot;");
 }
 
-function generateCandidates(round) {
-  assertCanGenerate();
-  state.generationIndex += 1;
-  const total = round === 3 ? 10 : 27;
-  state.candidates = Array.from({ length: total }, (_, index) => {
-    const gridIndex = round === 3 ? 0 : Math.floor(index / 9);
-    const cellIndex = round === 3 ? index : index % 9;
-    return buildCandidate(round, index, total, gridIndex, cellIndex);
-  });
-  if (round === 2) {
-    state.firstFrame = null;
-  }
-  render();
-}
-
-function startFlow() {
-  const intent = refs.intentInput.value.trim();
-  state.intent = intent;
-  try {
-    state.round = 1;
-    state.primary = null;
-    state.auxiliary = [];
-    state.rejected = [];
-    state.firstFrame = null;
-    state.firstFrameRejected = [];
-    state.pack = [];
-    state.packRejected = [];
-    generateCandidates(1);
-    clearNotice();
-  } catch (error) {
-    showNotice(error.message);
-    render();
-  }
-}
-
-function choosePrimary(candidate) {
-  state.primary = candidate;
-  state.auxiliary = state.auxiliary.filter((item) => item.id !== candidate.id);
-  state.rejected = state.rejected.filter((item) => item.id !== candidate.id);
-  showNotice("主方向已更新。后续轮次会以它为锚点。", "ok");
-  render();
-}
-
-function toggleAuxiliary(candidate) {
-  if (state.primary?.id === candidate.id) {
-    showNotice("主方向已经是锚点，不能再作为辅助元素。");
+function handleTileClick(candidate, event) {
+  if (event.altKey || event.metaKey) {
+    toggleRejected(candidate);
     return;
   }
-  const exists = state.auxiliary.some((item) => item.id === candidate.id);
-  if (exists) {
-    state.auxiliary = state.auxiliary.filter((item) => item.id !== candidate.id);
-  } else {
-    if (state.auxiliary.length >= MAX_AUX) {
-      showNotice(`辅助元素最多 ${MAX_AUX} 个，避免主方向被稀释。`);
-      return;
+  if (state.round === 1) {
+    if (!state.primary) {
+      state.primary = candidate;
+      showNotice("主视觉已确定。继续点击可选辅助。", "ok");
+    } else if (state.primary.id === candidate.id) {
+      showNotice("这是主视觉。双击可以放大看。", "ok");
+    } else if (state.auxiliary.some((item) => item.id === candidate.id)) {
+      state.auxiliary = state.auxiliary.filter((item) => item.id !== candidate.id);
+    } else if (state.auxiliary.length < MAX_AUX) {
+      state.auxiliary.push(candidate);
+    } else {
+      showNotice("辅助最多选四张。先取消一个，再选新的。");
     }
-    state.auxiliary.push(candidate);
-    state.rejected = state.rejected.filter((item) => item.id !== candidate.id);
+  } else if (state.round === 2) {
+    state.firstFrame = candidate;
+    showNotice("首帧已选定。", "ok");
+  } else {
+    togglePack(candidate);
   }
   render();
 }
 
 function toggleRejected(candidate) {
-  const collection = state.round === 3 ? state.packRejected : state.round === 2 ? state.firstFrameRejected : state.rejected;
-  const exists = collection.some((item) => item.id === candidate.id);
-  if (exists) {
-    const next = collection.filter((item) => item.id !== candidate.id);
-    assignRejectedCollection(next);
-  } else {
-    assignRejectedCollection([...collection, candidate]);
-    if (state.primary?.id === candidate.id) {
-      state.primary = null;
-    }
-    if (state.firstFrame?.id === candidate.id) {
-      state.firstFrame = null;
-    }
+  const list = state.round === 3 ? state.packRejected : state.rejected;
+  const exists = list.some((item) => item.id === candidate.id);
+  const next = exists ? list.filter((item) => item.id !== candidate.id) : [...list, candidate];
+  if (state.round === 3) state.packRejected = next;
+  else state.rejected = next;
+  if (!exists) {
+    if (state.primary?.id === candidate.id) state.primary = null;
+    if (state.firstFrame?.id === candidate.id) state.firstFrame = null;
     state.auxiliary = state.auxiliary.filter((item) => item.id !== candidate.id);
     state.pack = state.pack.filter((item) => item.id !== candidate.id);
   }
-  render();
-}
-
-function assignRejectedCollection(next) {
-  if (state.round === 3) {
-    state.packRejected = next;
-  } else if (state.round === 2) {
-    state.firstFrameRejected = next;
-  } else {
-    state.rejected = next;
-  }
-}
-
-function chooseFirstFrame(candidate) {
-  state.firstFrame = candidate;
-  state.firstFrameRejected = state.firstFrameRejected.filter((item) => item.id !== candidate.id);
-  showNotice("首帧已选定，可以进入第三轮扩展世界照片包。", "ok");
   render();
 }
 
@@ -361,31 +290,24 @@ function togglePack(candidate) {
     state.pack = state.pack.filter((item) => item.id !== candidate.id);
   } else {
     if (state.pack.length >= MAX_PACK) {
-      showNotice("世界照片包最多保留十张。先移除一张，再加入新的。");
+      showNotice("最多 pick 十张。");
       return;
     }
     state.pack.push(candidate);
     state.packRejected = state.packRejected.filter((item) => item.id !== candidate.id);
   }
-  render();
 }
 
-function handleContinue() {
+function goNext() {
   try {
     if (state.round === 1) {
-      if (!state.primary) {
-        showNotice("第一轮必须选出一个主方向。");
-        return;
-      }
+      if (!state.primary) return showNotice("先选主视觉。");
       state.round = 2;
       generateCandidates(2);
       return;
     }
     if (state.round === 2) {
-      if (!state.firstFrame) {
-        showNotice("第二轮必须选定一张首帧。");
-        return;
-      }
+      if (!state.firstFrame) return showNotice("先选首帧。");
       state.round = 3;
       generateCandidates(3);
       return;
@@ -405,167 +327,110 @@ function resetFlow() {
   state.auxiliary = [];
   state.rejected = [];
   state.firstFrame = null;
-  state.firstFrameRejected = [];
   state.pack = [];
   state.packRejected = [];
   state.candidates = [];
   state.generationIndex = 0;
   refs.intentInput.value = "";
   refs.referenceInput.value = "";
-  refs.referenceName.textContent = "未上传";
+  refs.referenceName.textContent = "参考图";
   clearNotice();
   render();
 }
 
 function render() {
-  const [eyebrow, title] = getRoundCopy();
-  refs.roundEyebrow.textContent = eyebrow;
-  refs.roundTitle.textContent = title;
-  refs.startPanel.hidden = state.candidates.length > 0;
-  refs.candidateToolbar.hidden = state.candidates.length === 0;
-  refs.contextIntent.textContent = state.intent || "未开始";
-  refs.contextPrimary.textContent = state.primary ? state.primary.label : "未选择";
-  refs.contextFirstFrame.textContent = state.firstFrame ? state.firstFrame.label : "未选择";
-  refs.contextPackCount.textContent = `${state.pack.length} / ${MAX_PACK}`;
-  refs.failToggleButton.textContent = state.simulateFailure ? "关闭生成失败" : "模拟生成失败";
-  refs.failToggleButton.classList.toggle("active", state.simulateFailure);
-  renderTabs();
-  renderTokens();
-  renderToolbar();
-  renderCandidates();
-}
-
-function renderTabs() {
-  refs.tabs.forEach((tab) => {
-    const tabRound = Number(tab.dataset.roundTab);
-    tab.classList.toggle("active", tabRound === state.round);
-    tab.disabled = tabRound === 2 ? !state.primary : tabRound === 3 ? !state.firstFrame : false;
-  });
-}
-
-function renderTokens() {
-  refs.auxList.innerHTML = "";
-  refs.rejectList.innerHTML = "";
-  const auxItems = state.auxiliary.length ? state.auxiliary : [{ label: "辅助元素未选择" }];
-  const rejectedPool = [...state.rejected, ...state.firstFrameRejected, ...state.packRejected];
-  const rejectItems = rejectedPool.length ? rejectedPool : [{ label: "拒绝方向未记录" }];
-  auxItems.forEach((item) => refs.auxList.append(makeToken(item.label || item.detail)));
-  rejectItems.forEach((item) => refs.rejectList.append(makeToken(item.label || item.detail)));
-}
-
-function makeToken(label) {
-  const token = document.createElement("span");
-  token.className = "token";
-  token.textContent = label;
-  return token;
-}
-
-function renderToolbar() {
-  const count = state.candidates.length;
-  refs.candidateCount.textContent = `${count} 张候选`;
-  refs.generationMeta.textContent = state.round === 3
-    ? `第 ${state.generationIndex} 次生成，世界照片包最多保留十张`
-    : `第 ${state.generationIndex} 次生成，三张九宫格已切成二十七张`;
-  refs.backToRoundOneButton.hidden = state.round !== 2;
+  refs.stageLabel.textContent = state.round === 1 ? "第一轮 · 主方向" : state.round === 2 ? "第二轮 · 首帧" : "第三轮 · 照片包";
+  refs.roundSummary.textContent = state.candidates.length
+    ? `${state.candidates.length} 张 · 第 ${state.generationIndex} 次`
+    : "输入一个短意图开始";
+  refs.selectionSummary.textContent = buildSelectionText();
+  refs.packSummary.textContent = `${state.pack.length} / ${MAX_PACK}`;
+  refs.failToggleButton.textContent = state.simulateFailure ? "关闭失败" : "模拟失败";
+  refs.nextButton.textContent = state.round === 1 ? "第二轮" : state.round === 2 ? "第三轮" : "再生成";
+  refs.nextButton.disabled = state.round === 1 ? !state.primary : state.round === 2 ? !state.firstFrame : state.candidates.length === 0;
   refs.exportButton.hidden = state.round !== 3;
   refs.exportButton.disabled = state.pack.length === 0;
-  refs.continueButton.hidden = false;
-  if (state.round === 1) {
-    refs.continueButton.textContent = "进入第二轮";
-    refs.continueButton.disabled = !state.primary;
-  } else if (state.round === 2) {
-    refs.continueButton.textContent = "进入第三轮";
-    refs.continueButton.disabled = !state.firstFrame;
-  } else {
-    refs.continueButton.textContent = "再生成十张";
-    refs.continueButton.disabled = false;
-  }
+  refs.zoomButton.disabled = state.candidates.length === 0;
+  renderGrid();
 }
 
-function renderCandidates() {
-  refs.candidateGrid.innerHTML = "";
-  state.candidates.forEach((candidate) => {
-    const node = refs.template.content.firstElementChild.cloneNode(true);
-    const imageButton = node.querySelector(".image-button");
-    const img = node.querySelector("img");
-    const metaTitle = node.querySelector(".candidate-meta strong");
-    const metaDetail = node.querySelector(".candidate-meta span");
-    const actions = node.querySelector(".candidate-actions");
+function buildSelectionText() {
+  if (state.round === 1) {
+    const primary = state.primary ? `主 ${state.primary.index + 1}` : "主未选";
+    return `${primary} · 辅 ${state.auxiliary.length}/${MAX_AUX}`;
+  }
+  if (state.round === 2) {
+    return state.firstFrame ? `首帧 ${state.firstFrame.index + 1}` : "首帧未选";
+  }
+  return state.pack.length ? `pick ${state.pack.length}` : "未 pick";
+}
 
-    node.classList.toggle("primary", state.primary?.id === candidate.id || state.firstFrame?.id === candidate.id);
-    node.classList.toggle("kept", state.pack.some((item) => item.id === candidate.id));
-    node.classList.toggle("rejected-card", isRejected(candidate));
+function renderGrid() {
+  refs.candidateGrid.innerHTML = "";
+  state.candidates.forEach((candidate, index) => {
+    const tile = refs.template.content.firstElementChild.cloneNode(true);
+    const img = tile.querySelector("img");
+    const tileIndex = tile.querySelector(".tile-index");
+    const tileMark = tile.querySelector(".tile-mark");
     img.src = candidate.image;
     img.alt = `${candidate.label}，${candidate.detail}`;
-    metaTitle.textContent = candidate.label;
-    metaDetail.textContent = state.round === 3
-      ? candidate.detail
-      : `九宫格 ${candidate.gridIndex + 1} / 切片 ${candidate.cellIndex + 1} · ${candidate.detail}`;
-    imageButton.addEventListener("click", () => quickSelect(candidate));
-    renderCandidateActions(actions, candidate);
-    refs.candidateGrid.append(node);
+    tileIndex.textContent = index + 1;
+    const mark = getMark(candidate);
+    tileMark.textContent = mark;
+    tile.classList.toggle("primary", mark === "MAIN" || mark === "FRAME");
+    tile.classList.toggle("aux", mark === "AUX");
+    tile.classList.toggle("pick", mark === "PICK");
+    tile.classList.toggle("rejected", mark === "NO");
+    tile.addEventListener("click", (event) => handleTileClick(candidate, event));
+    tile.addEventListener("dblclick", () => openLightbox(index));
+    refs.candidateGrid.append(tile);
   });
 }
 
-function renderCandidateActions(actions, candidate) {
-  actions.innerHTML = "";
-  if (state.round === 1) {
-    actions.append(
-      makeAction("主方向", () => choosePrimary(candidate), state.primary?.id === candidate.id),
-      makeAction("辅助", () => toggleAuxiliary(candidate), state.auxiliary.some((item) => item.id === candidate.id), "keep-active"),
-      makeAction("不要", () => toggleRejected(candidate), isRejected(candidate)),
-    );
-    return;
-  }
-  if (state.round === 2) {
-    actions.append(
-      makeAction("首帧", () => chooseFirstFrame(candidate), state.firstFrame?.id === candidate.id),
-      makeAction("不要", () => toggleRejected(candidate), isRejected(candidate)),
-    );
-    return;
-  }
-  actions.append(
-    makeAction("加入", () => togglePack(candidate), state.pack.some((item) => item.id === candidate.id), "keep-active"),
-    makeAction("不要", () => toggleRejected(candidate), isRejected(candidate)),
-  );
+function getMark(candidate) {
+  if (state.round === 1 && state.primary?.id === candidate.id) return "MAIN";
+  if (state.round === 1 && state.auxiliary.some((item) => item.id === candidate.id)) return "AUX";
+  if (state.round === 2 && state.firstFrame?.id === candidate.id) return "FRAME";
+  if (state.round === 3 && state.pack.some((item) => item.id === candidate.id)) return "PICK";
+  if ([...state.rejected, ...state.packRejected].some((item) => item.id === candidate.id)) return "NO";
+  return "";
 }
 
-function makeAction(label, onClick, active = false, activeClass = "active") {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.textContent = label;
-  button.classList.toggle(activeClass, active);
-  button.addEventListener("click", onClick);
-  return button;
+function openLightbox(index = 0) {
+  if (!state.candidates.length) return;
+  state.lightboxIndex = index;
+  refs.lightbox.hidden = false;
+  refs.lightboxTrack.innerHTML = "";
+  state.candidates.forEach((candidate) => {
+    const slide = document.createElement("figure");
+    slide.className = "lightbox-slide";
+    const image = document.createElement("img");
+    image.src = candidate.image;
+    image.alt = candidate.label;
+    slide.append(image);
+    refs.lightboxTrack.append(slide);
+  });
+  scrollLightboxTo(index);
 }
 
-function quickSelect(candidate) {
-  if (state.round === 1) {
-    choosePrimary(candidate);
-  } else if (state.round === 2) {
-    chooseFirstFrame(candidate);
-  } else {
-    togglePack(candidate);
-  }
+function closeLightbox() {
+  refs.lightbox.hidden = true;
 }
 
-function isRejected(candidate) {
-  return [...state.rejected, ...state.firstFrameRejected, ...state.packRejected].some((item) => item.id === candidate.id);
+function scrollLightboxTo(index) {
+  const clamped = Math.max(0, Math.min(index, state.candidates.length - 1));
+  state.lightboxIndex = clamped;
+  refs.lightboxCounter.textContent = `${clamped + 1} / ${state.candidates.length}`;
+  refs.lightboxTrack.scrollTo({ left: clamped * window.innerWidth, behavior: "smooth" });
 }
 
 async function exportPack() {
-  if (state.pack.length === 0) {
-    showNotice("照片包里还没有图片。");
-    return;
-  }
+  if (state.pack.length === 0) return showNotice("还没有 pick。");
   const files = state.pack.map((candidate, index) => ({
     name: `get-the-10-${String(index + 1).padStart(2, "0")}.svg`,
     bytes: svgDataUrlToBytes(candidate.image),
   }));
-  files.push({
-    name: "summary.txt",
-    bytes: new TextEncoder().encode(buildSummary()),
-  });
+  files.push({ name: "summary.txt", bytes: new TextEncoder().encode(buildSummary()) });
   const zipBytes = createZip(files);
   const blob = new Blob([zipBytes], { type: "application/zip" });
   const url = URL.createObjectURL(blob);
@@ -576,11 +441,11 @@ async function exportPack() {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
-  showNotice("压缩包已生成。浏览器会开始下载。", "ok");
+  showNotice("压缩包已生成。", "ok");
 }
 
 function buildSummary() {
-  const lines = [
+  return [
     "get the 10 世界照片包",
     "",
     `空间 ID：${SPACE_ID}`,
@@ -592,13 +457,9 @@ function buildSummary() {
     "辅助元素：",
     ...state.auxiliary.map((item) => `- ${item.label} / ${item.detail}`),
     "",
-    "拒绝方向：",
-    ...[...state.rejected, ...state.firstFrameRejected, ...state.packRejected].map((item) => `- ${item.label} / ${item.detail}`),
-    "",
     "照片包：",
     ...state.pack.map((item, index) => `${index + 1}. ${item.label} / ${item.detail}`),
-  ];
-  return lines.join("\n");
+  ].join("\n");
 }
 
 function safeName(value) {
@@ -654,19 +515,11 @@ function concatBytes(parts) {
 }
 
 function u16(value) {
-  const bytes = new Uint8Array(2);
-  bytes[0] = value & 0xff;
-  bytes[1] = (value >>> 8) & 0xff;
-  return bytes;
+  return new Uint8Array([value & 0xff, (value >>> 8) & 0xff]);
 }
 
 function u32(value) {
-  const bytes = new Uint8Array(4);
-  bytes[0] = value & 0xff;
-  bytes[1] = (value >>> 8) & 0xff;
-  bytes[2] = (value >>> 16) & 0xff;
-  bytes[3] = (value >>> 24) & 0xff;
-  return bytes;
+  return new Uint8Array([value & 0xff, (value >>> 8) & 0xff, (value >>> 16) & 0xff, (value >>> 24) & 0xff]);
 }
 
 const crcTable = Array.from({ length: 256 }, (_, tableIndex) => {
@@ -685,42 +538,32 @@ function crc32(bytes) {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-refs.startButton.addEventListener("click", startFlow);
-refs.intentInput.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") {
-    startFlow();
-  }
+refs.intentForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  startFlow();
 });
 refs.referenceInput.addEventListener("change", () => {
   const file = refs.referenceInput.files?.[0];
   state.referenceName = file?.name || "";
-  refs.referenceName.textContent = state.referenceName || "未上传";
+  refs.referenceName.textContent = state.referenceName || "参考图";
 });
 refs.resetButton.addEventListener("click", resetFlow);
 refs.failToggleButton.addEventListener("click", () => {
   state.simulateFailure = !state.simulateFailure;
-  showNotice(state.simulateFailure ? "已开启生成失败模拟。下一次生成会明确失败。" : "已关闭生成失败模拟。", "ok");
+  showNotice(state.simulateFailure ? "已开启失败模拟。" : "已关闭失败模拟。", "ok");
   render();
 });
-refs.continueButton.addEventListener("click", handleContinue);
+refs.nextButton.addEventListener("click", goNext);
 refs.exportButton.addEventListener("click", exportPack);
-refs.backToRoundOneButton.addEventListener("click", () => {
-  try {
-    state.round = 1;
-    state.firstFrame = null;
-    generateCandidates(1);
-  } catch (error) {
-    showNotice(error.message);
-    render();
-  }
-});
-refs.tabs.forEach((tab) => {
-  tab.addEventListener("click", () => {
-    const round = Number(tab.dataset.roundTab);
-    if (round === 1 || (round === 2 && state.primary) || (round === 3 && state.firstFrame)) {
-      setRound(round);
-    }
-  });
+refs.zoomButton.addEventListener("click", () => openLightbox(0));
+refs.closeLightboxButton.addEventListener("click", closeLightbox);
+refs.prevButton.addEventListener("click", () => scrollLightboxTo(state.lightboxIndex - 1));
+refs.nextImageButton.addEventListener("click", () => scrollLightboxTo(state.lightboxIndex + 1));
+document.addEventListener("keydown", (event) => {
+  if (refs.lightbox.hidden) return;
+  if (event.key === "Escape") closeLightbox();
+  if (event.key === "ArrowLeft") scrollLightboxTo(state.lightboxIndex - 1);
+  if (event.key === "ArrowRight") scrollLightboxTo(state.lightboxIndex + 1);
 });
 
 window.__get10State = state;

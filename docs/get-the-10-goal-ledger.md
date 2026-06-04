@@ -35,3 +35,9 @@
 已通过 Cohub 空间内进程把原型部署到 3000 端口。公网地址是 `https://s-6b9e799d-3711-4143-8a03-0b082a46c261-3000.cohub.run/`。
 
 已用 `curl -I` 验证公网 3000 端口返回 `HTTP/2 200`，服务端是 `SimpleHTTP/0.6 Python/3.11.2`。已用 Playwright 打开公网地址，验证页面标题是 `get the 10`，输入「孤独」后第一轮生成 27 张候选，选择主方向后第二轮也生成 27 张候选。已保存公网部署截图 `docs/prototypes/get-the-10/verification-cohub-deploy.png`。
+
+## 2026-06-04 密集视觉交互修正
+
+根据反馈，原先的侧栏、卡片按钮和大段状态文案过度干扰视觉。已改为全屏密集平铺视图，去掉侧栏和每张卡片下方按钮。第一轮单击第一张图即确认主视觉，第二到第五次单击会作为辅助，最多四张。双击任意图进入放大横向浏览，支持左右键切换和 Esc 关闭。第三轮单击即 pick，pick 状态保留在原图位置，不把图片移走。
+
+已用 Playwright 验证：第一轮 27 张密集图正常显示；没有旧卡片按钮和侧栏；第一次点击得到 1 个主视觉；第二到第五次点击得到 4 个辅助；第五个辅助会被阻止；双击打开放大浏览；右箭头可切到下一张；Esc 可关闭；第二轮 27 张正常；第三轮 10 张正常；第三轮 pick 留在原位置。已保存 `verification-dense-round-one.png`、`verification-dense-redesign.png` 和 `verification-dense-pack.zip`。
