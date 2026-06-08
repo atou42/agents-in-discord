@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project follows Semantic Versioning.
 
+## [0.12.23] - 2026-06-08
+
+### Added
+- Added the get the 10 nine-grid asset pipeline, real mixed-aspect image2 trial assets, and additional world-render prompt trial packs for city morning and arrogance directions.
+- Added a local get the 10 live server that serves the prototype and exposes `/api/runs` for first-round real image generation.
+
+### Changed
+- Updated the get the 10 prototype so the first round can show live generation progress, crop remote nine-grid outputs into selectable candidates, and start from a smaller feedback-ready live run.
+- Allowed cancelling the main first-round selection.
+
+### Verified
+- Recorded dense, Cohub fill, and real-asset verification screenshots for the get the 10 prototype.
+
 ## [0.12.21] - 2026-05-20
 
 ### Added
