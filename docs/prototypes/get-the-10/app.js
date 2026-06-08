@@ -2,6 +2,8 @@ const MAX_AUX = 4;
 const MAX_PACK = 10;
 const SPACE_ID = "6b9e799d-3711-4143-8a03-0b082a46c261";
 const REAL_ANGER_MANIFEST = "assets/real-anger-mixed/slices/manifest.json";
+const LIVE_RUNS_ENDPOINT = "/api/runs";
+const LIVE_LOADING_COUNT = 9;
 
 const state = {
   round: 1,
@@ -14,6 +16,8 @@ const state = {
   pack: [],
   packRejected: [],
   candidates: [],
+  isGenerating: false,
+  liveRun: null,
   generationIndex: 0,
   simulateFailure: false,
   lightboxIndex: 0,
@@ -29,6 +33,11 @@ const refs = {
   failToggleButton: document.querySelector("#failToggleButton"),
   zoomButton: document.querySelector("#zoomButton"),
   notice: document.querySelector("#notice"),
+  runPanel: document.querySelector("#runPanel"),
+  runKicker: document.querySelector("#runKicker"),
+  runTitle: document.querySelector("#runTitle"),
+  runMeterFill: document.querySelector("#runMeterFill"),
+  runPercent: document.querySelector("#runPercent"),
   roundSummary: document.querySelector("#roundSummary"),
   selectionSummary: document.querySelector("#selectionSummary"),
   packSummary: document.querySelector("#packSummary"),
@@ -124,11 +133,14 @@ async function startFlow() {
   state.firstFrame = null;
   state.pack = [];
   state.packRejected = [];
+  state.isGenerating = false;
+  state.liveRun = null;
   try {
     await generateCandidates(1);
     clearNotice();
   } catch (error) {
     state.candidates = [];
+    state.isGenerating = false;
     showNotice(error.message);
     render();
   }
@@ -143,6 +155,10 @@ async function generateCandidates(round) {
     render();
     return;
   }
+  if (round === 1) {
+    await generateLiveRoundOne();
+    return;
+  }
   const total = round === 3 ? 10 : 27;
   state.candidates = Array.from({ length: total }, (_, index) => {
     const gridIndex = round === 3 ? 0 : Math.floor(index / 9);
@@ -151,6 +167,119 @@ async function generateCandidates(round) {
   });
   if (round === 2) state.firstFrame = null;
   render();
+}
+
+async function generateLiveRoundOne() {
+  state.isGenerating = true;
+  state.liveRun = {
+    status: "queued",
+    progress: 0,
+    step: "连接生成环境",
+  };
+  state.candidates = buildLoadingCandidates();
+  render();
+
+  const response = await fetch(LIVE_RUNS_ENDPOINT, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      intent: state.intent,
+      referenceName: state.referenceName,
+    }),
+  });
+  const created = await readJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(created.message || "生成任务创建失败。");
+  }
+  state.liveRun = created;
+  render();
+  await pollLiveRun(created.id);
+}
+
+async function pollLiveRun(runId) {
+  while (true) {
+    await wait(1600);
+    const response = await fetch(`${LIVE_RUNS_ENDPOINT}/${encodeURIComponent(runId)}`, { cache: "no-store" });
+    const job = await readJsonResponse(response);
+    if (!response.ok) {
+      throw new Error(job.message || "生成任务读取失败。");
+    }
+    state.liveRun = job;
+    render();
+    if (job.status === "complete") {
+      state.candidates = mapManifestItems(job.manifest);
+      state.isGenerating = false;
+      state.liveRun = job;
+      render();
+      return;
+    }
+    if (job.status === "failed") {
+      throw new Error(job.error || "生成失败。");
+    }
+  }
+}
+
+function buildLoadingCandidates() {
+  return Array.from({ length: LIVE_LOADING_COUNT }, (_, index) => ({
+    id: `loading-${state.generationIndex}-${index}`,
+    round: 1,
+    index,
+    total: LIVE_LOADING_COUNT,
+    gridIndex: Math.floor(index / 9),
+    cellIndex: index % 9,
+    title: `候选 ${index + 1}`,
+    direction: "生成中",
+    subject: "等待真实图像",
+    detail: "真实生成任务还在进行",
+    label: "生成中",
+    image: "",
+    loading: true,
+    width: 512,
+    height: 341,
+  }));
+}
+
+function mapManifestItems(manifest) {
+  const items = Array.isArray(manifest?.items) ? manifest.items : [];
+  if (items.length < 9) {
+    throw new Error("生成结果不足 9 张。");
+  }
+  const total = items.length;
+  return items.map((item, index) => {
+    const gridIndex = Number(item.grid_index || Math.floor(index / 9) + 1);
+    const cellIndex = Number(item.cell_index || index % 9 + 1);
+    const label = item.prompt || `真实候选 ${index + 1}`;
+    return {
+      id: `live-${state.liveRun?.id || state.generationIndex}-${index}`,
+      round: 1,
+      index,
+      total,
+      gridIndex: gridIndex - 1,
+      cellIndex: cellIndex - 1,
+      title: `真实候选 ${index + 1}`,
+      direction: label.split("/")[0]?.trim() || "真实生成",
+      subject: label.split("/")[1]?.trim() || `切片 ${cellIndex}`,
+      detail: `九宫格 ${gridIndex} / 切片 ${cellIndex}`,
+      label,
+      image: item.path,
+      crop: item.crop || null,
+      width: Number(item.width) || undefined,
+      height: Number(item.height) || undefined,
+    };
+  });
+}
+
+async function readJsonResponse(response) {
+  const text = await response.text();
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(`服务返回不是 JSON：${response.status}`);
+  }
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function buildCandidate(round, index, total, gridIndex, cellIndex) {
@@ -202,10 +331,10 @@ async function loadManifestCandidates() {
   }
   const manifest = await response.json();
   const items = Array.isArray(manifest.items) ? manifest.items : [];
-  if (items.length < 27) {
-    throw new Error("素材 manifest 不足 27 张。");
+  if (items.length < 9) {
+    throw new Error("素材 manifest 不足 9 张。");
   }
-  return items.slice(0, 27).map((item, index) => {
+  return items.map((item, index) => {
     const gridIndex = Number(item.grid_index || Math.floor(index / 9) + 1);
     const cellIndex = Number(item.cell_index || index % 9 + 1);
     const label = item.prompt || `真实素材 ${index + 1}`;
@@ -213,7 +342,7 @@ async function loadManifestCandidates() {
       id: `manifest-${index}`,
       round: 1,
       index,
-      total: 27,
+      total: items.length,
       gridIndex: gridIndex - 1,
       cellIndex: cellIndex - 1,
       title: `真实素材 ${index + 1}`,
@@ -222,6 +351,7 @@ async function loadManifestCandidates() {
       detail: `九宫格 ${gridIndex} / 切片 ${cellIndex}`,
       label,
       image: item.path,
+      crop: item.crop || null,
       width: Number(item.width) || undefined,
       height: Number(item.height) || undefined,
     };
@@ -384,6 +514,8 @@ function resetFlow() {
   state.pack = [];
   state.packRejected = [];
   state.candidates = [];
+  state.isGenerating = false;
+  state.liveRun = null;
   state.generationIndex = 0;
   refs.intentInput.value = "";
   refs.referenceInput.value = "";
@@ -395,17 +527,32 @@ function resetFlow() {
 function render() {
   refs.stageLabel.textContent = state.round === 1 ? "第一轮 · 主方向" : state.round === 2 ? "第二轮 · 首帧" : "第三轮 · 照片包";
   refs.roundSummary.textContent = state.candidates.length
-    ? `${state.candidates.length} 张 · 第 ${state.generationIndex} 次`
+    ? state.isGenerating
+      ? `${state.liveRun?.step || "生成中"} · 第 ${state.generationIndex} 次`
+      : `${state.candidates.length} 张 · 第 ${state.generationIndex} 次`
     : "输入一个短意图开始";
   refs.selectionSummary.textContent = buildSelectionText();
   refs.packSummary.textContent = `${state.pack.length} / ${MAX_PACK}`;
   refs.failToggleButton.textContent = state.simulateFailure ? "关闭失败" : "模拟失败";
   refs.nextButton.textContent = state.round === 1 ? "第二轮" : state.round === 2 ? "第三轮" : "再生成";
   refs.nextButton.disabled = state.round === 1 ? !state.primary : state.round === 2 ? !state.firstFrame : state.candidates.length === 0;
+  refs.nextButton.disabled = refs.nextButton.disabled || state.isGenerating;
   refs.exportButton.hidden = state.round !== 3;
   refs.exportButton.disabled = state.pack.length === 0;
-  refs.zoomButton.disabled = state.candidates.length === 0;
+  refs.zoomButton.disabled = state.candidates.length === 0 || state.isGenerating;
+  refs.intentForm.querySelector("button[type='submit']").disabled = state.isGenerating;
+  renderRunPanel();
   renderGrid();
+}
+
+function renderRunPanel() {
+  refs.runPanel.hidden = !state.isGenerating && state.liveRun?.status !== "complete";
+  if (refs.runPanel.hidden) return;
+  const progress = Math.max(0, Math.min(100, Number(state.liveRun?.progress || 0)));
+  refs.runKicker.textContent = state.liveRun?.status === "complete" ? "真实生成完成" : "真实生成";
+  refs.runTitle.textContent = state.liveRun?.step || "正在连接生成环境";
+  refs.runMeterFill.style.width = `${progress}%`;
+  refs.runPercent.textContent = `${Math.round(progress)}%`;
 }
 
 function buildSelectionText() {
@@ -425,9 +572,17 @@ function renderGrid() {
   state.candidates.forEach((candidate, index) => {
     const tile = refs.template.content.firstElementChild.cloneNode(true);
     const img = tile.querySelector("img");
+    const loader = tile.querySelector(".tile-loader");
     const tileIndex = tile.querySelector(".tile-index");
     const tileMark = tile.querySelector(".tile-mark");
-    img.src = candidate.image;
+    tile.classList.toggle("loading", Boolean(candidate.loading));
+    tile.classList.toggle("cropped", Boolean(candidate.crop));
+    loader.textContent = candidate.loading ? buildLoadingLabel(index) : "";
+    if (candidate.image) img.src = candidate.image;
+    if (candidate.crop) {
+      img.style.setProperty("--crop-x", String(candidate.crop.col || 0));
+      img.style.setProperty("--crop-y", String(candidate.crop.row || 0));
+    }
     img.alt = `${candidate.label}，${candidate.detail}`;
     if (candidate.width && candidate.height) {
       img.width = candidate.width;
@@ -440,10 +595,21 @@ function renderGrid() {
     tile.classList.toggle("aux", mark === "AUX");
     tile.classList.toggle("pick", mark === "PICK");
     tile.classList.toggle("rejected", mark === "NO");
-    tile.addEventListener("click", (event) => handleTileClick(candidate, event));
-    tile.addEventListener("dblclick", () => openLightbox(index));
+    tile.disabled = Boolean(candidate.loading);
+    tile.addEventListener("click", (event) => {
+      if (!candidate.loading) handleTileClick(candidate, event);
+    });
+    tile.addEventListener("dblclick", () => {
+      if (!candidate.loading) openLightbox(index);
+    });
     refs.candidateGrid.append(tile);
   });
+}
+
+function buildLoadingLabel(index) {
+  const phase = state.liveRun?.step || "排队";
+  const cell = `${Math.floor(index / 9) + 1}-${(index % 9) + 1}`;
+  return `${phase} · ${cell}`;
 }
 
 function getMark(candidate) {
@@ -463,9 +629,14 @@ function openLightbox(index = 0) {
   state.candidates.forEach((candidate) => {
     const slide = document.createElement("figure");
     slide.className = "lightbox-slide";
+    slide.classList.toggle("cropped", Boolean(candidate.crop));
     const image = document.createElement("img");
     image.src = candidate.image;
     image.alt = candidate.label;
+    if (candidate.crop) {
+      image.style.setProperty("--crop-x", String(candidate.crop.col || 0));
+      image.style.setProperty("--crop-y", String(candidate.crop.row || 0));
+    }
     slide.append(image);
     refs.lightboxTrack.append(slide);
   });

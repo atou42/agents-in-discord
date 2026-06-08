@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,">
     <title>get the 10</title>
     <link rel="stylesheet" href="./styles.css">
   </head>
@@ -14,7 +15,7 @@
           <span id="stageLabel">第一轮 · 主方向</span>
         </div>
         <form class="intent-form" id="intentForm">
-          <input id="intentInput" type="text" maxlength="60" placeholder="愤怒">
+          <input id="intentInput" type="text" maxlength="60" placeholder="远行">
           <label class="ref-control" for="referenceInput">
             <input id="referenceInput" type="file" accept="image/*">
             <span id="referenceName">参考图</span>
@@ -38,6 +39,17 @@
 
       <section class="notice" id="notice" hidden></section>
 
+      <section class="run-panel" id="runPanel" hidden>
+        <div class="run-copy">
+          <span id="runKicker">真实生成</span>
+          <strong id="runTitle">正在连接生成环境</strong>
+        </div>
+        <div class="run-meter" aria-hidden="true">
+          <span id="runMeterFill"></span>
+        </div>
+        <span id="runPercent">0%</span>
+      </section>
+
       <section class="visual-grid" id="candidateGrid" aria-label="视觉候选"></section>
     </main>
 
@@ -53,6 +65,7 @@
 
     <template id="candidateTemplate">
       <button class="visual-tile" type="button">
+        <span class="tile-loader"></span>
         <img alt="">
         <span class="tile-index"></span>
         <span class="tile-mark"></span>
