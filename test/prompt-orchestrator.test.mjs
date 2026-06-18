@@ -696,6 +696,56 @@ test('createPromptOrchestrator.handlePrompt does not send metadata-only final re
   assert.match(replyLog[0], /过程输出已实时发送/);
 });
 
+test('createPromptOrchestrator.handlePrompt preserves real final answer when process stream already included its paragraphs', async () => {
+  let channelStateRef = null;
+  const finalParagraphs = [
+    '完成了。',
+    '公开验收页在这里：\nhttps://example.test/one-shot-batch-002/index.html',
+    '这轮 5 个对象都做了 one-shot 视频、抽成 atlas、生成 manifest、发布网页，并逐页用浏览器验过。',
+    '目标已标记完成。用量记录：591012 tokens，约 75 分钟。',
+  ];
+  const finalAnswer = finalParagraphs.join('\n\n');
+  const harness = createOrchestrator({
+    resolveReplyDeliverySetting: () => ({ mode: 'stream_mention', source: 'session override' }),
+    runTask: async (options) => {
+      options.onSpawn?.({ pid: 123 });
+      channelStateRef.activeRun.streamedProcessActivityKeys = [...finalParagraphs];
+      return {
+        ok: true,
+        cancelled: false,
+        timedOut: false,
+        error: '',
+        logs: [],
+        notes: [],
+        reasonings: [],
+        messages: [],
+        finalAnswerMessages: [finalAnswer],
+        threadId: 'sess-1',
+        usage: { input_tokens: 321 },
+      };
+    },
+  });
+  const { replyLog, orchestrator } = harness;
+  const message = {
+    id: 'msg-preserve-final-answer',
+    channel: {
+      async sendTyping() {},
+      async send(payload) {
+        replyLog.push(payload);
+      },
+    },
+  };
+  const channelState = { queue: [], cancelRequested: false, activeRun: null };
+  channelStateRef = channelState;
+
+  const outcome = await orchestrator.handlePrompt(message, 'thread-1', 'do work', channelState);
+
+  assert.deepEqual(outcome, { ok: true, cancelled: false });
+  assert.match(replyLog[0], /公开验收页在这里/);
+  assert.match(replyLog[0], /https:\/\/example\.test\/one-shot-batch-002\/index\.html/);
+  assert.doesNotMatch(replyLog[0], /过程输出已实时发送，无新增最终文本/);
+});
+
 test('createPromptOrchestrator.handlePrompt reports no visible final answer instead of promoting process messages', async () => {
   const harness = createOrchestrator({
     runTask: async (options) => {

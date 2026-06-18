@@ -887,8 +887,10 @@ export function extractRawProgressTextFromEvent(ev, options = {}) {
       const preview = extractSubagentNotificationReportPreview(notification, options);
       return isLowSignalProcessText(preview) ? '' : preview;
     }
+    const phase = normalizeEventType(ev.phase || payload?.phase || '');
     const role = normalizeEventType(ev.role || payload?.role || '');
     const stopReason = extractStopReason(ev, payload);
+    if (phase === 'final_answer') return '';
     if (role && role !== 'assistant') return '';
     if (stopReason === 'end_turn') return '';
     const text = pickFirstRawText([

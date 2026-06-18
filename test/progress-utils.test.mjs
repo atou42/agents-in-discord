@@ -461,6 +461,23 @@ test('extractRawProgressTextFromEvent ignores final_answer from response_item as
   assert.equal(raw, '');
 });
 
+test('extractRawProgressTextFromEvent ignores direct final_answer assistant message', () => {
+  const ev = {
+    type: 'message',
+    role: 'assistant',
+    phase: 'final_answer',
+    content: [
+      {
+        type: 'output_text',
+        text: '最终答案即使以直接 message 事件出现，也不能进入过程流。',
+      },
+    ],
+  };
+
+  const raw = extractRawProgressTextFromEvent(ev);
+  assert.equal(raw, '');
+});
+
 test('summarizeCodexEvent unwraps event_msg payload for summary rendering', () => {
   const ev = {
     type: 'event_msg',

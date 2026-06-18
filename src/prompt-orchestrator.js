@@ -309,7 +309,7 @@ export function createPromptOrchestrator({
       : '✅ 完成（过程输出已实时发送，无新增最终文本）。';
   }
 
-  function stripStreamedProcessMessagesFromFinalBody(body, channelState, { language = 'zh' } = {}) {
+  function stripStreamedProcessMessagesFromFinalBody(body, channelState, { language = 'zh', hasFinalAnswer = false } = {}) {
     const streamed = Array.isArray(channelState?.activeRun?.streamedProcessActivityKeys)
       ? channelState.activeRun.streamedProcessActivityKeys
       : [];
@@ -336,6 +336,7 @@ export function createPromptOrchestrator({
 
     const stripped = filtered.join('').trim();
     if (!stripped || isResultMetadataOnly(stripped)) {
+      if (hasFinalAnswer) return body;
       return formatStreamedProcessOnlyFinalText(language);
     }
     return stripped;
@@ -907,7 +908,11 @@ export function createPromptOrchestrator({
       const body = stripStreamedProcessMessagesFromFinalBody(
         composeResultText(result, session),
         channelState,
-        { language },
+        {
+          language,
+          hasFinalAnswer: Array.isArray(result.finalAnswerMessages)
+            && result.finalAnswerMessages.some((item) => String(item || '').trim()),
+        },
       );
       const parts = splitForDiscord(body, resultChunkChars);
 
