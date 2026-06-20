@@ -56,6 +56,27 @@ test('summarizeCodexEvent surfaces subagent launch task from spawn_agent', () =>
   assert.equal(summary, 'subagent worker starting: Verify the Discord progress card shows sub tasks in real time.');
 });
 
+test('summarizeCodexEvent hides encrypted spawn_agent message and uses task name', () => {
+  const ev = {
+    type: 'response_item',
+    payload: {
+      type: 'function_call',
+      name: 'spawn_agent',
+      arguments: JSON.stringify({
+        task_name: 'obsidian_scan_style',
+        fork_turns: '3',
+        message: 'gAAAAABqNhRdYr6UazMOLxd1j396p5HEaANm4bu5X4c38NMWvMYyRqBWFZNmdZ0xuYq4xJKciY9rVl9-s-ZYobHYVIEXDUeHA1OBM4t9EhMlwCq6O1-UPZi10kcq0vRfZhljF1M6iR-cP4PlJPkob8hGjU_P7VZhxrPgwTO2XuBMkbkmQ==',
+      }),
+      call_id: 'call_spawn_encrypted',
+    },
+  };
+
+  const summary = summarizeCodexEvent(ev, { previewChars: 180 });
+  const raw = extractRawProgressTextFromEvent(ev, { previewChars: 180 });
+  assert.equal(summary, 'subagent starting: obsidian_scan_style');
+  assert.equal(raw, 'subagent starting: obsidian_scan_style');
+});
+
 test('summarizeCodexEvent surfaces subagent start confirmation from function_call_output', () => {
   const ev = {
     type: 'response_item',

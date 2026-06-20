@@ -13,6 +13,13 @@ function normalizeWhitespace(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
 }
 
+function isOpaqueEncryptedText(value) {
+  const text = normalizeWhitespace(value);
+  if (text.length < 80) return false;
+  if (/^gAAAAA[A-Za-z0-9_-]+={0,2}$/.test(text)) return true;
+  return false;
+}
+
 function normalizeEventType(type) {
   return String(type || '').trim().toLowerCase().replace(/[./-]/g, '_');
 }
@@ -201,6 +208,7 @@ function extractSubagentTaskPreview(args, options = {}) {
 
   for (const candidate of candidates) {
     const text = normalizeWhitespace(candidate);
+    if (isOpaqueEncryptedText(text)) continue;
     if (text) return truncate(text, previewChars);
   }
 
@@ -214,10 +222,11 @@ function extractSubagentTaskPreview(args, options = {}) {
       })
       .filter(Boolean)
       .join(' '));
-    if (merged) return truncate(merged, previewChars);
+    if (merged && !isOpaqueEncryptedText(merged)) return truncate(merged, previewChars);
   }
 
-  return '';
+  const taskName = normalizeWhitespace(args.task_name || args.taskName || '');
+  return taskName && !isOpaqueEncryptedText(taskName) ? truncate(taskName, previewChars) : '';
 }
 
 function formatSubagentTargets(rawTargets, options = {}) {
