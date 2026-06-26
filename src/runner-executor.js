@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { createRunnerArgsBuilder, uniqueDirs } from './runner-args.js';
 import { createClaudeLongRunner } from './claude-long-runner.js';
 import { createCodexAppServerRunner } from './codex-app-server-runner.js';
-import { CODEX_GOAL_CONTINUATION_PROMPT } from './codex-goal-flow.js';
+import { CODEX_GOAL_CONTINUATION_PROMPT, isCodexGoalContinuationPrompt } from './codex-goal-flow.js';
 import {
   createRunnerEventParser,
 } from './runner-event-handlers.js';
@@ -661,11 +661,6 @@ export function createRunnerExecutor({
     getClaudeLongSessions: () => claudeLongRunner.getSnapshot(),
     getCodexAppServerSessions: () => codexAppServerRunner.getSnapshot(),
   };
-}
-
-function isCodexGoalContinuationPrompt(prompt) {
-  const normalize = (value) => String(value || '').replace(/\s+/g, ' ').trim();
-  return normalize(prompt) === normalize(CODEX_GOAL_CONTINUATION_PROMPT);
 }
 
 function isCodexGoalBlockerMessage(text) {

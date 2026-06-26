@@ -5,6 +5,11 @@ export const CODEX_GOAL_CONTINUATION_PROMPT = [
   'If the goal is already complete, mark it complete and summarize the result.',
 ].join(' ');
 
+export function isCodexGoalContinuationPrompt(prompt) {
+  const normalize = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+  return normalize(prompt) === normalize(CODEX_GOAL_CONTINUATION_PROMPT);
+}
+
 function normalizeText(value) {
   const text = String(value || '').trim();
   return text || null;

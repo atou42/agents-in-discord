@@ -5,6 +5,7 @@ import { PassThrough } from 'node:stream';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 import { buildCodexLongConfig, createCodexAppServerRunner } from '../src/codex-app-server-runner.js';
+import { CODEX_GOAL_CONTINUATION_PROMPT } from '../src/codex-goal-flow.js';
 
 function waitFor(check, { timeoutMs = 1000, intervalMs = 10 } = {}) {
   return new Promise((resolve, reject) => {
@@ -24,7 +25,12 @@ function waitFor(check, { timeoutMs = 1000, intervalMs = 10 } = {}) {
   });
 }
 
-function createFakeAppServerSpawn({ autoComplete = true, failSteer = false, failInject = false } = {}) {
+function createFakeAppServerSpawn({
+  autoComplete = true,
+  failSteer = false,
+  failInject = false,
+  completedItems = null,
+} = {}) {
   const calls = [];
   const writes = [];
   let activeThreadId = 'thread-1';
@@ -92,7 +98,12 @@ function createFakeAppServerSpawn({ autoComplete = true, failSteer = false, fail
 
   function completeTurn() {
     child.stdout.write(`${JSON.stringify({ method: 'thread/tokenUsage/updated', params: { threadId: activeThreadId, turnId: activeTurnId, tokenUsage: { last: { inputTokens: 12, totalTokens: 20, cachedInputTokens: 0, outputTokens: 8, reasoningOutputTokens: 0 } } } })}\n`);
-    child.stdout.write(`${JSON.stringify({ method: 'item/completed', params: { threadId: activeThreadId, turnId: activeTurnId, item: { type: 'agentMessage', id: 'item-1', text: 'done from app-server', phase: 'final_answer' } } })}\n`);
+    const items = Array.isArray(completedItems) && completedItems.length
+      ? completedItems
+      : [{ type: 'agentMessage', id: 'item-1', text: 'done from app-server', phase: 'final_answer' }];
+    for (const item of items) {
+      child.stdout.write(`${JSON.stringify({ method: 'item/completed', params: { threadId: activeThreadId, turnId: activeTurnId, item } })}\n`);
+    }
     child.stdout.write(`${JSON.stringify({ method: 'turn/completed', params: { threadId: activeThreadId, turn: { id: activeTurnId, status: 'completed' } } })}\n`);
   }
 
@@ -177,6 +188,56 @@ test('createCodexAppServerRunner runs a turn over persistent app-server and clos
 
   await sleep(20);
   assert.equal(fake.child.killed, true);
+});
+
+test('createCodexAppServerRunner promotes commentary output only for Codex goal continuation', async () => {
+  const completedItems = [
+    { type: 'agentMessage', id: 'item-1', text: '本地加严验收通过。', phase: 'commentary' },
+    { type: 'agentMessage', id: 'item-2', text: 'completion audit 已经能闭环，现在把 goal 标成完成。', phase: 'commentary' },
+  ];
+  const makeRunner = (fake) => createCodexAppServerRunner({
+    spawnEnv: { HOME: '/tmp/home' },
+    getProviderBin: () => 'codex-test',
+    getSessionId: (session) => session.runnerSessionId || null,
+    resolveModelSetting: () => ({ value: null }),
+    resolveCodexProfileSetting: () => ({ value: null, isExplicit: false, valid: true }),
+    resolveReasoningEffortSetting: () => ({ value: null }),
+    resolveFastModeSetting: () => ({ enabled: true, source: 'env default' }),
+    resolveCompactStrategySetting: () => ({ strategy: 'hard' }),
+    resolveCompactEnabledSetting: () => ({ enabled: false }),
+    resolveNativeCompactTokenLimitSetting: () => ({ tokens: 0 }),
+    resolveTimeoutSetting: () => ({ timeoutMs: 0 }),
+    normalizeTimeoutMs: (value) => Number(value || 0),
+    safeError: (err) => String(err?.message || err),
+    stopChildProcess: (target) => target.kill(),
+    idleMs: 0,
+    spawnFn: fake.spawnFn,
+    log: () => {},
+  });
+
+  const goalFake = createFakeAppServerSpawn({ completedItems });
+  const goalRunner = makeRunner(goalFake);
+  const goalResult = await goalRunner.runTask({
+    session: { provider: 'codex', mode: 'safe', runnerSessionId: null },
+    sessionKey: 'discord-thread-goal',
+    workspaceDir: '/tmp/workspace',
+    prompt: CODEX_GOAL_CONTINUATION_PROMPT,
+  });
+  assert.deepEqual(goalResult.messages, ['本地加严验收通过。', 'completion audit 已经能闭环，现在把 goal 标成完成。']);
+  assert.deepEqual(goalResult.finalAnswerMessages, ['本地加严验收通过。', 'completion audit 已经能闭环，现在把 goal 标成完成。']);
+  goalRunner.closeAll('test done');
+
+  const normalFake = createFakeAppServerSpawn({ completedItems });
+  const normalRunner = makeRunner(normalFake);
+  const normalResult = await normalRunner.runTask({
+    session: { provider: 'codex', mode: 'safe', runnerSessionId: null },
+    sessionKey: 'discord-thread-normal',
+    workspaceDir: '/tmp/workspace',
+    prompt: 'ordinary task',
+  });
+  assert.deepEqual(normalResult.messages, ['本地加严验收通过。', 'completion audit 已经能闭环，现在把 goal 标成完成。']);
+  assert.deepEqual(normalResult.finalAnswerMessages, []);
+  normalRunner.closeAll('test done');
 });
 
 test('createCodexAppServerRunner resumes an existing thread before starting a turn', async () => {

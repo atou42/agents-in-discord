@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import readline from 'node:readline';
 import { applyCodexOpenAICuratedMarketplaceConfig } from './codex-marketplaces.js';
+import { isCodexGoalContinuationPrompt } from './codex-goal-flow.js';
 
 function normalizeText(value) {
   const text = String(value || '').trim();
@@ -135,6 +136,13 @@ function appendUnique(list, text) {
   list.push(value);
 }
 
+function promoteGoalContinuationMessages(turn) {
+  if (!turn?.isGoalContinuation) return;
+  if (Array.isArray(turn.finalAnswerMessages) && turn.finalAnswerMessages.length) return;
+  if (!Array.isArray(turn.messages) || !turn.messages.length) return;
+  turn.finalAnswerMessages.push(...turn.messages);
+}
+
 function isFinalAgentItem(item) {
   const phase = normalizeProviderItemType(item?.phase || '');
   return phase !== 'commentary';
@@ -209,6 +217,7 @@ export function createCodexAppServerRunner({
       const turn = entry.currentTurn;
       entry.currentTurn = null;
       if (turn.timeout) clearTimeout(turn.timeout);
+      promoteGoalContinuationMessages(turn);
       turn.resolve({
         ok: false,
         cancelled: Boolean(turn.wasCancelled?.()),
@@ -366,6 +375,7 @@ export function createCodexAppServerRunner({
       if (!turn.finalAnswerMessages.length && buffered) {
         turn.finalAnswerMessages.push(buffered);
       }
+      promoteGoalContinuationMessages(turn);
       if (turn.timeout) clearTimeout(turn.timeout);
       entry.currentTurn = null;
       entry.lastUsedAt = Date.now();
@@ -789,6 +799,7 @@ export function createCodexAppServerRunner({
         threadId: sideTargetThreadId || entry.threadId,
         sideTargetThreadId,
         keepAlive: Boolean(sideTargetThreadId),
+        isGoalContinuation: isCodexGoalContinuationPrompt(prompt),
         turnId: null,
         meta: {},
         deltaByItemId: new Map(),
