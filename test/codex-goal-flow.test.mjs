@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   CODEX_GOAL_CONTINUATION_PROMPT,
   formatCodexGoalResult,
+  isCodexGoalContinuationPrompt,
   parseCodexGoalSlashInput,
   shouldStartCodexGoalContinuation,
 } from '../src/codex-goal-flow.js';
@@ -11,6 +12,15 @@ import {
 test('Codex goal continuation prompt targets the persisted active goal', () => {
   assert.match(CODEX_GOAL_CONTINUATION_PROMPT, /Continue working toward the active Codex goal/);
   assert.match(CODEX_GOAL_CONTINUATION_PROMPT, /persisted goal state/);
+});
+
+test('Codex goal continuation prompt still matches when runtime context is appended', () => {
+  assert.equal(isCodexGoalContinuationPrompt(CODEX_GOAL_CONTINUATION_PROMPT), true);
+  assert.equal(
+    isCodexGoalContinuationPrompt(`${CODEX_GOAL_CONTINUATION_PROMPT}\n\n[Via agents-in-discord; discord_thread=thread-1]`),
+    true,
+  );
+  assert.equal(isCodexGoalContinuationPrompt(`not this ${CODEX_GOAL_CONTINUATION_PROMPT}`), false);
 });
 
 test('Codex goal continuation only starts when a command makes the goal active', () => {

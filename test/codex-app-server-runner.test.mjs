@@ -221,7 +221,7 @@ test('createCodexAppServerRunner promotes commentary output only for Codex goal 
     session: { provider: 'codex', mode: 'safe', runnerSessionId: null },
     sessionKey: 'discord-thread-goal',
     workspaceDir: '/tmp/workspace',
-    prompt: CODEX_GOAL_CONTINUATION_PROMPT,
+    prompt: `${CODEX_GOAL_CONTINUATION_PROMPT}\n\n[Via agents-in-discord; discord_thread=thread-1]`,
   });
   assert.deepEqual(goalResult.messages, ['本地加严验收通过。', 'completion audit 已经能闭环，现在把 goal 标成完成。']);
   assert.deepEqual(goalResult.finalAnswerMessages, ['本地加严验收通过。', 'completion audit 已经能闭环，现在把 goal 标成完成。']);

@@ -7,7 +7,10 @@ export const CODEX_GOAL_CONTINUATION_PROMPT = [
 
 export function isCodexGoalContinuationPrompt(prompt) {
   const normalize = (value) => String(value || '').replace(/\s+/g, ' ').trim();
-  return normalize(prompt) === normalize(CODEX_GOAL_CONTINUATION_PROMPT);
+  const normalizedPrompt = normalize(prompt);
+  const normalizedContinuation = normalize(CODEX_GOAL_CONTINUATION_PROMPT);
+  return normalizedPrompt === normalizedContinuation
+    || normalizedPrompt.startsWith(`${normalizedContinuation} `);
 }
 
 function normalizeText(value) {
