@@ -2,7 +2,7 @@
 
 Date: 2026-06-28
 
-Status: initialized
+Status: Milestone 0 implemented and deployed
 
 ## Current State
 
@@ -10,7 +10,9 @@ The implementation plan has been written in `docs/superpowers/specs/2026-06-28-j
 
 There are 11 source reveal specs: Bucciarati Betrayal as the mother spec, plus 10 follow-up scene specs for Giorno, Bucciarati Farewell, Narancia, Mista, Fugo, Abbacchio, Trish, Doppio, Diavolo, and Requiem.
 
-The current live page is still the pre-Stand-Reveal quote theater. Runtime assets and specs have been synced to cohub space `cff01d0c-3643-40ee-bd8e-5a468d910587`.
+Milestone 0 has been implemented on the live page. Bucciarati Betrayal now holds after a successful zipper release, triggers a Sticky Fingers entrance, shows a Stand Scan, returns to Bucciarati's character meaning, and waits for the user to continue to Farewell when auto mode is off.
+
+Runtime files and new Sticky Fingers assets have been synced to cohub space `cff01d0c-3643-40ee-bd8e-5a468d910587`.
 
 ## Confirmed Decisions
 
@@ -28,9 +30,28 @@ Quality is prioritized over speed. No milestone is accepted without local and on
 
 ## Validation Evidence
 
-No implementation validation has been run for the Stand Story Reveal phase yet, because this ledger was created during planning.
+Milestone 0 local validation was completed on 2026-06-29.
+
+Validated commands and flows:
+
+- `node --check script.js`
+- `node --check dist/script.js`
+- desktop Playwright flow at 1440x900: Betrayal zipper success, `stand_scan`, `character_return`, Continue to Farewell
+- desktop Replay during Stand Scan clears reveal state and keeps Betrayal active
+- desktop Next during Stand entrance clears reveal state and moves to Farewell
+- desktop failed zipper drag snaps back without `is-zip-complete` or reveal state
+- mobile Playwright flow at 390x844: vertical zipper success, Stand Scan, Continue to Farewell
+- reduced-motion Playwright flow: shortened reveal reaches Stand Scan and Continue moves to Farewell
+- local browser validation reported no console errors and no failed asset requests
+- online cohub smoke flow passed at `https://s-cff01d0c-3643-40ee-bd8e-5a468d910587-3000.cohub.run/`
+- online asset check returned 200 for `assets/generated/stand-reveals/sticky-fingers-full.webp`
+
+Generated evidence screenshots:
+
+- `output/playwright/stand-reveal-desktop-scan.png`
+- `output/playwright/stand-reveal-desktop-return.png`
+- `output/playwright/stand-reveal-mobile-scan.png`
 
 ## Next Action
 
-Start Milestone 0 by reading the implementation plan, Bucciarati Betrayal spec, current `script.js`, current `styles.css`, and current assets. Then design the shared reveal foundation before assigning any subagent scene work.
-
+Review Milestone 0 visually with the user. If accepted, start Milestone 1 with Giorno, Narancia, and Mista using the shared reveal foundation instead of creating separate scene-specific architectures.
