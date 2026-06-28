@@ -2,7 +2,7 @@
 
 Date: 2026-06-28
 
-Status: Milestone 1 implemented and deployed
+Status: Milestone 2 implemented and deployed
 
 ## Current State
 
@@ -13,6 +13,8 @@ There are 11 source reveal specs: Bucciarati Betrayal as the mother spec, plus 1
 Milestone 0 has been implemented on the live page. Bucciarati Betrayal now holds after a successful zipper release, triggers a Sticky Fingers entrance, shows a Stand Scan, returns to Bucciarati's character meaning, and waits for the user to continue to Farewell when auto mode is off.
 
 Milestone 1 has also been implemented on the live page. Giorno now requires two quote taps before Gold Experience appears; Narancia still requires three random Aerosmith locks before the Aerosmith Stand Scan; Mista keeps four persistent bullet holes before Sex Pistols appears with No. 4 excluded from the Stand explanation.
+
+Milestone 2 has also been implemented on the live page. Fugo now requires a real hold before Purple Haze appears; short touches release safely. Abbacchio still uses a horizontal memory scrub, with failed scrubs snapping back and successful scrubs revealing Moody Blues. Trish now bends the scene into a Spice Girl reveal before continuing to Doppio.
 
 Runtime files and new Stand reveal assets have been synced to cohub space `cff01d0c-3643-40ee-bd8e-5a468d910587`.
 
@@ -83,6 +85,37 @@ Generated evidence screenshots:
 - `output/playwright/online-m1-narancia.png`
 - `output/playwright/online-m1-mista.png`
 
+## Milestone 2 Validation Evidence
+
+Milestone 2 local and online validation was completed on 2026-06-29.
+
+Validated commands and flows:
+
+- `node --check script.js`
+- `node --check dist/script.js`
+- local desktop Playwright flow at 1440x900: Fugo short hold stays on Fugo, long hold reaches Purple Haze Stand Scan, Continue moves to Abbacchio
+- local desktop Playwright flow at 1440x900: Abbacchio failed scrub stays on Abbacchio, successful scrub reaches Moody Blues Stand Scan, Continue moves to Trish
+- local desktop Playwright flow at 1440x900: Trish tap reaches Spice Girl Stand Scan, Continue moves to Doppio
+- local Replay during Fugo Stand Scan clears reveal state
+- local mobile Playwright flow at 390x844: Fugo short touch fails safely, Fugo long touch reaches Purple Haze, Abbacchio touch scrub reaches Moody Blues, Trish tap reaches Spice Girl
+- local reduced-motion flow reaches all three Milestone 2 Stand Scans
+- local previous-milestone regression reran Giorno, Narancia, Mista, and Sticky Fingers reveals after the hidden Stand Scan pointer fix
+- local browser validation reported no console errors and no failed asset requests
+- online cohub smoke passed for Fugo, Abbacchio, and Trish at `https://s-cff01d0c-3643-40ee-bd8e-5a468d910587-3000.cohub.run/`
+
+Generated evidence screenshots:
+
+- `output/playwright/m2-fugo-stand-scan.png`
+- `output/playwright/m2-abbacchio-stand-scan.png`
+- `output/playwright/m2-trish-stand-scan.png`
+- `output/playwright/m2-mobile-fugo.png`
+- `output/playwright/m2-mobile-abbacchio.png`
+- `output/playwright/m2-mobile-trish.png`
+- `output/playwright/m2-regression-sticky-fingers.png`
+- `output/playwright/online-m2-fugo.png`
+- `output/playwright/online-m2-abbacchio.png`
+- `output/playwright/online-m2-trish.png`
+
 ## Next Action
 
-Review Milestone 1 visually with the user. If accepted, start Milestone 2 with Fugo, Abbacchio, and Trish using the shared reveal foundation.
+Review Milestone 2 visually with the user. If accepted, start Milestone 3 with Doppio, Diavolo, and Requiem as the endgame chain.
