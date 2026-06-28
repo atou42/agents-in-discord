@@ -2,7 +2,7 @@
 
 Date: 2026-06-28
 
-Status: Milestone 2 implemented and deployed
+Status: Milestone 3 implemented and deployed
 
 ## Current State
 
@@ -15,6 +15,8 @@ Milestone 0 has been implemented on the live page. Bucciarati Betrayal now holds
 Milestone 1 has also been implemented on the live page. Giorno now requires two quote taps before Gold Experience appears; Narancia still requires three random Aerosmith locks before the Aerosmith Stand Scan; Mista keeps four persistent bullet holes before Sex Pistols appears with No. 4 excluded from the Stand explanation.
 
 Milestone 2 has also been implemented on the live page. Fugo now requires a real hold before Purple Haze appears; short touches release safely. Abbacchio still uses a horizontal memory scrub, with failed scrubs snapping back and successful scrubs revealing Moody Blues. Trish now bends the scene into a Spice Girl reveal before continuing to Doppio.
+
+Milestone 3 has also been implemented on the live page. Doppio now uses three escalating taps before Epitaph and a partial borrowed King Crimson arm appear. Diavolo now requires the hold/release gesture to show an Epitaph forecast, a missing-middle cut, King Crimson, and the aftermath explanation before continuing. Requiem now shows a three-step Return to Zero rule demonstration before Gold Experience Requiem appears and the user can return to Giorno.
 
 Runtime files and new Stand reveal assets have been synced to cohub space `cff01d0c-3643-40ee-bd8e-5a468d910587`.
 
@@ -116,6 +118,37 @@ Generated evidence screenshots:
 - `output/playwright/online-m2-abbacchio.png`
 - `output/playwright/online-m2-trish.png`
 
+## Milestone 3 Validation Evidence
+
+Milestone 3 local and online validation was completed on 2026-06-29.
+
+Validated commands and flows:
+
+- `node --check script.js`
+- `node --check dist/script.js`
+- XML parse check for all SVG Stand reveal assets
+- local desktop Playwright flow at 1440x900: Doppio tap one and tap two stay on Doppio, tap two shows forecast state, tap three reaches Epitaph Stand Scan, Continue moves to Diavolo
+- local desktop Playwright flow at 1440x900: Diavolo short hold fails safely, successful hold arms Epitaph, release reaches King Crimson Stand Scan, Continue moves to Requiem
+- local desktop Playwright flow at 1440x900: Requiem tap shows zero-denial state before Stand Scan, Gold Experience Requiem Stand Scan appears, Continue returns to Giorno
+- local mobile Playwright flow at 390x844: Doppio, Diavolo, and Requiem all reach readable Stand Scans with no horizontal overflow
+- local reduced-motion flow reaches Epitaph, King Crimson, and Gold Experience Requiem Stand Scans
+- local previous-milestone regression reran Giorno, Sticky Fingers, Narancia, Mista, Fugo, Abbacchio, and Trish reveals
+- local browser validation reported no console errors and no failed asset requests
+- online cohub smoke passed for Doppio, Diavolo, and Requiem at `https://s-cff01d0c-3643-40ee-bd8e-5a468d910587-3000.cohub.run/`
+
+Generated evidence screenshots:
+
+- `output/playwright/m3-doppio-stand-scan.png`
+- `output/playwright/m3-diavolo-stand-scan.png`
+- `output/playwright/m3-requiem-stand-scan.png`
+- `output/playwright/m3-mobile-doppio.png`
+- `output/playwright/m3-mobile-diavolo.png`
+- `output/playwright/m3-mobile-requiem-fixed2.png`
+- `output/playwright/m3-reduced-motion-requiem.png`
+- `output/playwright/online-m3-doppio.png`
+- `output/playwright/online-m3-diavolo.png`
+- `output/playwright/online-m3-requiem.png`
+
 ## Next Action
 
-Review Milestone 2 visually with the user. If accepted, start Milestone 3 with Doppio, Diavolo, and Requiem as the endgame chain.
+Review Milestone 3 visually with the user. The implementation goal is complete unless the review asks for another quality pass.
