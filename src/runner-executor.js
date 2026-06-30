@@ -50,6 +50,7 @@ export function createRunnerExecutor({
   claudeLongMaxSessions = 8,
   codexAppServerIdleMs = 15 * 60_000,
   codexAppServerMaxSessions = 8,
+  codexAppServerDisabledMcpServers = [],
   createClaudeLongRunnerFn = createClaudeLongRunner,
   createCodexAppServerRunnerFn = createCodexAppServerRunner,
 } = {}) {
@@ -100,6 +101,7 @@ export function createRunnerExecutor({
     stopChildProcess,
     idleMs: codexAppServerIdleMs,
     maxSessions: codexAppServerMaxSessions,
+    disabledMcpServers: codexAppServerDisabledMcpServers,
   });
 
   async function runProviderTask({

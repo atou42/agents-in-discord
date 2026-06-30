@@ -90,6 +90,43 @@ test('createCodexAppServerClient sends initialize then thread/fork', async () =>
   assert.deepEqual(fake.writes.map((line) => JSON.parse(line).method), ['initialize', 'thread/fork']);
 });
 
+test('createCodexAppServerClient can disable MCP servers for one app-server process', async () => {
+  const fake = createFakeSpawn({
+    onRequest(request) {
+      if (request.method === 'initialize') {
+        return { id: request.id, result: { codexHome: '/tmp/codex' } };
+      }
+      if (request.method === 'thread/fork') {
+        return {
+          id: request.id,
+          result: {
+            thread: {
+              id: 'fork-1',
+              forkedFromId: 'parent-1',
+            },
+          },
+        };
+      }
+      throw new Error(`unexpected method ${request.method}`);
+    },
+  });
+
+  const client = createCodexAppServerClient({
+    codexBin: 'codex-test',
+    spawnFn: fake.spawnFn,
+    disabledMcpServers: ['flomo'],
+  });
+  await client.forkThread({ threadId: 'parent-1' });
+
+  assert.deepEqual(fake.calls[0].args, [
+    'app-server',
+    '--listen',
+    'stdio://',
+    '-c',
+    'mcp_servers.flomo.enabled=false',
+  ]);
+});
+
 test('forkCodexThread rejects missing parent thread id before spawning', async () => {
   let spawned = false;
   await assert.rejects(

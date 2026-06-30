@@ -151,6 +151,9 @@ import {
   writeCodexDefaults,
 } from './runtime-bootstrap.js';
 import {
+  normalizeDisabledMcpServers,
+} from './codex-app-server-args.js';
+import {
   clearCodexThreadGoal,
   forkCodexThread,
   getCodexThreadGoal,
@@ -391,6 +394,11 @@ const CODEX_APP_SERVER_MAX_SESSIONS = Math.max(
   1,
   toInt(process.env.CODEX__APP_SERVER_MAX_SESSIONS || process.env.CODEX_APP_SERVER_MAX_SESSIONS, 8),
 );
+const CODEX_APP_SERVER_DISABLED_MCP_SERVERS = normalizeDisabledMcpServers(
+  process.env.CODEX__APP_SERVER_DISABLED_MCP_SERVERS
+    || process.env.CODEX_APP_SERVER_DISABLED_MCP_SERVERS
+    || 'flomo',
+);
 const PROJECT_UPGRADE_CHECK_INTERVAL_MS = normalizeIntervalMs(
   process.env.AGENTS_IN_DISCORD_UPGRADE_CHECK_INTERVAL_MS,
   6 * 60 * 60_000,
@@ -597,6 +605,7 @@ const appContext = createAppContext({
       claudeLongMaxSessions: CLAUDE_LONG_MAX_SESSIONS,
       codexAppServerIdleMs: CODEX_APP_SERVER_IDLE_MS,
       codexAppServerMaxSessions: CODEX_APP_SERVER_MAX_SESSIONS,
+      codexAppServerDisabledMcpServers: CODEX_APP_SERVER_DISABLED_MCP_SERVERS,
       ensureDir,
       normalizeProvider,
       getProviderBin,
@@ -614,8 +623,18 @@ const appContext = createAppContext({
           model: modelSetting?.value,
         });
       },
-      getCodexThreadGoal: (options) => getCodexThreadGoal({ ...options, codexBin: CODEX_BIN, env: SPAWN_ENV }),
-      unsubscribeCodexThread: (options) => unsubscribeCodexThread({ ...options, codexBin: CODEX_BIN, env: SPAWN_ENV }),
+      getCodexThreadGoal: (options) => getCodexThreadGoal({
+        ...options,
+        codexBin: CODEX_BIN,
+        env: SPAWN_ENV,
+        disabledMcpServers: CODEX_APP_SERVER_DISABLED_MCP_SERVERS,
+      }),
+      unsubscribeCodexThread: (options) => unsubscribeCodexThread({
+        ...options,
+        codexBin: CODEX_BIN,
+        env: SPAWN_ENV,
+        disabledMcpServers: CODEX_APP_SERVER_DISABLED_MCP_SERVERS,
+      }),
     },
     promptOrchestratorOptions: {
       defaultUiLanguage: DEFAULT_UI_LANGUAGE,
@@ -786,15 +805,35 @@ const appContext = createAppContext({
       }),
       requestProjectUpgradeRestart: () => projectUpgradeManager.requestRestart(),
       resolvePath,
-      forkCodexThread: (options) => forkCodexThread({ ...options, codexBin: CODEX_BIN, env: SPAWN_ENV }),
+      forkCodexThread: (options) => forkCodexThread({
+        ...options,
+        codexBin: CODEX_BIN,
+        env: SPAWN_ENV,
+        disabledMcpServers: CODEX_APP_SERVER_DISABLED_MCP_SERVERS,
+      }),
       resolveForkWorkspace: ({ provider, parentSessionId } = {}) => (
         normalizeProvider(provider) === 'claude'
           ? readClaudeSessionMetaBySessionId(parentSessionId)?.cwd
           : null
       ),
-      getCodexThreadGoal: (options) => getCodexThreadGoal({ ...options, codexBin: CODEX_BIN, env: SPAWN_ENV }),
-      setCodexThreadGoal: (options) => setCodexThreadGoal({ ...options, codexBin: CODEX_BIN, env: SPAWN_ENV }),
-      clearCodexThreadGoal: (options) => clearCodexThreadGoal({ ...options, codexBin: CODEX_BIN, env: SPAWN_ENV }),
+      getCodexThreadGoal: (options) => getCodexThreadGoal({
+        ...options,
+        codexBin: CODEX_BIN,
+        env: SPAWN_ENV,
+        disabledMcpServers: CODEX_APP_SERVER_DISABLED_MCP_SERVERS,
+      }),
+      setCodexThreadGoal: (options) => setCodexThreadGoal({
+        ...options,
+        codexBin: CODEX_BIN,
+        env: SPAWN_ENV,
+        disabledMcpServers: CODEX_APP_SERVER_DISABLED_MCP_SERVERS,
+      }),
+      clearCodexThreadGoal: (options) => clearCodexThreadGoal({
+        ...options,
+        codexBin: CODEX_BIN,
+        env: SPAWN_ENV,
+        disabledMcpServers: CODEX_APP_SERVER_DISABLED_MCP_SERVERS,
+      }),
       safeError,
     },
     textCommandOptions: {
@@ -834,15 +873,35 @@ const appContext = createAppContext({
       parseWorkspaceCommandAction,
       isReasoningEffortSupported,
       resolvePath,
-      forkCodexThread: (options) => forkCodexThread({ ...options, codexBin: CODEX_BIN, env: SPAWN_ENV }),
+      forkCodexThread: (options) => forkCodexThread({
+        ...options,
+        codexBin: CODEX_BIN,
+        env: SPAWN_ENV,
+        disabledMcpServers: CODEX_APP_SERVER_DISABLED_MCP_SERVERS,
+      }),
       resolveForkWorkspace: ({ provider, parentSessionId } = {}) => (
         normalizeProvider(provider) === 'claude'
           ? readClaudeSessionMetaBySessionId(parentSessionId)?.cwd
           : null
       ),
-      getCodexThreadGoal: (options) => getCodexThreadGoal({ ...options, codexBin: CODEX_BIN, env: SPAWN_ENV }),
-      setCodexThreadGoal: (options) => setCodexThreadGoal({ ...options, codexBin: CODEX_BIN, env: SPAWN_ENV }),
-      clearCodexThreadGoal: (options) => clearCodexThreadGoal({ ...options, codexBin: CODEX_BIN, env: SPAWN_ENV }),
+      getCodexThreadGoal: (options) => getCodexThreadGoal({
+        ...options,
+        codexBin: CODEX_BIN,
+        env: SPAWN_ENV,
+        disabledMcpServers: CODEX_APP_SERVER_DISABLED_MCP_SERVERS,
+      }),
+      setCodexThreadGoal: (options) => setCodexThreadGoal({
+        ...options,
+        codexBin: CODEX_BIN,
+        env: SPAWN_ENV,
+        disabledMcpServers: CODEX_APP_SERVER_DISABLED_MCP_SERVERS,
+      }),
+      clearCodexThreadGoal: (options) => clearCodexThreadGoal({
+        ...options,
+        codexBin: CODEX_BIN,
+        env: SPAWN_ENV,
+        disabledMcpServers: CODEX_APP_SERVER_DISABLED_MCP_SERVERS,
+      }),
       safeError,
     },
   },
@@ -908,6 +967,7 @@ console.log([
   `• CODEX_RUNTIME_MODE=${CODEX_RUNTIME_MODE}`,
   `• CODEX_APP_SERVER_IDLE_MS=${CODEX_APP_SERVER_IDLE_MS}`,
   `• CODEX_APP_SERVER_MAX_SESSIONS=${CODEX_APP_SERVER_MAX_SESSIONS}`,
+  `• CODEX_APP_SERVER_DISABLED_MCP_SERVERS=${CODEX_APP_SERVER_DISABLED_MCP_SERVERS.length ? CODEX_APP_SERVER_DISABLED_MCP_SERVERS.join(',') : '(none)'}`,
   `• CLAUDE_RUNTIME_MODE=${CLAUDE_RUNTIME_MODE}`,
   `• CLAUDE_LONG_IDLE_MS=${CLAUDE_LONG_IDLE_MS}`,
   `• CLAUDE_LONG_MAX_SESSIONS=${CLAUDE_LONG_MAX_SESSIONS}`,

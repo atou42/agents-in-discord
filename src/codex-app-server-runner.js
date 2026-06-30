@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import readline from 'node:readline';
+import { buildCodexAppServerArgs } from './codex-app-server-args.js';
 import { applyCodexOpenAICuratedMarketplaceConfig } from './codex-marketplaces.js';
 import { isCodexGoalContinuationPrompt } from './codex-goal-flow.js';
 
@@ -193,6 +194,7 @@ export function createCodexAppServerRunner({
   stopChildProcess = (child) => child?.kill?.('SIGTERM'),
   idleMs = 15 * 60_000,
   maxSessions = 8,
+  disabledMcpServers = [],
   spawnFn = spawn,
   log = (message) => console.log(message),
 } = {}) {
@@ -664,7 +666,10 @@ export function createCodexAppServerRunner({
 
     evictIfNeeded();
 
-    const child = spawnFn(getProviderBin('codex'), ['app-server', '--listen', 'stdio://', '--enable', 'goals'], {
+    const child = spawnFn(getProviderBin('codex'), buildCodexAppServerArgs({
+      enabledFeatures: ['goals'],
+      disabledMcpServers,
+    }), {
       cwd: workspaceDir,
       env: spawnEnv,
       stdio: ['pipe', 'pipe', 'pipe'],

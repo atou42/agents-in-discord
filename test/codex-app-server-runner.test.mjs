@@ -154,6 +154,7 @@ test('createCodexAppServerRunner runs a turn over persistent app-server and clos
     safeError: (err) => String(err?.message || err),
     stopChildProcess: (target) => target.kill(),
     idleMs: 1,
+    disabledMcpServers: ['flomo'],
     spawnFn: fake.spawnFn,
     log: () => {},
   });
@@ -172,7 +173,7 @@ test('createCodexAppServerRunner runs a turn over persistent app-server and clos
   assert.deepEqual(result.finalAnswerMessages, ['done from app-server']);
   assert.equal(result.usage.last.inputTokens, 12);
   assert.deepEqual(fake.calls.map((call) => [call.bin, call.args]), [
-    ['codex-test', ['app-server', '--listen', 'stdio://', '--enable', 'goals']],
+    ['codex-test', ['app-server', '--listen', 'stdio://', '-c', 'mcp_servers.flomo.enabled=false', '--enable', 'goals']],
   ]);
   assert.deepEqual(fake.writes.map((line) => JSON.parse(line).method), [
     'initialize',
