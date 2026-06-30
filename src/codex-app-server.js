@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import readline from 'node:readline';
+import { buildCodexAppServerArgs } from './codex-app-server-args.js';
 
 const DEFAULT_APP_SERVER_TIMEOUT_MS = 10_000;
 const DEFAULT_FORK_TIMEOUT_MS = 30_000;
@@ -65,15 +66,6 @@ function buildThreadForkParams({
   }
 
   return params;
-}
-
-function appendEnabledFeatureArgs(args, features = []) {
-  for (const feature of features) {
-    const name = normalizeText(feature);
-    if (!name) continue;
-    args.push('--enable', name);
-  }
-  return args;
 }
 
 function buildThreadGoalSetParams(options = {}) {
@@ -205,11 +197,12 @@ export function createCodexAppServerClient({
   clientInfo = { name: 'agents-in-discord', version: '0' },
   capabilities = { experimentalApi: true },
   enabledFeatures = [],
+  disabledMcpServers = [],
 } = {}) {
   const bin = normalizeText(codexBin) || 'codex';
 
   async function request(method, params = {}) {
-    const args = appendEnabledFeatureArgs(['app-server', '--listen', 'stdio://'], enabledFeatures);
+    const args = buildCodexAppServerArgs({ enabledFeatures, disabledMcpServers });
     const child = spawnFn(bin, args, {
       env,
       stdio: ['pipe', 'pipe', 'pipe'],

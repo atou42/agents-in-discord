@@ -220,6 +220,7 @@ test('createRunnerExecutor routes Claude long runtime to the hot-session runner'
 
 test('createRunnerExecutor routes Codex long runtime to the app-server runner', async () => {
   let codexLongInput = null;
+  let codexLongOptions = null;
   const executor = createRunnerExecutor({
     spawnEnv: process.env,
     ensureDir: () => {},
@@ -239,30 +240,34 @@ test('createRunnerExecutor routes Codex long runtime to the app-server runner', 
     normalizeTimeoutMs: (value) => Number(value || 0),
     safeError: (err) => String(err?.message || err),
     stopChildProcess: () => {},
+    codexAppServerDisabledMcpServers: ['flomo'],
     startSessionProgressBridge: () => () => {},
     extractAgentMessageText,
     isFinalAnswerLikeAgentMessage,
-    createCodexAppServerRunnerFn: () => ({
-      runTask(input) {
-        codexLongInput = input;
-        return Promise.resolve({
-          ok: true,
-          cancelled: false,
-          timedOut: false,
-          error: '',
-          logs: [],
-          messages: [],
-          finalAnswerMessages: ['done'],
-          reasonings: [],
-          usage: null,
-          threadId: 'codex-thread-1',
-          meta: {},
-        });
-      },
-      closeSession: () => false,
-      closeAll: () => 0,
-      getSnapshot: () => [],
-    }),
+    createCodexAppServerRunnerFn: (options) => {
+      codexLongOptions = options;
+      return {
+        runTask(input) {
+          codexLongInput = input;
+          return Promise.resolve({
+            ok: true,
+            cancelled: false,
+            timedOut: false,
+            error: '',
+            logs: [],
+            messages: [],
+            finalAnswerMessages: ['done'],
+            reasonings: [],
+            usage: null,
+            threadId: 'codex-thread-1',
+            meta: {},
+          });
+        },
+        closeSession: () => false,
+        closeAll: () => 0,
+        getSnapshot: () => [],
+      };
+    },
   });
 
   const result = await executor.runProviderTask({
@@ -278,6 +283,7 @@ test('createRunnerExecutor routes Codex long runtime to the app-server runner', 
   assert.equal(codexLongInput.sessionKey, 'discord-thread-1');
   assert.equal(codexLongInput.prompt, 'hello');
   assert.equal(codexLongInput.systemPrompt, '[Via agents-in-discord; discord_thread=thread-1]');
+  assert.deepEqual(codexLongOptions.disabledMcpServers, ['flomo']);
 });
 
 test('createRunnerExecutor routes Codex long steer and rejects exec steer', async () => {
