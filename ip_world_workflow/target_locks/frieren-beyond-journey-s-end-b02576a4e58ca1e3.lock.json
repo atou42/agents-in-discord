@@ -3,15 +3,15 @@
   "worldName": "Frieren: Beyond Journey's End",
   "targets": {
     "tier1Characters": 15,
-    "totalAtoms": 26,
-    "keyCharacterAssets": 19
+    "totalAtoms": 34,
+    "keyCharacterAssets": 24
   },
   "deliveryScale": "full_world",
   "observedSurface": {
     "characters": 82
   },
-  "lockedAt": "2026-07-03T16:19:11Z",
-  "lockedBy": "main-builder",
-  "relockOf": "d9df6ef498d49000da076663feea1f292aeefc236045429c65b3fcbc13068fd2",
-  "fingerprint": "a7e9cd767b63b5aa5e9aa0c67e8a4c328ac446295041b3c1dc8f4b17899c7fde"
+  "lockedAt": "2026-07-03T16:33:21Z",
+  "lockedBy": "codex",
+  "relockOf": "a7e9cd767b63b5aa5e9aa0c67e8a4c328ac446295041b3c1dc8f4b17899c7fde",
+  "fingerprint": "7d95ef11cc5f01716670ad1007fb0e8ef4c2c24a3b862bdc6eafea51c036bced"
 }
