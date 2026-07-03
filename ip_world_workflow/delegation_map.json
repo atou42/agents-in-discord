@@ -1,0 +1,63 @@
+{
+  "mapVersion": 1,
+  "updatedAt": "2026-07-03",
+  "purpose": "Default delegation table. execution_plan.md must either adopt each default-delegate slice below or explicitly justify keeping it serial. The execution-plan gate checks this file, so editing it changes what every future run must plan for.",
+  "slices": [
+    {
+      "sliceKey": "planning_package",
+      "phase": "planning opening",
+      "default": "delegate",
+      "keyword": "planning",
+      "note": "One clean-context subagent creates the whole planning package. Proven pattern from 2026-07-03."
+    },
+    {
+      "sliceKey": "source_inventory_recovery",
+      "phase": "source inventory",
+      "default": "delegate",
+      "keyword": "source inventory",
+      "note": "Category-tree traversal and candidate-ledger recovery can be split by category and run in parallel."
+    },
+    {
+      "sliceKey": "style_selection",
+      "phase": "style decision",
+      "default": "delegate",
+      "keyword": "style",
+      "note": "One clean-context style selector does candidate lookup and comparison only. Prevents the main agent from skipping the style space."
+    },
+    {
+      "sliceKey": "character_card_batch",
+      "phase": "atom package",
+      "default": "delegate",
+      "keyword": "character",
+      "note": "Character-card expansion and repair split by character batch. This was the largest serial time sink in the 2026-07-03 run."
+    },
+    {
+      "sliceKey": "cover_generation_batches",
+      "phase": "cover quality",
+      "default": "delegate",
+      "keyword": "cover",
+      "note": "Cover generation and repair split by asset batch, polled in the background."
+    },
+    {
+      "sliceKey": "clean_context_verification",
+      "phase": "every non-trivial stage",
+      "default": "delegate",
+      "keyword": "verification",
+      "note": "Clean-context adversarial verifiers for stage acceptance. Sub reports are not evidence until the main builder re-runs decisive checks."
+    },
+    {
+      "sliceKey": "studio_bootstrap",
+      "phase": "studio world bootstrap",
+      "default": "serial",
+      "keyword": "bootstrap",
+      "note": "Owner-auth browser actions conflict if parallelized. Keep serial on the local orchestrator."
+    },
+    {
+      "sliceKey": "final_acceptance",
+      "phase": "final acceptance",
+      "default": "serial",
+      "keyword": "acceptance",
+      "note": "Main-builder synthesis and final acceptance stay serial by contract."
+    }
+  ]
+}
