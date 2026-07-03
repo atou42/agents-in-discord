@@ -4,14 +4,14 @@
   "targets": {
     "tier1Characters": 13,
     "totalAtoms": 18,
-    "keyCharacterAssets": 5
+    "keyCharacterAssets": 15
   },
   "deliveryScale": "full_world",
   "observedSurface": {
     "characters": 82
   },
-  "lockedAt": "2026-07-03T16:05:38Z",
+  "lockedAt": "2026-07-03T16:08:49Z",
   "lockedBy": "main-builder",
-  "relockOf": "",
-  "fingerprint": "684684728f301818b86ed33486bf7f15bd870ef1bb815909bf34f439f7deacda"
+  "relockOf": "684684728f301818b86ed33486bf7f15bd870ef1bb815909bf34f439f7deacda",
+  "fingerprint": "d9df6ef498d49000da076663feea1f292aeefc236045429c65b3fcbc13068fd2"
 }
