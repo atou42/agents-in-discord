@@ -1,0 +1,17 @@
+{
+  "runDir": "/Users/atou/agents-in-discord/workspaces/1522599992173396049/deliverables/frieren-beyond-journey-s-end",
+  "worldName": "Frieren: Beyond Journey's End",
+  "targets": {
+    "tier1Characters": 13,
+    "totalAtoms": 18,
+    "keyCharacterAssets": 5
+  },
+  "deliveryScale": "full_world",
+  "observedSurface": {
+    "characters": 82
+  },
+  "lockedAt": "2026-07-03T16:05:38Z",
+  "lockedBy": "main-builder",
+  "relockOf": "",
+  "fingerprint": "684684728f301818b86ed33486bf7f15bd870ef1bb815909bf34f439f7deacda"
+}
