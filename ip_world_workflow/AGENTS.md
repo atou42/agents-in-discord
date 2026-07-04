@@ -10,11 +10,13 @@ The default trigger sentence is:
 
 The minimal reading order is:
 
+0. `PHILOSOPHY.md` — why this workflow exists, what Neta Studio is, and what "good" means. Read it before anything else; the rest of the package is instances of it.
 1. `start_new_planning_run.md`
 2. `planning_opening_workflow.md`
 3. `delivery_contract_and_stage_gates.md`
 4. `confirmed_decisions.md`
 5. `acceptance_and_open_questions.md`
+6. `references/neta_studio_world_factory_product_spec.md` — the product bar: coverage standards, card display standards, style standards, and what fails product validation even when technical validation passes.
 
 Run artifacts should be created in the current workspace under `deliverables/`, but the workflow package itself stays here:
 

@@ -355,3 +355,5 @@ If the world is intended as a reusable standard, fold the run back into this wor
 Default execution profile: workflow hub.
 
 Add what was learned, what changed in the process, what broke, and what should become the new default.
+
+If this run produced a new failure mode — or a new gate — add its story to `PHILOSOPHY.md` in one or two sentences: what happened, and what the gate now protects. The philosophy file is the accumulated memory of what "good" costs; a gate without its story degrades into a rule agents route around.
