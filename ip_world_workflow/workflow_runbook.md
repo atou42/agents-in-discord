@@ -328,6 +328,8 @@ Check chain health, coverage gate, content quality, visible-card cleanliness, vi
 
 When the state passes, write a report and create a checkpoint.
 
+Before final acceptance, a clean-context verifier must also fact-check the delivery: sample at least max(8, 5% of live atoms) covering characters and non-character types, verify each card's load-bearing claims against the Fandom source, and write `checks/factuality_audit.json` (verdict, executor, verifierSessionId, auditedAt, per-sample findings of ACCURATE / MINOR_DEVIATION / INACCURATE, and a substantive summary). Any INACCURATE finding fails the gate until fixed and re-audited. Structure gates cannot catch a card that puts a character in the wrong clan; this one exists to.
+
 Final acceptance is not self-approved. Before `final_acceptance` can PASS, a clean-context verifier — not the main builder — must write `checks/final_acceptance_audit.json` with a PASS verdict, the list of artifacts it actually checked, and a timestamp later than the newest delivery artifact. This mirrors the style-audit mechanism and closes the hole where the 2026-07-03 Frieren run marked final acceptance PASS one second after board layout with no independent review.
 
 Stage gate: final report includes world ID, space ID, checkpoint ID, Studio URL, Cohub URL, coverage report, diagnosis, style decision, manifest snapshot, board screenshot, cover screenshot, key asset folders, media links, stage-gate log, known limitations and deferred candidates; and a clean-context `final_acceptance_audit.json` signs off the delivery.

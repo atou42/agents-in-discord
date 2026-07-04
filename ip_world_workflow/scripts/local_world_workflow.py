@@ -125,6 +125,15 @@ PROMPT_SCAFFOLD_RE = re.compile(
     r"\b(masterpiece|best quality|8k|ultra[- ]detailed|negative prompt|lora|trending on artstation)\b",
     re.IGNORECASE,
 )
+# Canonical atom types. Wild types are how quality gates get dodged: the Naruto
+# run shipped 7 "people" + 16 "place" atoms that escaped the character-card
+# six-section gate entirely. Overflow representations (cap_resolution) must use
+# the approved secondary types below and are still subject to the leak scan.
+ALLOWED_ATOM_TYPES = {
+    "character", "location", "organization", "faction", "event",
+    "system", "object", "vehicle", "lore",
+}
+ALLOWED_SECONDARY_TYPES = {"people", "place"}  # only valid as cap-resolution overflow
 REFERENCE_SUBJECT_TYPES = {"world", "character", "location", "object", "event", "faction", "system"}
 WORLD_ID_RE = re.compile(r"^world_[A-Za-z0-9]+$")
 UUID_RE = re.compile(
@@ -177,6 +186,60 @@ FULL_WORLD_TIER1_FLOOR_MIN = 12
 DELIVERY_SCALES = {"full_world", "core_sample"}
 IMPORT_SMOKE_MAX_SAMPLE = 10
 STYLE_AUDIT_ASSET_DIRS = ["assets/key_characters", "assets/key_locations", "assets/key_visuals"]
+
+
+SCRIPT_MANIFEST_PATH = WORKFLOW_HUB / "script_integrity.json"
+
+
+def _script_sha256() -> str:
+    return hashlib.sha256(Path(__file__).resolve().read_bytes()).hexdigest()
+
+
+def verify_script_integrity() -> None:
+    """Refuse to run if this script differs from the recorded governance hash.
+
+    Run agents are consumers of these gates, not their authors. On 2026-07-04 a
+    run agent silently patched an escape hatch into the import gate; the change
+    was only caught in a later audit. Any legitimate gate change must go through
+    the user: edit the script, then run `accept-script-hash` to re-record it.
+    OMC_SKIP_INTEGRITY=1 bypasses the check for development of the script itself.
+    """
+    if os.environ.get("OMC_SKIP_INTEGRITY") == "1":
+        return
+    if not SCRIPT_MANIFEST_PATH.exists():
+        return  # not yet initialized; accept-script-hash creates it
+    try:
+        manifest = json.loads(SCRIPT_MANIFEST_PATH.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        print("ERROR: script_integrity.json is unreadable; refusing to run gates.", file=sys.stderr)
+        raise SystemExit(1)
+    expected = manifest.get("localWorldWorkflowSha256", "")
+    actual = _script_sha256()
+    if expected and actual != expected:
+        print(
+            "ERROR: local_world_workflow.py has been modified since its hash was last"
+            " accepted by the user.\n"
+            f"  expected: {expected}\n"
+            f"  actual:   {actual}\n"
+            "Gate scripts are not run-editable. If this change is intentional and"
+            " user-approved, re-record it with:\n"
+            "  python3 local_world_workflow.py accept-script-hash --approved-by user",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
+
+def accept_script_hash(args: argparse.Namespace) -> None:
+    if args.approved_by != "user":
+        fail("accept-script-hash requires --approved-by user: gate changes are user decisions")
+    payload = {
+        "localWorldWorkflowSha256": _script_sha256(),
+        "acceptedAt": utc_now(),
+        "approvedBy": args.approved_by,
+        "note": args.note or "",
+    }
+    write_json(SCRIPT_MANIFEST_PATH, payload)
+    print(json.dumps({"status": "ACCEPTED", "manifest": payload}, ensure_ascii=False, indent=2))
 
 
 def fail(message: str) -> None:
@@ -899,6 +962,56 @@ def validate_bootstrap_ids(base: Path, manifest: dict) -> tuple[list[str], list[
     return failures, warnings, report
 
 
+def validate_cap_resolution_envelope(base: Path, tier1_target: int) -> list[str]:
+    """Hardened acceptance rules for checks/import_cap_resolution.json.
+
+    This escape hatch was added unilaterally by a run agent (Naruto, 2026-07-04)
+    to represent platform-capped tier-1 characters as adjacent atom types. The
+    mechanism is legitimate only under strict conditions:
+    - platformCaps must be documented with at least one verbatim rejection
+      message in evidence (the platform refusing more atoms of that type);
+    - overflow may cover at most 20% of tier1Characters — a cap workaround,
+      not a quality loophole;
+    - userApproval.approvedBy == "user" is required: degrading tier-1
+      characters to secondary types is a delivery-scope decision, not the
+      agent's call.
+    """
+    problems = []
+    path = base / "checks/import_cap_resolution.json"
+    if not path.exists():
+        return problems
+    data = read_json(path)
+    caps = data.get("platformCaps")
+    if not isinstance(caps, dict) or not caps:
+        problems.append("import_cap_resolution.json missing platformCaps documenting the platform limit")
+    evidence = data.get("evidence")
+    if not isinstance(evidence, list) or not any(
+        has_nonempty_string(e) and ("reject" in e.lower() or "max" in e.lower() or "reached" in e.lower())
+        for e in evidence
+    ):
+        problems.append(
+            "import_cap_resolution.json evidence must quote the platform rejection"
+            " (e.g. 'Max character count (50) reached'), not just assert a cap"
+        )
+    overflow = data.get("tier1CharacterOverflow")
+    overflow_count = len(overflow) if isinstance(overflow, list) else 0
+    max_overflow = max(1, tier1_target // 5)
+    if overflow_count > max_overflow:
+        problems.append(
+            f"import_cap_resolution.json overflow covers {overflow_count} characters, above the"
+            f" 20% ceiling ({max_overflow} of tier1={tier1_target}); a cap workaround cannot"
+            " replace the majority of the cast"
+        )
+    approval = data.get("userApproval")
+    if not isinstance(approval, dict) or approval.get("approvedBy") != "user":
+        problems.append(
+            "import_cap_resolution.json missing userApproval (approvedBy: user):"
+            " representing tier-1 characters as secondary atom types changes the"
+            " delivery scope and requires explicit user sign-off"
+        )
+    return problems
+
+
 def count_import_atoms(payload: dict) -> int:
     if not isinstance(payload, dict):
         return 0
@@ -953,6 +1066,7 @@ def validate_import_draft_coverage(base: Path) -> tuple[list[str], list[str], di
         effective_tier1_coverage = report["importCharacterCount"]
         cap_resolution_path = base / "checks/import_cap_resolution.json"
         if report["importCharacterCount"] < tier1_target and cap_resolution_path.exists():
+            failures.extend(validate_cap_resolution_envelope(base, tier1_target))
             resolution = read_json(cap_resolution_path)
             overflow = resolution.get("tier1CharacterOverflow")
             represented = 0
@@ -1050,6 +1164,49 @@ def validate_import_state(base: Path) -> tuple[list[str], list[str], dict]:
 
     if report["importAtomCount"] == 0:
         failures.append("import/world_import.json has zero import atoms")
+
+    # Atom-type whitelist. Secondary types are only legitimate as documented
+    # cap-resolution overflow; anything else is an unreviewed taxonomy escape.
+    import_atoms = _collect_all_atoms(import_doc)
+    cap_path = base / "checks/import_cap_resolution.json"
+    overflow_names = set()
+    if cap_path.exists():
+        cap_data = read_json(cap_path)
+        for item in cap_data.get("tier1CharacterOverflow", []) or []:
+            if isinstance(item, dict) and has_nonempty_string(item.get("representationAtomName")):
+                overflow_names.add(
+                    (str(item.get("representationType", "")).strip(),
+                     str(item["representationAtomName"]).strip())
+                )
+    wild = []
+    unsanctioned_secondary = []
+    for atom in import_atoms:
+        if not isinstance(atom, dict):
+            continue
+        atype = str(atom.get("type", "")).strip()
+        aname = str(atom.get("name", "")).strip()
+        if atype in ALLOWED_ATOM_TYPES:
+            continue
+        if atype in ALLOWED_SECONDARY_TYPES:
+            if (atype, aname) not in overflow_names:
+                unsanctioned_secondary.append(f"{atype}:{aname}")
+        else:
+            wild.append(f"{atype}:{aname}")
+    if wild:
+        failures.append(
+            "import contains atoms with unapproved types (whitelist: "
+            + ", ".join(sorted(ALLOWED_ATOM_TYPES)) + "): " + ", ".join(wild[:6])
+            + (f" (+{len(wild)-6} more)" if len(wild) > 6 else "")
+        )
+    if unsanctioned_secondary:
+        failures.append(
+            "secondary-type atoms exist without a matching cap-resolution overflow entry"
+            " (people/place are only valid as documented platform-cap overflow): "
+            + ", ".join(unsanctioned_secondary[:6])
+            + (f" (+{len(unsanctioned_secondary)-6} more)" if len(unsanctioned_secondary) > 6 else "")
+        )
+    report["wildTypeCount"] = len(wild)
+    report["unsanctionedSecondaryCount"] = len(unsanctioned_secondary)
     atoms = live_manifest.get("atoms")
     if not isinstance(atoms, list) or not atoms:
         failures.append("manifests/live_manifest.json has zero live atoms")
@@ -1075,6 +1232,7 @@ def validate_import_state(base: Path) -> tuple[list[str], list[str], dict]:
         effective_tier1_coverage = len(live_characters)
         cap_resolution_path = base / "checks/import_cap_resolution.json"
         if len(live_characters) < tier1_target and cap_resolution_path.exists():
+            failures.extend(validate_cap_resolution_envelope(base, tier1_target))
             resolution = read_json(cap_resolution_path)
             overflow = resolution.get("tier1CharacterOverflow")
             represented = 0
@@ -1578,6 +1736,112 @@ def validate_final_acceptance_audit(base: Path) -> tuple[list[str], list[str], d
             "final_acceptance_audit.json missing verifierSessionId: record the clean-context"
             " subagent/session identifier that performed the review, so the audit is traceable"
         )
+    report["verdict"] = data.get("verdict")
+    return failures, warnings, report
+
+
+FACTUALITY_MIN_SAMPLE = 8
+FACTUALITY_MIN_SAMPLE_RATIO = 0.05  # at least 5% of atoms
+
+
+def validate_factuality_audit(base: Path) -> tuple[list[str], list[str], dict]:
+    """Spot-check factual accuracy of delivered cards against source (Fandom).
+
+    Structure/format gates cannot catch a card that puts Naruto in the wrong
+    clan. A clean-context subagent must sample delivered atoms, verify their
+    load-bearing claims against the wiki, and record a verdict file. This gate
+    checks the verdict file's substance, sample size, freshness and traceability.
+    """
+    path = base / "checks/factuality_audit.json"
+    failures = []
+    warnings = []
+    report = {"path": str(path)}
+    if not path.exists():
+        return [
+            "checks/factuality_audit.json missing: a clean-context verifier must sample"
+            " delivered cards and verify their key claims against the Fandom source"
+        ], warnings, report
+    data = read_json(path)
+    if data.get("verdict") != "PASS":
+        failures.append(f"factuality_audit.json verdict is {data.get('verdict')!r}, must be PASS")
+
+    # sample size floor: max(8, 5% of live atoms)
+    live_atom_count = 0
+    if (base / "manifests/live_manifest.json").exists():
+        live = load_live_payload(base)
+        atoms = live.get("atoms")
+        live_atom_count = len(atoms) if isinstance(atoms, list) else 0
+    min_sample = max(FACTUALITY_MIN_SAMPLE, int(live_atom_count * FACTUALITY_MIN_SAMPLE_RATIO))
+    report["liveAtomCount"] = live_atom_count
+    report["minSample"] = min_sample
+
+    samples = data.get("samples")
+    if not isinstance(samples, list) or len(samples) < min_sample:
+        failures.append(
+            f"factuality_audit.json must sample at least {min_sample} atoms"
+            f" (found {len(samples) if isinstance(samples, list) else 0});"
+            " sample must cover characters AND non-character types"
+        )
+    else:
+        sampled_types = set()
+        problem_entries = []
+        for idx, item in enumerate(samples):
+            if not isinstance(item, dict):
+                problem_entries.append(f"samples[{idx}] must be an object")
+                continue
+            for field in ["atomName", "atomType", "claimsChecked", "sourceRef", "finding"]:
+                if field == "claimsChecked":
+                    if not isinstance(item.get(field), int) or item[field] < 1:
+                        problem_entries.append(f"samples[{idx}].claimsChecked must be a positive integer")
+                elif not has_nonempty_string(item.get(field)):
+                    problem_entries.append(f"samples[{idx}].{field} missing")
+            if has_nonempty_string(item.get("atomType")):
+                sampled_types.add(item["atomType"])
+            finding = str(item.get("finding", "")).strip().upper()
+            if finding not in {"ACCURATE", "MINOR_DEVIATION", "INACCURATE"}:
+                problem_entries.append(
+                    f"samples[{idx}].finding must be ACCURATE, MINOR_DEVIATION or INACCURATE"
+                )
+        failures.extend(problem_entries[:8])
+        if "character" not in sampled_types or not (sampled_types - {"character"}):
+            failures.append(
+                "factuality sample must include both character and non-character atoms"
+            )
+        inaccurate = [
+            s.get("atomName") for s in samples
+            if isinstance(s, dict) and str(s.get("finding", "")).strip().upper() == "INACCURATE"
+        ]
+        report["inaccurateAtoms"] = inaccurate
+        if inaccurate:
+            failures.append(
+                "factuality audit found INACCURATE atoms that must be fixed and re-audited: "
+                + ", ".join(str(a) for a in inaccurate[:5])
+            )
+
+    if not has_nonempty_string(data.get("summary")) or len(str(data.get("summary", "")).strip()) < 80:
+        failures.append(
+            "factuality_audit.json summary must substantively describe what was checked"
+            " and what was found (at least 80 characters)"
+        )
+    if not has_nonempty_string(data.get("verifierSessionId")):
+        failures.append("factuality_audit.json missing verifierSessionId for traceability")
+    executor = str(data.get("executor", ""))
+    if "subagent" not in executor.lower() and "clean-context" not in executor.lower():
+        failures.append(
+            "factuality_audit.json executor must be a clean-context subagent;"
+            " the builder cannot fact-check its own writing"
+        )
+    audited_ts = _parse_iso_ts(data.get("auditedAt", ""))
+    if audited_ts is None:
+        failures.append("factuality_audit.json auditedAt missing or not an ISO timestamp")
+    else:
+        for rel in ["manifests/live_manifest.json", "manifests/live_atoms.json"]:
+            snap = base / rel
+            if snap.exists() and audited_ts + 1 < snap.stat().st_mtime:
+                failures.append(
+                    f"factuality_audit.json auditedAt predates {rel}; re-audit after content changes"
+                )
+                break
     report["verdict"] = data.get("verdict")
     return failures, warnings, report
 
@@ -2462,6 +2726,10 @@ GATE_DEFS = {
         lambda base, manifest: validate_final_acceptance_audit(base),
         None,
     ),
+    "factuality_audit": (
+        lambda base, manifest: validate_factuality_audit(base),
+        "checks/factuality_audit_check.json",
+    ),
     "cover_assets": (
         lambda base, manifest: validate_cover_assets(base, manifest),
         "checks/cover_assets_check.json",
@@ -2503,7 +2771,7 @@ STAGE_GATE_PLAN = {
     "cover_quality": ["cover_assets", "style_audit"],
     "work_media": ["work_media", "snapshot_freshness"],
     "board_layout": ["board_layout"],
-    "final_acceptance": ["final_acceptance_audit"],
+    "final_acceptance": ["factuality_audit", "final_acceptance_audit"],
     "workflow_sync": [],
 }
 
@@ -2884,6 +3152,17 @@ def check_snapshot_freshness(args: argparse.Namespace) -> None:
         raise SystemExit(1)
 
 
+def check_factuality_audit(args: argparse.Namespace) -> None:
+    base, _manifest, _stage_log = load_run(args.run_dir)
+    failures, warnings, report = validate_factuality_audit(base)
+    payload = {"verdict": "FAIL" if failures else "PARTIAL" if warnings else "PASS", "failures": failures, "warnings": warnings, "report": report}
+    ensure_parent(base / "checks/factuality_audit_check.json")
+    write_json(base / "checks/factuality_audit_check.json", payload)
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    if payload["verdict"] == "FAIL":
+        raise SystemExit(1)
+
+
 def check_final_acceptance_audit(args: argparse.Namespace) -> None:
     base, _manifest, _stage_log = load_run(args.run_dir)
     failures, warnings, report = validate_final_acceptance_audit(base)
@@ -3188,6 +3467,10 @@ def main() -> None:
     p_fresh.add_argument("--run-dir", required=True)
     p_fresh.set_defaults(func=check_snapshot_freshness)
 
+    p_fact = sub.add_parser("check-factuality-audit")
+    p_fact.add_argument("--run-dir", required=True)
+    p_fact.set_defaults(func=check_factuality_audit)
+
     p_final_audit = sub.add_parser("check-final-acceptance-audit")
     p_final_audit.add_argument("--run-dir", required=True)
     p_final_audit.set_defaults(func=check_final_acceptance_audit)
@@ -3195,7 +3478,14 @@ def main() -> None:
     p_gates = sub.add_parser("gates")
     p_gates.set_defaults(func=gates_command)
 
+    p_hash = sub.add_parser("accept-script-hash")
+    p_hash.add_argument("--approved-by", default="")
+    p_hash.add_argument("--note")
+    p_hash.set_defaults(func=accept_script_hash)
+
     args = parser.parse_args()
+    if args.func is not accept_script_hash:
+        verify_script_integrity()
     args.func(args)
 
 
