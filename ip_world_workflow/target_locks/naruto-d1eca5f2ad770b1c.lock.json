@@ -1,0 +1,18 @@
+{
+  "runDir": "/Users/atou/agents-in-discord/workspaces/1522880053199769661/deliverables/naruto",
+  "worldName": "Naruto",
+  "targets": {
+    "tier1Characters": 36,
+    "totalAtoms": 190,
+    "keyCharacterAssets": 18,
+    "nonCharacterAtoms": 80
+  },
+  "deliveryScale": "full_world",
+  "observedSurface": {
+    "characters": 200
+  },
+  "lockedAt": "2026-07-04T08:31:35Z",
+  "lockedBy": "main-builder",
+  "relockOf": "",
+  "fingerprint": "750a4fc28c884304cd5203ee75af8be63b8bd3299280af815d1b35b039715114"
+}
