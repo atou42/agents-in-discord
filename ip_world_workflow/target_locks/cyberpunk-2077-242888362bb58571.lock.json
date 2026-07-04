@@ -1,0 +1,18 @@
+{
+  "runDir": "/Users/atou/agents-in-discord/workspaces/1522880195869147278/deliverables/cyberpunk-2077",
+  "worldName": "Cyberpunk 2077",
+  "targets": {
+    "tier1Characters": 18,
+    "totalAtoms": 78,
+    "keyCharacterAssets": 12,
+    "nonCharacterAtoms": 34
+  },
+  "deliveryScale": "full_world",
+  "observedSurface": {
+    "characters": 20
+  },
+  "lockedAt": "2026-07-04T08:30:35Z",
+  "lockedBy": "main-builder",
+  "relockOf": "",
+  "fingerprint": "8ed511bdf2048259c5cfc1f386d46172ea652dc666e4e8f5d704a20afaac7833"
+}
