@@ -46,6 +46,8 @@ REQUIRED_FILES = [
     "checks/english_provenance_check.json",
     "checks/import_smoke.json",
     "checks/style_audit.json",
+    "checks/visible_leaks_check.json",
+    "checks/final_acceptance_audit.json",
     "import/world_import.json",
     "manifests/live_manifest.json",
     "manifests/board_placements.json",
@@ -108,6 +110,15 @@ CHARACTER_FORBIDDEN_VISIBLE_FIELDS = {
     "fact_extraction_notes",
     "source_fetch_failures",
 }
+# Pipeline vocabulary that must never appear on user-visible tags.
+FORBIDDEN_VISIBLE_TAGS = {"tier1", "tier2", "tier3", "tier 1", "tier 2", "tier 3"}
+# Internal style-library codes (PT-01, SP-03, ...) leaking into visible copy.
+INTERNAL_CODE_RE = re.compile(r"\b[A-Z]{2}-\d{2}\b")
+# Prompt-scaffold phrases that mark generation text leaking into creator-facing copy.
+PROMPT_SCAFFOLD_RE = re.compile(
+    r"\b(masterpiece|best quality|8k|ultra[- ]detailed|negative prompt|lora|trending on artstation)\b",
+    re.IGNORECASE,
+)
 REFERENCE_SUBJECT_TYPES = {"world", "character", "location", "object", "event", "faction", "system"}
 WORLD_ID_RE = re.compile(r"^world_[A-Za-z0-9]+$")
 UUID_RE = re.compile(
@@ -153,7 +164,8 @@ WORKFLOW_HUB = Path(__file__).resolve().parent.parent
 CAPABILITY_REGISTRY_PATH = WORKFLOW_HUB / "capability_registry.json"
 DELEGATION_MAP_PATH = WORKFLOW_HUB / "delegation_map.json"
 TARGET_LOCKS_DIR = WORKFLOW_HUB / "target_locks"
-LOCKED_TARGET_KEYS = ["tier1Characters", "totalAtoms", "keyCharacterAssets"]
+LOCKED_TARGET_KEYS = ["tier1Characters", "totalAtoms", "keyCharacterAssets", "nonCharacterAtoms"]
+REQUIRED_TARGET_KEYS = ["tier1Characters", "totalAtoms", "keyCharacterAssets"]
 FULL_WORLD_TIER1_FLOOR_RATIO = 0.15
 FULL_WORLD_TIER1_FLOOR_MIN = 12
 DELIVERY_SCALES = {"full_world", "core_sample"}
@@ -904,6 +916,21 @@ def validate_import_state(base: Path) -> tuple[list[str], list[str], dict]:
                 f"live character atom count {len(live_characters)} is below the declared"
                 f" numericTargets.tier1Characters {tier1_target}"
             )
+    non_char_target = targets.get("nonCharacterAtoms")
+    if isinstance(non_char_target, int) and non_char_target > 0:
+        live_atoms = live_manifest.get("atoms", [])
+        non_char = [
+            a for a in live_atoms
+            if isinstance(a, dict) and a.get("type") not in (None, "", "character")
+        ]
+        report["nonCharacterAtomsTarget"] = non_char_target
+        report["liveNonCharacterCount"] = len(non_char)
+        if len(non_char) < non_char_target:
+            failures.append(
+                f"live non-character atom count {len(non_char)} is below the declared"
+                f" numericTargets.nonCharacterAtoms {non_char_target};"
+                " the world must not degrade into a character-only wall"
+            )
 
     for path in base.rglob("*"):
         if not path.is_file():
@@ -1181,6 +1208,111 @@ def validate_style_audit(base: Path) -> tuple[list[str], list[str], dict]:
     return failures, warnings, report
 
 
+def _parse_iso_ts(value: str) -> float | None:
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
+    except (ValueError, TypeError):
+        return None
+
+
+def _stage_passed_ts(base: Path, stage_id: str) -> float | None:
+    stage_log = read_json(base / "stage_gate_log.json")
+    for stage in stage_log.get("stages", []):
+        if stage.get("stageId") == stage_id:
+            return _parse_iso_ts(stage.get("passedAt", ""))
+    return None
+
+
+def validate_snapshot_freshness(base: Path) -> tuple[list[str], list[str], dict]:
+    """Live snapshots must postdate bound_space_import PASS, else work/board gates read stale state."""
+    failures = []
+    warnings = []
+    report = {}
+    import_ts = _stage_passed_ts(base, "bound_space_import")
+    report["boundSpaceImportPassedAt"] = import_ts
+    snapshots = {
+        "manifests/live_manifest.json": "liveManifestMtime",
+        "manifests/board_placements.json": "boardPlacementsMtime",
+    }
+    for relative, report_key in snapshots.items():
+        path = base / relative
+        if not path.exists():
+            failures.append(f"{relative} missing")
+            continue
+        mtime = path.stat().st_mtime
+        report[report_key] = mtime
+        if import_ts and mtime + 1 < import_ts:
+            failures.append(
+                f"{relative} predates the bound_space_import PASS; re-pull the live snapshot"
+                " so work/board gates measure current state, not a stale copy"
+            )
+    screenshot = base / "screenshots/board/board-final.png"
+    placements = base / "manifests/board_placements.json"
+    if screenshot.exists() and placements.exists():
+        if screenshot.stat().st_mtime + 1 < placements.stat().st_mtime:
+            failures.append(
+                "screenshots/board/board-final.png is older than board_placements.json;"
+                " re-capture the board after the latest placement change"
+            )
+    return failures, warnings, report
+
+
+def validate_final_acceptance_audit(base: Path) -> tuple[list[str], list[str], dict]:
+    """final_acceptance needs a clean-context verdict file, same mechanism as style_audit."""
+    path = base / "checks/final_acceptance_audit.json"
+    failures = []
+    warnings = []
+    report = {"path": str(path)}
+    if not path.exists():
+        return [
+            "checks/final_acceptance_audit.json missing (a clean-context verifier must sign off"
+            " the final delivery; the main builder may not self-approve final acceptance)"
+        ], warnings, report
+    data = read_json(path)
+    if data.get("verdict") != "PASS":
+        failures.append(f"final_acceptance_audit.json verdict is {data.get('verdict')!r}, must be PASS")
+    executor = data.get("executor", "")
+    if not has_nonempty_string(executor):
+        failures.append("final_acceptance_audit.json missing executor")
+    elif "subagent" not in executor.lower() and "clean-context" not in executor.lower():
+        failures.append(
+            "final_acceptance_audit.json executor must be a clean-context subagent,"
+            " not the main builder self-approving"
+        )
+    checked = data.get("checkedArtifacts")
+    if not isinstance(checked, list) or len(checked) < 3:
+        failures.append(
+            "final_acceptance_audit.json must list at least three checkedArtifacts"
+            " (e.g. final_report.md, board screenshot, live manifest)"
+        )
+    audited_at = data.get("auditedAt")
+    audited_ts = _parse_iso_ts(audited_at) if audited_at else None
+    if audited_ts is None:
+        failures.append("final_acceptance_audit.json auditedAt missing or not an ISO timestamp")
+    else:
+        latest = 0.0
+        for relative in [
+            "final_report.md",
+            "screenshots/board/board-final.png",
+            "manifests/live_manifest.json",
+            "manifests/board_placements.json",
+        ]:
+            path_item = base / relative
+            if path_item.exists():
+                latest = max(latest, path_item.stat().st_mtime)
+        report["auditedTs"] = audited_ts
+        report["latestArtifactTs"] = latest
+        if latest and audited_ts + 1 < latest:
+            failures.append(
+                "final_acceptance_audit.json auditedAt predates the latest delivery artifact;"
+                " re-run the clean-context acceptance after the last change"
+            )
+    if not has_nonempty_string(data.get("summary")):
+        warnings.append("final_acceptance_audit.json missing summary of what was actually verified")
+    report["verdict"] = data.get("verdict")
+    return failures, warnings, report
+
+
 def validate_capabilities(base: Path) -> tuple[list[str], list[str]]:
     path = base / "capabilities.json"
     if not path.exists():
@@ -1306,9 +1438,22 @@ def _tier1_floor(observed_characters: int) -> int:
 def lock_targets(args: argparse.Namespace) -> None:
     base, manifest, stage_log = load_run(args.run_dir)
     targets = coverage_numeric_targets(base)
-    missing = [key for key in LOCKED_TARGET_KEYS if not isinstance(targets.get(key), int) or targets.get(key) <= 0]
+    missing = [key for key in REQUIRED_TARGET_KEYS if not isinstance(targets.get(key), int) or targets.get(key) <= 0]
     if missing:
         fail("cannot lock: coverage_report numericTargets missing or non-positive: " + ", ".join(missing))
+    extra_bad = [
+        key for key in LOCKED_TARGET_KEYS
+        if key not in REQUIRED_TARGET_KEYS and targets.get(key) is not None
+        and (not isinstance(targets.get(key), int) or targets.get(key) <= 0)
+    ]
+    if extra_bad:
+        fail("cannot lock: optional numericTargets present but non-positive: " + ", ".join(extra_bad))
+    if targets.get("nonCharacterAtoms") is None and args.delivery_scale == "full_world":
+        print(
+            "WARNING: numericTargets.nonCharacterAtoms not declared; a full-world board without a"
+            " non-character floor can degrade into a character-only wall",
+            file=sys.stderr,
+        )
 
     scale = args.delivery_scale
     if scale not in DELIVERY_SCALES:
@@ -1355,7 +1500,7 @@ def lock_targets(args: argparse.Namespace) -> None:
     payload = {
         "runDir": str(base.resolve()),
         "worldName": manifest["world"].get("name", ""),
-        "targets": {key: targets[key] for key in LOCKED_TARGET_KEYS},
+        "targets": {key: targets[key] for key in LOCKED_TARGET_KEYS if isinstance(targets.get(key), int)},
         "deliveryScale": scale,
         "observedSurface": {"characters": observed} if observed else {},
         "lockedAt": utc_now(),
@@ -1436,6 +1581,91 @@ def collect_character_entries_from_live_manifest(payload: dict) -> list[dict]:
         if isinstance(atom, dict) and atom.get("type") == "character":
             entries.append(atom)
     return entries
+
+
+def _scan_visible_leaks(kind: str, name: str, entry: dict, label: str) -> list[str]:
+    """Cross-type leak scan: forbidden fields, pipeline tags, internal codes, prompt scaffold."""
+    problems = []
+    visible_pairs = extract_visible_pairs(entry)
+    forbidden_fields = set()
+    for key, value in visible_pairs:
+        normalized = normalize_key(key)
+        if normalized in CHARACTER_FORBIDDEN_VISIBLE_FIELDS:
+            forbidden_fields.add(normalized)
+        if isinstance(value, str):
+            if INTERNAL_CODE_RE.search(value):
+                problems.append(
+                    f"{label} {kind} {name} visible field {key!r} leaks an internal style/library code: "
+                    + INTERNAL_CODE_RE.search(value).group(0)
+                )
+            if PROMPT_SCAFFOLD_RE.search(value):
+                problems.append(
+                    f"{label} {kind} {name} visible field {key!r} contains prompt-scaffold text: "
+                    + PROMPT_SCAFFOLD_RE.search(value).group(0)
+                )
+    if forbidden_fields:
+        problems.append(
+            f"{label} {kind} {name} exposes internal visible fields: {', '.join(sorted(forbidden_fields))}"
+        )
+    tags = entry.get("tags")
+    if isinstance(tags, list):
+        leaked_tags = sorted(
+            {str(tag).strip().lower() for tag in tags if str(tag).strip().lower() in FORBIDDEN_VISIBLE_TAGS}
+        )
+        if leaked_tags:
+            problems.append(
+                f"{label} {kind} {name} exposes pipeline tags on the visible card: {', '.join(leaked_tags)}"
+            )
+    return problems
+
+
+def _collect_all_atoms(payload: dict) -> list[dict]:
+    atoms = []
+    if not isinstance(payload, dict):
+        return atoms
+    for section in payload.get("sections", []):
+        if isinstance(section, dict):
+            for atom in section.get("atoms", []):
+                if isinstance(atom, dict):
+                    atoms.append(atom)
+    for atom in payload.get("atoms", []):
+        if isinstance(atom, dict):
+            atoms.append(atom)
+    return atoms
+
+
+def validate_visible_leaks(base: Path, sources=("import", "live")) -> tuple[list[str], list[str], dict]:
+    """Leak scan across ALL atom types, world-level fields and works — not just character cards."""
+    failures = []
+    warnings = []
+    report = {"sourcesChecked": list(sources), "atomsScanned": 0, "worksScanned": 0}
+
+    def scan_payload(payload: dict, label: str) -> None:
+        world_name = payload.get("worldName") or "<world>"
+        world_entry = {
+            key: payload.get(key)
+            for key in ["description", "coreConflict", "prologue", "visualStyle", "seedPrompt"]
+            if has_nonempty_string(payload.get(key))
+        }
+        if world_entry:
+            failures.extend(_scan_visible_leaks("world", world_name, {"content": world_entry}, label))
+        for atom in _collect_all_atoms(payload):
+            report["atomsScanned"] += 1
+            kind = atom.get("type") or "atom"
+            name = atom.get("name") if has_nonempty_string(atom.get("name")) else "<unnamed>"
+            failures.extend(_scan_visible_leaks(kind, name, atom, label))
+        for work in payload.get("works", []):
+            if not isinstance(work, dict):
+                continue
+            report["worksScanned"] += 1
+            name = work.get("title") or work.get("name") or "<untitled>"
+            failures.extend(_scan_visible_leaks("work", name, work, label))
+
+    if "import" in sources:
+        scan_payload(read_json(base / "import/world_import.json"), "import")
+    if "live" in sources:
+        scan_payload(read_json(base / "manifests/live_manifest.json"), "live")
+    return failures, warnings, report
 
 
 def evaluate_character_entries(entries: list[dict], label: str) -> tuple[list[str], list[str], dict]:
@@ -1596,6 +1826,8 @@ def create_scaffold(run_dir: Path, world_name: str) -> None:
         "checks/english_provenance_check.json",
         "checks/import_smoke.json",
         "checks/style_audit.json",
+        "checks/visible_leaks_check.json",
+        "checks/final_acceptance_audit.json",
         "import/world_import.json",
         "manifests/live_manifest.json",
         "manifests/board_placements.json",
@@ -1826,6 +2058,10 @@ GATE_DEFS = {
         lambda base, manifest: validate_english_provenance(base, sources=("import",)),
         "checks/english_provenance_check.json",
     ),
+    "visible_leaks_import": (
+        lambda base, manifest: validate_visible_leaks(base, sources=("import",)),
+        "checks/visible_leaks_check.json",
+    ),
     "bootstrap_ids": (
         lambda base, manifest: validate_bootstrap_ids(base, manifest),
         "checks/bootstrap_ids_check.json",
@@ -1845,6 +2081,18 @@ GATE_DEFS = {
     "english_provenance_live": (
         lambda base, manifest: validate_english_provenance(base, sources=("import", "live")),
         "checks/english_provenance_check.json",
+    ),
+    "visible_leaks_live": (
+        lambda base, manifest: validate_visible_leaks(base, sources=("import", "live")),
+        "checks/visible_leaks_check.json",
+    ),
+    "snapshot_freshness": (
+        lambda base, manifest: validate_snapshot_freshness(base),
+        None,
+    ),
+    "final_acceptance_audit": (
+        lambda base, manifest: validate_final_acceptance_audit(base),
+        None,
     ),
     "cover_assets": (
         lambda base, manifest: validate_cover_assets(base, manifest),
@@ -1870,18 +2118,19 @@ STAGE_GATE_PLAN = {
     "source_inventory": ["source_inventory", "target_lock", "fandom_reference_pack"],
     "world_diagnosis": ["world_diagnosis"],
     "style_decision": ["style_decision"],
-    "atom_package": ["character_cards_import", "english_provenance_import"],
+    "atom_package": ["character_cards_import", "english_provenance_import", "visible_leaks_import"],
     "studio_world_bootstrap": ["bootstrap_ids"],
     "bound_space_import": [
         "import_smoke",
         "import_state",
         "character_cards_live",
         "english_provenance_live",
+        "visible_leaks_live",
     ],
     "cover_quality": ["cover_assets", "style_audit"],
-    "work_media": ["work_media"],
+    "work_media": ["work_media", "snapshot_freshness"],
     "board_layout": ["board_layout"],
-    "final_acceptance": [],
+    "final_acceptance": ["final_acceptance_audit"],
     "workflow_sync": [],
 }
 
@@ -1890,6 +2139,7 @@ STAGE_GATE_PLAN = {
 GATE_SUPERSEDES = {
     "character_cards_live": {"character_cards_import"},
     "english_provenance_live": {"english_provenance_import"},
+    "visible_leaks_live": {"visible_leaks_import"},
 }
 
 
@@ -2229,6 +2479,36 @@ def check_target_lock(args: argparse.Namespace) -> None:
         raise SystemExit(1)
 
 
+def check_visible_leaks(args: argparse.Namespace) -> None:
+    base, _manifest, _stage_log = load_run(args.run_dir)
+    sources = ("import",) if args.source == "import" else ("import", "live")
+    failures, warnings, report = validate_visible_leaks(base, sources=sources)
+    payload = {"verdict": "FAIL" if failures else "PARTIAL" if warnings else "PASS", "failures": failures, "warnings": warnings, "report": report}
+    ensure_parent(base / "checks/visible_leaks_check.json")
+    write_json(base / "checks/visible_leaks_check.json", payload)
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    if payload["verdict"] == "FAIL":
+        raise SystemExit(1)
+
+
+def check_snapshot_freshness(args: argparse.Namespace) -> None:
+    base, _manifest, _stage_log = load_run(args.run_dir)
+    failures, warnings, report = validate_snapshot_freshness(base)
+    payload = {"verdict": "FAIL" if failures else "PARTIAL" if warnings else "PASS", "failures": failures, "warnings": warnings, "report": report}
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    if payload["verdict"] == "FAIL":
+        raise SystemExit(1)
+
+
+def check_final_acceptance_audit(args: argparse.Namespace) -> None:
+    base, _manifest, _stage_log = load_run(args.run_dir)
+    failures, warnings, report = validate_final_acceptance_audit(base)
+    payload = {"verdict": "FAIL" if failures else "PARTIAL" if warnings else "PASS", "failures": failures, "warnings": warnings, "report": report}
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    if payload["verdict"] == "FAIL":
+        raise SystemExit(1)
+
+
 def next_command(args: argparse.Namespace) -> None:
     """Tell the operator exactly where the run is and what single command comes next."""
     base, manifest, stage_log = load_run(args.run_dir)
@@ -2508,6 +2788,19 @@ def main() -> None:
     p_check_lock = sub.add_parser("check-target-lock")
     p_check_lock.add_argument("--run-dir", required=True)
     p_check_lock.set_defaults(func=check_target_lock)
+
+    p_leaks = sub.add_parser("check-visible-leaks")
+    p_leaks.add_argument("--run-dir", required=True)
+    p_leaks.add_argument("--source", choices=["import", "both"], default="both")
+    p_leaks.set_defaults(func=check_visible_leaks)
+
+    p_fresh = sub.add_parser("check-snapshot-freshness")
+    p_fresh.add_argument("--run-dir", required=True)
+    p_fresh.set_defaults(func=check_snapshot_freshness)
+
+    p_final_audit = sub.add_parser("check-final-acceptance-audit")
+    p_final_audit.add_argument("--run-dir", required=True)
+    p_final_audit.set_defaults(func=check_final_acceptance_audit)
 
     p_gates = sub.add_parser("gates")
     p_gates.set_defaults(func=gates_command)

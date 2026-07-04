@@ -252,17 +252,19 @@ The workflow fails if `world_diagnosis` reaches PASS without a valid `world_diag
 
 The workflow fails if any stage is marked PASS while a gate from any earlier stage no longer passes; marking a stage PASS re-runs the full cumulative gate set (mechanism: `gates_for_stage`).
 
-The workflow fails if `atom_package` reaches PASS while character cards are description-only, miss required sections, or leak internal fields (gate: `character_cards_import`), or while visible copy still carries CJK text without an evidenced Cohub English-space pass (gate: `english_provenance_import`).
+The workflow fails if `atom_package` reaches PASS while character cards are description-only, miss required sections, or leak internal fields (gate: `character_cards_import`), while visible copy still carries CJK text without an evidenced Cohub English-space pass (gate: `english_provenance_import`), or while ANY visible surface — every atom type, world-level fields, works — exposes internal fields, pipeline tags such as `tier1`, internal style codes such as `PT-01`, or prompt-scaffold phrasing (gate: `visible_leaks_import`).
 
 The workflow fails if `studio_world_bootstrap` reaches PASS without a valid `world_...` ID, bound `spaceId`, and matching URLs (gate: `bootstrap_ids`).
 
-The workflow fails if `bound_space_import` reaches PASS without an evidenced small-batch smoke import whose `atomsAdded > 0` (gate: `import_smoke`), a live manifest matching the import package and any declared `numericTargets.totalAtoms` (gate: `import_state`), clean live character cards (gate: `character_cards_live`), and English-clean live copy (gate: `english_provenance_live`).
+The workflow fails if `bound_space_import` reaches PASS without an evidenced small-batch smoke import whose `atomsAdded > 0` (gate: `import_smoke`), a live manifest matching the import package and any declared `numericTargets.totalAtoms`, `tier1Characters` and `nonCharacterAtoms` floors (gate: `import_state`), clean live character cards (gate: `character_cards_live`), English-clean live copy (gate: `english_provenance_live`), and leak-free live visible surfaces (gate: `visible_leaks_live`).
 
 The workflow fails if `cover_quality` reaches PASS without archived cover evidence and key assets meeting any declared `numericTargets.keyCharacterAssets` (gate: `cover_assets`), or without a clean-context style sign-off in `checks/style_audit.json` dated after the newest asset change (gate: `style_audit`).
 
-The workflow fails if `work_media` reaches PASS without at least one world-linked work in the live manifest (gate: `work_media`).
+The workflow fails if `work_media` reaches PASS without at least one world-linked work in the live manifest (gate: `work_media`), or while the live manifest or board placements predate the `bound_space_import` PASS — work and board gates must measure current live state, not a stale snapshot (gate: `snapshot_freshness`).
 
-The workflow fails if `board_layout` reaches PASS without a non-empty board placement snapshot and an archived final board screenshot (gate: `board_layout`).
+The workflow fails if `board_layout` reaches PASS without a non-empty board placement snapshot and an archived final board screenshot no older than the latest placement change (gates: `board_layout`, `snapshot_freshness`).
+
+The workflow fails if `final_acceptance` reaches PASS without a `checks/final_acceptance_audit.json` written by a clean-context verifier — not the main builder — whose verdict is PASS, which lists the artifacts actually checked, and whose timestamp postdates the newest delivery artifact (gate: `final_acceptance_audit`). Final acceptance is no longer a zero-gate stage that can be self-approved seconds after board layout.
 
 The workflow fails if the final report does not include world ID, space ID and checkpoint ID (enforced by `verify-handoff`).
 

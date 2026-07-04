@@ -170,13 +170,16 @@ Overwrite coverage/coverage_report.json with valid JSON using this exact top-lev
   "numericTargets": {
     "tier1Characters": 0,
     "totalAtoms": 0,
-    "keyCharacterAssets": 0
+    "keyCharacterAssets": 0,
+    "nonCharacterAtoms": 0
   },
   "nextStepRisks": ["...", "..."],
   "acceptanceReadiness": "..."
 }
 
-numericTargets values must be real positive planning numbers derived from the observed source surface, not zeros. For a full-world run, tier1Characters must be at least max(12, 15% of the character pages you actually observed). These numbers become the frozen delivery bar for the whole run: after planning they are locked outside the run directory and every later stage is measured against them, so set them from evidence, not optimism, and know that nobody can quietly lower them later.
+numericTargets values must be real positive planning numbers derived from the observed source surface, not zeros. For a full-world run, tier1Characters must be at least max(12, 15% of the character pages you actually observed). nonCharacterAtoms is the floor for locations, lore, events, factions and objects combined — set it so the world cannot degrade into a character-only wall. These numbers become the frozen delivery bar for the whole run: after planning they are locked outside the run directory and every later stage is measured against them, so set them from evidence, not optimism, and know that nobody can quietly lower them later.
+
+Visible copy rules for everything you write: no pipeline vocabulary on visible tags (tier1/tier2/tier3 are internal), no internal style or library codes (PT-01, SP-03 style identifiers stay in style_decision.json, never in visible fields), no prompt-scaffold phrasing (masterpiece, best quality, 8k) in any description. The visible-leaks gate scans every atom type, world-level fields and works.
 
 Overwrite final_report.md with this shape:
 # <WORLD_NAME> Planning Report

@@ -178,6 +178,8 @@ python3 /Users/atou/agents-in-discord/ip_world_workflow/scripts/local_world_work
 
 The character-card gate fails when visible character cards stay description-only, miss identity, personality, experience, relationships, abilities or limitations, or leak internal-only visible keys such as `story_use`, `generation_prompt` or `reference_images`.
 
+Beyond character cards, the visible-leaks gate scans every atom type, world-level fields (description, prologue, core conflict, visual style, seed prompt) and works — on both the import package and the live manifest. It fails on internal fields, pipeline tags leaking onto visible cards (`tier1`/`tier2`/`tier3`), internal style-library codes in visible copy (`PT-01`-style identifiers belong in `style_decision.json`, never on the product surface), and prompt-scaffold phrasing (masterpiece, best quality, 8k). System-facing vocabulary must never reach the user-facing surface.
+
 Stage gate: representative cards are inspected for natural English, source grounding, no visible prompts, no source metadata dump, correct atom types and usable creator-facing shape, and the character-card check passes. No later stage should be marked `PASS` before this gate passes.
 
 ## Phase 4
@@ -322,7 +324,9 @@ Check chain health, coverage gate, content quality, visible-card cleanliness, vi
 
 When the state passes, write a report and create a checkpoint.
 
-Stage gate: final report includes world ID, space ID, checkpoint ID, Studio URL, Cohub URL, coverage report, diagnosis, style decision, manifest snapshot, board screenshot, cover screenshot, key asset folders, media links, stage-gate log, known limitations and deferred candidates.
+Final acceptance is not self-approved. Before `final_acceptance` can PASS, a clean-context verifier — not the main builder — must write `checks/final_acceptance_audit.json` with a PASS verdict, the list of artifacts it actually checked, and a timestamp later than the newest delivery artifact. This mirrors the style-audit mechanism and closes the hole where the 2026-07-03 Frieren run marked final acceptance PASS one second after board layout with no independent review.
+
+Stage gate: final report includes world ID, space ID, checkpoint ID, Studio URL, Cohub URL, coverage report, diagnosis, style decision, manifest snapshot, board screenshot, cover screenshot, key asset folders, media links, stage-gate log, known limitations and deferred candidates; and a clean-context `final_acceptance_audit.json` signs off the delivery.
 
 The local control script should be used throughout the run to keep stage verdicts and handoff completeness honest:
 
