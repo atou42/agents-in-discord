@@ -76,7 +76,7 @@ This phase outputs a coverage inventory, not atoms yet.
 
 Before style selection can begin, the run must also produce a Fandom-grounded reference pack at `references/fandom_reference_pack.json`. This pack is not for visible card display. It is the early visual-truth set used to keep style choice and later asset generation anchored to real canon subjects rather than memory.
 
-The reference pack must include at least three distinct subjects, at least one character and at least one non-character subject, at least three reference images in total, and an explicit `styleSelectionSet` naming the subjects that the style phase must look at.
+The reference pack must include at least three distinct subjects, at least one character and at least one non-character subject, at least three reference images in total, and an explicit `styleSelectionSet` naming the subjects that the style phase must look at. For locked `full_world` runs with `tier1Characters` of 20 or more, the floor scales up (roughly tier1/3 subjects and tier1/2 images, capped at 12/20) — judging a 30-character world's style from 5 subjects is exactly how the Cyberpunk 2077 run picked the wrong art direction.
 
 Run the gate here, not after style work:
 
@@ -102,6 +102,8 @@ The lock is stored outside the run dir in the workflow hub's `target_locks/`, fi
 Rules the lock enforces:
 
 - `full_world` runs must set `tier1Characters` to at least max(12, 15% of observed character pages). A big IP cannot be locked with a token target.
+- `keyCharacterAssets` must be at least `tier1Characters`: every tier-1 character needs an archived asset. A lower asset target requires `--waive-asset-coverage`, and the waiver is recorded in the lock, so a cast of card-only characters can no longer hide between two individually-green numbers.
+- `full_world` locks require raw source outputs in `coverage/observed_surface_evidence/` — the observed character surface must be verifiable from files, not self-reported.
 - `core_sample` scale requires `--approved-by user`. An agent may not unilaterally decide a run is a reduced sample; that decision belongs to the user.
 - `relock-targets` only accepts equal-or-higher numbers. The ratchet turns one way. A `full_world` run can never be relocked as `core_sample`.
 - If mid-run reality genuinely breaks the target (source collapsed, product limits), the run records FAIL or PARTIAL with the gap documented — it does not quietly move the goalposts.
@@ -144,6 +146,8 @@ This phase outputs a style decision with rationale and negative constraints.
 The run should store the decision in `style_decision.json`. The selected style must come from `style_space` or `approved_style_library`. Freehand ad hoc style strings do not pass this gate.
 
 Style selection must consume the earlier Fandom reference pack. If the run cannot show which Fandom-grounded subjects were used to judge character identity, location language and world-range fit, the style gate fails.
+
+For `full_world` runs the style decision is not the agent's to finalize. Style is an aesthetic judgment: gates can verify that a decision has evidence and rationale, but not that the rationale is right — the Cyberpunk 2077 run passed every check while arguing itself out of the library's own Cyberpunk style into a generic hero-splash look. The builder must present the compared candidates and its recommendation to the user, wait for confirmation, and record it in `style_decision.json` as `userApproval` with `approvedBy: "user"`, an ISO `approvedAt` timestamp, and the `candidatesPresented` list (at least two — a single-option confirmation is not a choice). The gate fails without it.
 
 Run the gate before any atom packaging, cover generation or KV work:
 
@@ -258,7 +262,7 @@ If provider failures block progress, repair the failed set instead of pretending
 
 External generation batches follow the external-task policy in `capabilities.json`: per-item timeout with skip-and-record, background polling instead of foreground waiting, and a repair list that must be closed or documented before the gate.
 
-Aesthetic consistency cannot be judged by a local script, so it is locked with a sign-off artifact instead: a clean-context verifier reviews the final assets against `style_decision.json` and writes `checks/style_audit.json` with `verdict`, `executor`, `assetsReviewed`, `styleDecisionRef` and `auditedAt`. The gate fails if the verdict is not PASS or if `auditedAt` predates the newest asset change, so re-touching assets forces a re-audit.
+Aesthetic consistency cannot be judged by a local script, so it is locked with a sign-off artifact instead: a clean-context verifier reviews the final assets against `style_decision.json` and writes `checks/style_audit.json` with `verdict`, `executor`, `assetsReviewed`, `styleDecisionRef`, `auditedAt`, a substantive `summary` (at least 80 characters of actual findings) and a `verifierSessionId` naming the subagent session that did the work. The gate fails if the verdict is not PASS, if `auditedAt` predates the newest asset change, if the summary is empty or token, or if the session is untraceable — an audit that leaves no findings and no fingerprint is indistinguishable from no audit. The same substance rules apply to `checks/final_acceptance_audit.json`.
 
 Run:
 

@@ -418,10 +418,27 @@ def validate_fandom_reference_pack(base: Path, expected_wiki: str = "") -> tuple
 
     report["subjectCount"] = len(seen_subjects)
     report["imageCount"] = total_images
-    if len(seen_subjects) < 3:
-        failures.append("fandom_reference_pack.json needs at least three distinct reference subjects")
-    if total_images < 3:
-        failures.append("fandom_reference_pack.json needs at least three total reference images")
+    # The floor scales with delivery scope. A fixed floor of 3 let the Cyberpunk
+    # full_world run judge style for a 30-character cast on 5 subjects / 8 images.
+    min_subjects, min_images = 3, 3
+    lock = read_target_lock(base)
+    if lock and lock.get("deliveryScale") == "full_world":
+        tier1 = lock.get("targets", {}).get("tier1Characters")
+        if isinstance(tier1, int) and tier1 >= 20:
+            min_subjects = max(min_subjects, min(12, tier1 // 3))
+            min_images = max(min_images, min(20, tier1 // 2))
+    report["minSubjects"] = min_subjects
+    report["minImages"] = min_images
+    if len(seen_subjects) < min_subjects:
+        failures.append(
+            f"fandom_reference_pack.json needs at least {min_subjects} distinct reference subjects"
+            f" for this delivery scale (found {len(seen_subjects)})"
+        )
+    if total_images < min_images:
+        failures.append(
+            f"fandom_reference_pack.json needs at least {min_images} total reference images"
+            f" for this delivery scale (found {total_images})"
+        )
     if not has_character:
         failures.append("fandom_reference_pack.json needs at least one character reference subject")
     if not has_non_character:
@@ -821,6 +838,33 @@ def validate_style_decision(base: Path) -> tuple[list[str], list[str]]:
     if not has_nonempty_string(payload.get("verifiedBy")):
         failures.append("style_decision.json missing verifiedBy (sub reports are not evidence without main-builder review)")
 
+    # Style is an aesthetic judgment machines cannot verify. For full_world runs
+    # the decision must be confirmed by the user before the gate passes: present
+    # the candidate comparison and recommendation, get approval, and record it.
+    # The Cyberpunk run picked a generic hero-splash style over the library's own
+    # Cyberpunk entry with a plausible-sounding rationale nobody reviewed.
+    lock = read_target_lock(base)
+    if lock and lock.get("deliveryScale") == "full_world":
+        approval = payload.get("userApproval")
+        if not isinstance(approval, dict):
+            failures.append(
+                "style_decision.json missing userApproval: full_world style decisions require"
+                " explicit user confirmation. Present the candidates and recommendation to the"
+                ' user, then record {"approvedBy": "user", "approvedAt": <ISO time>,'
+                ' "candidatesPresented": [...]}.'
+            )
+        else:
+            if approval.get("approvedBy") != "user":
+                failures.append('style_decision.json userApproval.approvedBy must be "user"')
+            if _parse_iso_ts(approval.get("approvedAt", "")) is None:
+                failures.append("style_decision.json userApproval.approvedAt missing or not an ISO timestamp")
+            candidates = approval.get("candidatesPresented")
+            if not isinstance(candidates, list) or len([c for c in candidates if has_nonempty_string(c)]) < 2:
+                failures.append(
+                    "style_decision.json userApproval.candidatesPresented must list at least two"
+                    " candidates that were shown to the user (a single-option confirmation is not a choice)"
+                )
+
     return failures, warnings
 
 
@@ -865,11 +909,122 @@ def count_import_atoms(payload: dict) -> int:
     return total
 
 
+def count_import_non_character_atoms(payload: dict) -> int:
+    if not isinstance(payload, dict):
+        return 0
+    total = 0
+    for section in payload.get("sections", []):
+        if not isinstance(section, dict) or not isinstance(section.get("atoms"), list):
+            continue
+        for atom in section["atoms"]:
+            if isinstance(atom, dict) and atom.get("type") not in (None, "", "character"):
+                total += 1
+    return total
+
+
+def validate_import_draft_coverage(base: Path) -> tuple[list[str], list[str], dict]:
+    """Before live import, atom_package must already respect the locked planning bar."""
+    failures = []
+    warnings = []
+    import_doc = read_json(base / "import/world_import.json")
+    import_atoms = _collect_all_atoms(import_doc)
+    report = {
+        "importAtomCount": count_import_atoms(import_doc),
+        "importCharacterCount": len(collect_character_entries_from_world_import(import_doc)),
+        "importNonCharacterCount": count_import_non_character_atoms(import_doc),
+    }
+
+    targets = coverage_numeric_targets(base)
+    total_target = targets.get("totalAtoms")
+    if isinstance(total_target, int) and total_target > 0:
+        report["totalAtomsTarget"] = total_target
+        if report["importAtomCount"] < total_target:
+            failures.append(
+                f"import atom count {report['importAtomCount']} is below the declared"
+                f" numericTargets.totalAtoms {total_target}; atom_package cannot PASS while the"
+                " draft import is still materially below the locked delivery bar"
+            )
+    else:
+        warnings.append("numericTargets.totalAtoms missing; draft import coverage cannot be measured")
+
+    tier1_target = targets.get("tier1Characters")
+    if isinstance(tier1_target, int) and tier1_target > 0:
+        report["tier1CharactersTarget"] = tier1_target
+        effective_tier1_coverage = report["importCharacterCount"]
+        cap_resolution_path = base / "checks/import_cap_resolution.json"
+        if report["importCharacterCount"] < tier1_target and cap_resolution_path.exists():
+            resolution = read_json(cap_resolution_path)
+            overflow = resolution.get("tier1CharacterOverflow")
+            represented = 0
+            missing_overflow = []
+            import_index = {
+                (atom.get("type"), atom.get("name"))
+                for atom in import_atoms
+                if isinstance(atom, dict)
+            }
+            if not isinstance(overflow, list):
+                failures.append("checks/import_cap_resolution.json tier1CharacterOverflow must be a list")
+            else:
+                for item in overflow:
+                    if not isinstance(item, dict):
+                        failures.append(
+                            "checks/import_cap_resolution.json tier1CharacterOverflow entries must be objects"
+                        )
+                        continue
+                    name = item.get("representationAtomName")
+                    atom_type = item.get("representationType")
+                    if not has_nonempty_string(name) or not has_nonempty_string(atom_type):
+                        failures.append(
+                            "checks/import_cap_resolution.json tier1CharacterOverflow entries need"
+                            " representationAtomName and representationType"
+                        )
+                        continue
+                    if (atom_type, name) in import_index:
+                        represented += 1
+                    else:
+                        missing_overflow.append(f"{atom_type}:{name}")
+            effective_tier1_coverage += represented
+            report["tier1DraftCapResolution"] = {
+                "path": str(cap_resolution_path),
+                "tier1OverflowRepresented": represented,
+                "effectiveTier1Coverage": effective_tier1_coverage,
+                "missingOverflowRepresentations": missing_overflow,
+            }
+            if missing_overflow:
+                failures.append(
+                    "checks/import_cap_resolution.json points to missing import overflow atoms: "
+                    + ", ".join(missing_overflow)
+                )
+        report["effectiveTier1CharacterCoverage"] = effective_tier1_coverage
+        if effective_tier1_coverage < tier1_target:
+            failures.append(
+                f"effective import tier1 character coverage {effective_tier1_coverage} is below the declared"
+                f" numericTargets.tier1Characters {tier1_target}; the draft import has not yet met the"
+                " locked major-character floor"
+            )
+    else:
+        warnings.append("numericTargets.tier1Characters missing; draft major-character coverage cannot be measured")
+
+    non_char_target = targets.get("nonCharacterAtoms")
+    if isinstance(non_char_target, int) and non_char_target > 0:
+        report["nonCharacterAtomsTarget"] = non_char_target
+        if report["importNonCharacterCount"] < non_char_target:
+            failures.append(
+                f"import non-character atom count {report['importNonCharacterCount']} is below the declared"
+                f" numericTargets.nonCharacterAtoms {non_char_target}; atom_package must not devolve into"
+                " a character-only draft"
+            )
+    elif non_char_target is None:
+        warnings.append("numericTargets.nonCharacterAtoms missing; draft world-shape balance cannot be measured")
+
+    return failures, warnings, report
+
+
 def validate_import_state(base: Path) -> tuple[list[str], list[str], dict]:
     failures = []
     warnings = []
     import_doc = read_json(base / "import/world_import.json")
-    live_manifest = read_json(base / "manifests/live_manifest.json")
+    live_manifest = load_live_payload(base)
     report = {
         "importAtomCount": count_import_atoms(import_doc),
         "liveAtomCount": len(live_manifest.get("atoms", [])) if isinstance(live_manifest.get("atoms"), list) else 0,
@@ -917,9 +1072,55 @@ def validate_import_state(base: Path) -> tuple[list[str], list[str], dict]:
         live_characters = collect_character_entries_from_live_manifest(live_manifest)
         report["tier1CharactersTarget"] = tier1_target
         report["liveCharacterCount"] = len(live_characters)
-        if len(live_characters) < tier1_target:
+        effective_tier1_coverage = len(live_characters)
+        cap_resolution_path = base / "checks/import_cap_resolution.json"
+        if len(live_characters) < tier1_target and cap_resolution_path.exists():
+            resolution = read_json(cap_resolution_path)
+            overflow = resolution.get("tier1CharacterOverflow")
+            represented = 0
+            missing_overflow = []
+            live_index = {
+                (atom.get("type"), atom.get("name"))
+                for atom in live_manifest.get("atoms", [])
+                if isinstance(atom, dict)
+            }
+            if not isinstance(overflow, list):
+                failures.append("checks/import_cap_resolution.json tier1CharacterOverflow must be a list")
+            else:
+                for item in overflow:
+                    if not isinstance(item, dict):
+                        failures.append(
+                            "checks/import_cap_resolution.json tier1CharacterOverflow entries must be objects"
+                        )
+                        continue
+                    name = item.get("representationAtomName")
+                    atom_type = item.get("representationType")
+                    if not has_nonempty_string(name) or not has_nonempty_string(atom_type):
+                        failures.append(
+                            "checks/import_cap_resolution.json tier1CharacterOverflow entries need"
+                            " representationAtomName and representationType"
+                        )
+                        continue
+                    if (atom_type, name) in live_index:
+                        represented += 1
+                    else:
+                        missing_overflow.append(f"{atom_type}:{name}")
+            effective_tier1_coverage += represented
+            report["tier1CapResolution"] = {
+                "path": str(cap_resolution_path),
+                "tier1OverflowRepresented": represented,
+                "effectiveTier1Coverage": effective_tier1_coverage,
+                "missingOverflowRepresentations": missing_overflow,
+            }
+            if missing_overflow:
+                failures.append(
+                    "checks/import_cap_resolution.json points to missing live overflow atoms: "
+                    + ", ".join(missing_overflow)
+                )
+        report["effectiveTier1CharacterCoverage"] = effective_tier1_coverage
+        if effective_tier1_coverage < tier1_target:
             failures.append(
-                f"live character atom count {len(live_characters)} is below the declared"
+                f"effective live tier1 character coverage {effective_tier1_coverage} is below the declared"
                 f" numericTargets.tier1Characters {tier1_target}"
             )
     non_char_target = targets.get("nonCharacterAtoms")
@@ -979,13 +1180,36 @@ def validate_cover_assets(base: Path, manifest: dict) -> tuple[list[str], list[s
                 f"assets/key_characters has {len(key_characters)} assets, below the declared"
                 f" numericTargets.keyCharacterAssets {key_target}"
             )
+
+    # Per-character coverage: every live character atom should have an archived
+    # asset whose filename contains its slugified name. Card-only cast members
+    # (12 of 30 in the Cyberpunk run) are reported by name.
+    if (base / "manifests/live_manifest.json").exists():
+        live = load_live_payload(base)
+        live_chars = [
+            a.get("name", "") for a in live.get("atoms", [])
+            if isinstance(a, dict) and a.get("type") == "character" and has_nonempty_string(a.get("name"))
+        ]
+        if live_chars:
+            asset_slugs = " ".join(slugify(item.stem) for item in key_characters)
+            unarchived = [name for name in live_chars if slugify(name) not in asset_slugs]
+            report["liveCharacterCount"] = len(live_chars)
+            report["charactersWithoutAssets"] = unarchived
+            lock = read_target_lock(base)
+            waived = bool(lock and lock.get("assetCoverageWaived"))
+            if unarchived and not waived:
+                shown = ", ".join(unarchived[:8]) + (f" (+{len(unarchived)-8} more)" if len(unarchived) > 8 else "")
+                failures.append(
+                    f"{len(unarchived)} live character(s) have no archived asset in assets/key_characters:"
+                    f" {shown}. Archive an asset per character or relock with --waive-asset-coverage."
+                )
     return failures, warnings, report
 
 
 def validate_work_media(base: Path) -> tuple[list[str], list[str], dict]:
     failures = []
     warnings = []
-    live_manifest = read_json(base / "manifests/live_manifest.json")
+    live_manifest = load_live_payload(base)
     works = live_manifest.get("works")
     report = {"workCount": len(works) if isinstance(works, list) else 0}
     if not isinstance(works, list) or not works:
@@ -999,7 +1223,7 @@ def validate_board_layout(base: Path) -> tuple[list[str], list[str], dict]:
     placements_path = base / "manifests/board_placements.json"
     screenshot_path = base / "screenshots/board/board-final.png"
     placements = read_json(placements_path, expect=None)
-    live_manifest = read_json(base / "manifests/live_manifest.json")
+    live_manifest = load_live_payload(base)
     atom_count = len(live_manifest.get("atoms", [])) if isinstance(live_manifest.get("atoms"), list) else 0
     work_count = len(live_manifest.get("works", [])) if isinstance(live_manifest.get("works"), list) else 0
     placement_count = len(placements) if isinstance(placements, list) else 0
@@ -1065,7 +1289,7 @@ def validate_english_provenance(base: Path, sources=("import", "live")) -> tuple
         import_doc = read_json(base / "import/world_import.json")
         surface_texts["import"] = _iter_visible_text(import_doc)
     if "live" in sources:
-        live_manifest = read_json(base / "manifests/live_manifest.json")
+        live_manifest = load_live_payload(base)
         surface_texts["live"] = _iter_visible_text(live_manifest)
 
     cjk_hits = {}
@@ -1193,6 +1417,16 @@ def validate_style_audit(base: Path) -> tuple[list[str], list[str], dict]:
         failures.append("style_audit.json missing executor")
     elif "subagent" not in executor.lower() and "clean-context" not in executor.lower():
         warnings.append("style_audit.json executor should be a clean-context subagent, not the main builder self-approving")
+    if not has_nonempty_string(data.get("summary")) or len(str(data.get("summary", "")).strip()) < 80:
+        failures.append(
+            "style_audit.json summary must substantively describe the style findings"
+            " (at least 80 characters); an empty summary proves nothing was reviewed"
+        )
+    if not has_nonempty_string(data.get("verifierSessionId")):
+        failures.append(
+            "style_audit.json missing verifierSessionId: record the clean-context"
+            " subagent/session identifier that performed the audit, so it is traceable"
+        )
     assets = data.get("assetsReviewed")
     if not isinstance(assets, list) or len(assets) < 1:
         failures.append("style_audit.json must list the assets reviewed")
@@ -1334,8 +1568,16 @@ def validate_final_acceptance_audit(base: Path) -> tuple[list[str], list[str], d
                 "final_acceptance_audit.json auditedAt predates the latest delivery artifact;"
                 " re-run the clean-context acceptance after the last change"
             )
-    if not has_nonempty_string(data.get("summary")):
-        warnings.append("final_acceptance_audit.json missing summary of what was actually verified")
+    if not has_nonempty_string(data.get("summary")) or len(str(data.get("summary", "")).strip()) < 80:
+        failures.append(
+            "final_acceptance_audit.json summary must substantively describe what was verified"
+            " (at least 80 characters); an empty or token summary is not an acceptance review"
+        )
+    if not has_nonempty_string(data.get("verifierSessionId")):
+        failures.append(
+            "final_acceptance_audit.json missing verifierSessionId: record the clean-context"
+            " subagent/session identifier that performed the review, so the audit is traceable"
+        )
     report["verdict"] = data.get("verdict")
     return failures, warnings, report
 
@@ -1383,7 +1625,11 @@ def _lock_path_for_run(base: Path) -> Path:
 
 
 def _lock_fingerprint(payload: dict) -> str:
-    body = {key: payload.get(key) for key in ["runDir", "targets", "deliveryScale", "observedSurface", "lockedAt", "relockOf"]}
+    keys = ["runDir", "targets", "deliveryScale", "observedSurface", "lockedAt", "relockOf"]
+    # Include newer fields only when present so fingerprints of older locks stay valid.
+    if "assetCoverageWaived" in payload:
+        keys.append("assetCoverageWaived")
+    body = {key: payload.get(key) for key in keys}
     return hashlib.sha256(json.dumps(body, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
 
 
@@ -1482,6 +1728,35 @@ def lock_targets(args: argparse.Namespace) -> None:
             file=sys.stderr,
         )
 
+    # Every tier-1 character deserves an archived asset. The Cyberpunk 2077 run
+    # locked keyCharacterAssets=18 against tier1Characters=30, leaving 12 core
+    # cast members card-only — each gate was numerically green while the gap
+    # hid in the difference. Assets must cover the cast unless explicitly waived.
+    tier1_value = targets.get("tier1Characters")
+    key_assets_value = targets.get("keyCharacterAssets")
+    if (
+        isinstance(tier1_value, int) and isinstance(key_assets_value, int)
+        and key_assets_value < tier1_value and not args.waive_asset_coverage
+    ):
+        fail(
+            f"cannot lock: keyCharacterAssets={key_assets_value} is below tier1Characters={tier1_value}."
+            " Every tier-1 character needs an archived asset; raise the target or pass"
+            " --waive-asset-coverage with a documented reason in the coverage report."
+        )
+
+    # Observed-surface numbers must be backed by raw source output, not self-report.
+    # The first Cyberpunk lock understated the surface (reported 20 while 50-result
+    # windows existed) because nothing required the raw evidence to exist at lock time.
+    evidence_dir = base / "coverage/observed_surface_evidence"
+    if args.delivery_scale == "full_world":
+        evidence_files = list_non_readme_files(evidence_dir)
+        if not evidence_files:
+            fail(
+                "cannot lock full_world: coverage/observed_surface_evidence/ has no raw source outputs."
+                " Save the actual fandom category/search command outputs there so the observed"
+                " character surface is verifiable, then lock."
+            )
+
     # The planning verifier snapshots the targets it accepted. Locking below that
     # snapshot means someone edited coverage_report down between planning PASS and
     # lock time — the exact pre-lock window the Frieren run exploited (planning
@@ -1569,6 +1844,7 @@ def lock_targets(args: argparse.Namespace) -> None:
         "observedSurface": {"characters": observed} if observed else {},
         "lockedAt": utc_now(),
         "lockedBy": args.locked_by,
+        "assetCoverageWaived": bool(args.waive_asset_coverage),
         "relockOf": existing.get("fingerprint", "") if existing else "",
     }
     payload["fingerprint"] = _lock_fingerprint(payload)
@@ -1645,6 +1921,26 @@ def collect_character_entries_from_live_manifest(payload: dict) -> list[dict]:
         if isinstance(atom, dict) and atom.get("type") == "character":
             entries.append(atom)
     return entries
+
+
+def load_live_payload(base: Path) -> dict:
+    """Load the live manifest and replace summary arrays with full snapshots when present."""
+    payload = read_json(base / "manifests/live_manifest.json")
+    atoms_path = base / "manifests/live_atoms.json"
+    if atoms_path.exists():
+        atoms = read_json(atoms_path, expect=None)
+        if not isinstance(atoms, list):
+            fail("manifests/live_atoms.json must be a JSON array when present")
+        payload = dict(payload)
+        payload["atoms"] = atoms
+    works_path = base / "manifests/live_works.json"
+    if works_path.exists():
+        works = read_json(works_path, expect=None)
+        if not isinstance(works, list):
+            fail("manifests/live_works.json must be a JSON array when present")
+        payload = dict(payload)
+        payload["works"] = works
+    return payload
 
 
 def _scan_visible_leaks(kind: str, name: str, entry: dict, label: str) -> list[str]:
@@ -1732,7 +2028,7 @@ def validate_visible_leaks(base: Path, sources=("import", "live")) -> tuple[list
     if "import" in sources:
         scan_payload(read_json(base / "import/world_import.json"), "import")
     if "live" in sources:
-        scan_payload(read_json(base / "manifests/live_manifest.json"), "live")
+        scan_payload(load_live_payload(base), "live")
     return failures, warnings, report
 
 
@@ -1805,7 +2101,7 @@ def validate_character_cards(base: Path, mode: str = "both") -> tuple[list[str],
         report["import"] = import_summary
 
     if mode in {"live", "both"}:
-        live_manifest = read_json(base / "manifests/live_manifest.json")
+        live_manifest = load_live_payload(base)
         live_entries = collect_character_entries_from_live_manifest(live_manifest)
         live_failures, live_warnings, live_summary = evaluate_character_entries(live_entries, "live")
         failures.extend(live_failures)
@@ -2118,6 +2414,10 @@ GATE_DEFS = {
         lambda base, manifest: (*validate_style_decision(base), None),
         None,
     ),
+    "draft_import_coverage": (
+        lambda base, manifest: validate_import_draft_coverage(base),
+        "checks/import_draft_coverage_check.json",
+    ),
     "character_cards_import": (
         lambda base, manifest: validate_character_cards(base, mode="import"),
         "checks/character_card_check.json",
@@ -2186,7 +2486,12 @@ STAGE_GATE_PLAN = {
     "source_inventory": ["source_inventory", "target_lock", "fandom_reference_pack"],
     "world_diagnosis": ["world_diagnosis"],
     "style_decision": ["style_decision"],
-    "atom_package": ["character_cards_import", "english_provenance_import", "visible_leaks_import"],
+    "atom_package": [
+        "draft_import_coverage",
+        "character_cards_import",
+        "english_provenance_import",
+        "visible_leaks_import",
+    ],
     "studio_world_bootstrap": ["bootstrap_ids"],
     "bound_space_import": [
         "import_smoke",
@@ -2431,6 +2736,17 @@ def check_import_state(args: argparse.Namespace) -> None:
     payload = {"verdict": "FAIL" if failures else "PARTIAL" if warnings else "PASS", "failures": failures, "warnings": warnings, "report": report}
     ensure_parent(base / "checks/import_state_check.json")
     write_json(base / "checks/import_state_check.json", payload)
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    if payload["verdict"] == "FAIL":
+        raise SystemExit(1)
+
+
+def check_import_draft_coverage(args: argparse.Namespace) -> None:
+    base, _manifest, _stage_log = load_run(args.run_dir)
+    failures, warnings, report = validate_import_draft_coverage(base)
+    payload = {"verdict": "FAIL" if failures else "PARTIAL" if warnings else "PASS", "failures": failures, "warnings": warnings, "report": report}
+    ensure_parent(base / "checks/import_draft_coverage_check.json")
+    write_json(base / "checks/import_draft_coverage_check.json", payload)
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     if payload["verdict"] == "FAIL":
         raise SystemExit(1)
@@ -2793,6 +3109,10 @@ def main() -> None:
     p_import_state.add_argument("--run-dir", required=True)
     p_import_state.set_defaults(func=check_import_state)
 
+    p_import_draft = sub.add_parser("check-import-draft-coverage")
+    p_import_draft.add_argument("--run-dir", required=True)
+    p_import_draft.set_defaults(func=check_import_draft_coverage)
+
     p_character = sub.add_parser("check-character-cards")
     p_character.add_argument("--run-dir", required=True)
     p_character.add_argument("--source", choices=["import", "live", "both"], default="both")
@@ -2843,6 +3163,7 @@ def main() -> None:
     p_lock.add_argument("--observed-characters", type=int)
     p_lock.add_argument("--approved-by", default="")
     p_lock.add_argument("--locked-by", default="planning-subagent")
+    p_lock.add_argument("--waive-asset-coverage", action="store_true")
     p_lock.set_defaults(func=lock_targets, relock=False)
 
     p_relock = sub.add_parser("relock-targets")
@@ -2851,6 +3172,7 @@ def main() -> None:
     p_relock.add_argument("--observed-characters", type=int)
     p_relock.add_argument("--approved-by", default="")
     p_relock.add_argument("--locked-by", default="main-builder")
+    p_relock.add_argument("--waive-asset-coverage", action="store_true")
     p_relock.set_defaults(func=lock_targets, relock=True)
 
     p_check_lock = sub.add_parser("check-target-lock")
