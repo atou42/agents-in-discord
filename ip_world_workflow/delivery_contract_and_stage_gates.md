@@ -244,6 +244,8 @@ The workflow fails if the coverage report does not declare positive `numericTarg
 
 The workflow fails if `source_inventory` or any later stage reaches PASS without a target lock in the workflow hub's `target_locks/`, or while the coverage report's `numericTargets` differ from the locked values in any direction (gate: `target_lock`). Delivery targets are written by the planning subagent and frozen by `lock-targets`; downgrading them mid-run is forbidden. `core_sample` scale requires explicit user approval at lock time, `full_world` locks enforce a tier-1 floor of max(12, 15% of observed characters), and `relock-targets` only accepts equal-or-higher numbers.
 
+The pre-lock window is closed too: the planning verifier snapshots the `numericTargets` it accepted into `checks/planning_package_check.json`, and `lock-targets` refuses any lock below that snapshot — editing the coverage report down between planning verification and lock time is caught. `lock-targets` also cross-checks `--observed-characters` against the character surface recorded in the source inventory's own `observedSurface` text, so the tier-1 floor cannot be lowered by understating the observed surface.
+
 The workflow fails if `style_decision` reaches PASS without a valid `style_decision.json` that proves the selected style came from `style_space` or `approved_style_library`, includes evidence, rationale, `selectionExecutor` and `verifiedBy`, and explicitly consumes the Fandom reference pack (gate: `style_decision`).
 
 The workflow fails if `source_inventory` reaches PASS without a valid `references/fandom_reference_pack.json` (gate: `fandom_reference_pack`) or valid coverage files (gate: `source_inventory`).
@@ -258,7 +260,7 @@ The workflow fails if `studio_world_bootstrap` reaches PASS without a valid `wor
 
 The workflow fails if `bound_space_import` reaches PASS without an evidenced small-batch smoke import whose `atomsAdded > 0` (gate: `import_smoke`), a live manifest matching the import package and any declared `numericTargets.totalAtoms`, `tier1Characters` and `nonCharacterAtoms` floors (gate: `import_state`), clean live character cards (gate: `character_cards_live`), English-clean live copy (gate: `english_provenance_live`), and leak-free live visible surfaces (gate: `visible_leaks_live`).
 
-The workflow fails if `cover_quality` reaches PASS without archived cover evidence and key assets meeting any declared `numericTargets.keyCharacterAssets` (gate: `cover_assets`), or without a clean-context style sign-off in `checks/style_audit.json` dated after the newest asset change (gate: `style_audit`).
+The workflow fails if `cover_quality` reaches PASS without archived cover evidence and key assets meeting any declared `numericTargets.keyCharacterAssets` (gate: `cover_assets`), or without a clean-context style sign-off in `checks/style_audit.json` that covers every exported asset on disk and is dated after the newest asset change (gate: `style_audit`).
 
 The workflow fails if `work_media` reaches PASS without at least one world-linked work in the live manifest (gate: `work_media`), or while the live manifest or board placements predate the `bound_space_import` PASS — work and board gates must measure current live state, not a stale snapshot (gate: `snapshot_freshness`).
 

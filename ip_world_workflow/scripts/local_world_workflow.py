@@ -113,7 +113,13 @@ CHARACTER_FORBIDDEN_VISIBLE_FIELDS = {
 # Pipeline vocabulary that must never appear on user-visible tags.
 FORBIDDEN_VISIBLE_TAGS = {"tier1", "tier2", "tier3", "tier 1", "tier 2", "tier 3"}
 # Internal style-library codes (PT-01, SP-03, ...) leaking into visible copy.
-INTERNAL_CODE_RE = re.compile(r"\b[A-Z]{2}-\d{2}\b")
+# Internal style-library codes (PT-01, SP-03, ...) leaking into visible copy.
+# Prefix list matches the style library's code families; extend it when the
+# library grows. Kept prefix-scoped so canon names like AK-47 don't false-fail.
+STYLE_CODE_PREFIXES = ("PT", "SP", "ST", "AS")
+INTERNAL_CODE_RE = re.compile(
+    r"\b(?:" + "|".join(STYLE_CODE_PREFIXES) + r")[-_]\d{2,3}\b", re.IGNORECASE
+)
 # Prompt-scaffold phrases that mark generation text leaking into creator-facing copy.
 PROMPT_SCAFFOLD_RE = re.compile(
     r"\b(masterpiece|best quality|8k|ultra[- ]detailed|negative prompt|lora|trending on artstation)\b",
@@ -1022,6 +1028,11 @@ def _iter_visible_text(payload) -> list:
         for field in ["worldName", "name", "title", "prologue", "description"]:
             if has_nonempty_string(atom.get(field)):
                 texts.append(atom[field].strip())
+        tags = atom.get("tags")
+        if isinstance(tags, list):
+            for tag in tags:
+                if has_nonempty_string(tag):
+                    texts.append(str(tag).strip())
 
     if isinstance(payload, dict):
         for field in ["worldName", "description", "coreConflict", "prologue"]:
@@ -1185,6 +1196,22 @@ def validate_style_audit(base: Path) -> tuple[list[str], list[str], dict]:
     assets = data.get("assetsReviewed")
     if not isinstance(assets, list) or len(assets) < 1:
         failures.append("style_audit.json must list the assets reviewed")
+    else:
+        # The audit must cover the assets that actually exist, not a stale or partial list.
+        actual_assets = set()
+        for rel in STYLE_AUDIT_ASSET_DIRS:
+            for item in list_non_readme_files(base / rel):
+                actual_assets.add(str(item.relative_to(base)))
+        reviewed = {str(item).strip() for item in assets if has_nonempty_string(item)}
+        unreviewed = sorted(actual_assets - reviewed)
+        report["actualAssetCount"] = len(actual_assets)
+        report["reviewedCount"] = len(reviewed)
+        if unreviewed:
+            failures.append(
+                "style_audit.json assetsReviewed does not cover all exported assets;"
+                f" unreviewed: {', '.join(unreviewed[:5])}"
+                + (f" (+{len(unreviewed)-5} more)" if len(unreviewed) > 5 else "")
+            )
     if not has_nonempty_string(data.get("styleDecisionRef")):
         failures.append("style_audit.json must reference the style_decision it judged against")
     audited_at = data.get("auditedAt")
@@ -1455,6 +1482,25 @@ def lock_targets(args: argparse.Namespace) -> None:
             file=sys.stderr,
         )
 
+    # The planning verifier snapshots the targets it accepted. Locking below that
+    # snapshot means someone edited coverage_report down between planning PASS and
+    # lock time — the exact pre-lock window the Frieren run exploited (planning
+    # said 18/140/12, first lock was 13/18/5).
+    planning_check_path = base / "checks/planning_package_check.json"
+    if planning_check_path.exists():
+        planning_check = read_json(planning_check_path)
+        verified = planning_check.get("verifiedNumericTargets")
+        if isinstance(verified, dict):
+            for key, verified_value in verified.items():
+                current_value = targets.get(key)
+                if isinstance(verified_value, int) and isinstance(current_value, int) and current_value < verified_value:
+                    fail(
+                        f"cannot lock: numericTargets.{key}={current_value} is below the planning-verified"
+                        f" value {verified_value} recorded in checks/planning_package_check.json."
+                        " Targets were edited down after planning verification; restore them or re-run"
+                        " the planning verifier on an honestly revised package."
+                    )
+
     scale = args.delivery_scale
     if scale not in DELIVERY_SCALES:
         fail(f"--delivery-scale must be one of {sorted(DELIVERY_SCALES)}")
@@ -1466,6 +1512,24 @@ def lock_targets(args: argparse.Namespace) -> None:
                 "--observed-characters is required for full_world scale"
                 " (the character-page count actually seen on the source surface)"
             )
+        # Cross-check the self-reported count against the source inventory's own
+        # record, so the floor cannot be lowered by understating the surface.
+        inventory_path = base / "coverage/source_inventory.json"
+        if inventory_path.exists():
+            inventory = read_json(inventory_path)
+            observed_text = str(
+                inventory.get("candidateSummary", {}).get("characters", {}).get("observedSurface", "")
+            )
+            counts = [
+                int(match) for match in re.findall(r"\b(\d{2,4})\b", observed_text)
+                if 10 <= int(match) <= 5000 and not (1900 <= int(match) <= 2099)
+            ]
+            if counts and observed < max(counts):
+                fail(
+                    f"--observed-characters {observed} is below the character surface recorded in"
+                    f" coverage/source_inventory.json ({max(counts)} per its own observedSurface text)."
+                    " The floor cannot be lowered by understating the observed surface."
+                )
         floor = _tier1_floor(observed)
         if targets["tier1Characters"] < floor:
             fail(
@@ -1586,7 +1650,11 @@ def collect_character_entries_from_live_manifest(payload: dict) -> list[dict]:
 def _scan_visible_leaks(kind: str, name: str, entry: dict, label: str) -> list[str]:
     """Cross-type leak scan: forbidden fields, pipeline tags, internal codes, prompt scaffold."""
     problems = []
-    visible_pairs = extract_visible_pairs(entry)
+    visible_pairs = list(extract_visible_pairs(entry))
+    # The visible name/title is itself a product surface; scan it too.
+    for name_field in ["name", "title"]:
+        if has_nonempty_string(entry.get(name_field)):
+            visible_pairs.append((name_field, entry[name_field].strip()))
     forbidden_fields = set()
     for key, value in visible_pairs:
         normalized = normalize_key(key)

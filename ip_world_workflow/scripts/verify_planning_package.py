@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import hashlib
 import json
 from pathlib import Path
 
@@ -204,18 +205,30 @@ def main() -> None:
     elif warnings:
         verdict = "PARTIAL"
 
-    print(
-        json.dumps(
-            {
-                "verdict": verdict,
-                "missing": missing,
-                "failures": failures,
-                "warnings": warnings,
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
-    )
+    result = {
+        "verdict": verdict,
+        "missing": missing,
+        "failures": failures,
+        "warnings": warnings,
+    }
+
+    # Snapshot the planning targets this verifier saw, so lock-targets can refuse
+    # any lock below the numbers the planning package was accepted with. This
+    # closes the pre-lock window where an agent edits coverage_report down after
+    # planning verification but before locking.
+    numeric_targets = coverage_report.get("numericTargets") if isinstance(coverage_report, dict) else None
+    if verdict != "FAIL" and isinstance(numeric_targets, dict):
+        snapshot = {key: value for key, value in numeric_targets.items() if isinstance(value, int) and value > 0}
+        result["verifiedNumericTargets"] = snapshot
+        result["verifiedTargetsFingerprint"] = hashlib.sha256(
+            json.dumps(snapshot, sort_keys=True).encode("utf-8")
+        ).hexdigest()
+
+    check_path = base / "checks/planning_package_check.json"
+    check_path.parent.mkdir(parents=True, exist_ok=True)
+    check_path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    print(json.dumps(result, ensure_ascii=False, indent=2))
 
     if verdict == "FAIL":
         raise SystemExit(1)

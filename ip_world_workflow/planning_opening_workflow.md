@@ -95,6 +95,8 @@ python3 /Users/atou/agents-in-discord/ip_world_workflow/scripts/verify_planning_
 
 The verifier is the first gate, not the final judgment. The main agent should still read the files to catch shallow but technically passing content.
 
+The verifier also snapshots the `numericTargets` it accepted into `checks/planning_package_check.json`. This snapshot is the delivery bar: `lock-targets` later refuses to lock below it, so the numbers the planning package is accepted with cannot be quietly edited down before the lock. Do not hand-edit that check file.
+
 The planning package passes only when:
 
 - scaffold text is gone
