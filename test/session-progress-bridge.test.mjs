@@ -175,3 +175,61 @@ test('claude session progress bridge forwards user tool_result events for downst
     stop();
   }
 });
+
+test('claude session progress bridge forwards assistant tool_use snapshots even when raw text extraction is empty', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agents-in-discord-progress-claude-assistant-'));
+  const sessionFile = path.join(root, 'session.jsonl');
+  fs.writeFileSync(sessionFile, '');
+
+  const seen = [];
+  const factory = createSessionProgressBridgeFactory({
+    normalizeProvider: (provider) => provider,
+    extractRawProgressTextFromEvent: () => '',
+    findLatestRolloutFileBySessionId: () => null,
+    findLatestClaudeSessionFileBySessionId: () => readMatch(sessionFile),
+  });
+
+  const stop = factory.startSessionProgressBridge({
+    provider: 'claude',
+    threadId: 'sid-claude-assistant',
+    workspaceDir: '/tmp/demo',
+    onEvent: (event) => seen.push(event),
+  });
+
+  try {
+    await wait(150);
+    fs.appendFileSync(
+      sessionFile,
+      `${JSON.stringify({
+        timestamp: '2026-03-25T10:00:01.000Z',
+        type: 'assistant',
+        sessionId: 'sid-claude-assistant',
+        uuid: 'evt-1',
+        message: {
+          id: 'msg-1',
+          role: 'assistant',
+          type: 'message',
+          stop_reason: 'tool_use',
+          content: [
+            {
+              type: 'tool_use',
+              id: 'toolu_ls',
+              name: 'Bash',
+              input: {
+                command: 'ls -la',
+                description: 'List current directory',
+              },
+            },
+          ],
+        },
+      })}\n`,
+    );
+
+    await wait(900);
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0]?.type, 'assistant');
+    assert.equal(seen[0]?.message?.content?.[0]?.type, 'tool_use');
+  } finally {
+    stop();
+  }
+});

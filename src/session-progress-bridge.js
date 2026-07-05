@@ -6,6 +6,10 @@ export function createSessionProgressBridgeFactory({
   findLatestRolloutFileBySessionId,
   findLatestClaudeSessionFileBySessionId,
 } = {}) {
+  function normalizeEventType(value) {
+    return String(value || '').trim().toLowerCase().replace(/[./-]/g, '_');
+  }
+
   function hasClaudeToolResultPayload(value) {
     if (value === null || value === undefined) return false;
     if (Array.isArray(value)) return value.some((item) => hasClaudeToolResultPayload(item));
@@ -17,6 +21,66 @@ export function createSessionProgressBridgeFactory({
     return hasClaudeToolResultPayload(value.message)
       || hasClaudeToolResultPayload(value.content)
       || hasClaudeToolResultPayload(value.result);
+  }
+
+  function extractClaudeMessage(event) {
+    if (event?.message && typeof event.message === 'object') return event.message;
+    return event && typeof event === 'object' ? event : null;
+  }
+
+  function extractClaudeStopReason(event) {
+    const message = extractClaudeMessage(event);
+    const candidates = [
+      event?.stop_reason,
+      event?.stopReason,
+      message?.stop_reason,
+      message?.stopReason,
+      event?.result?.stop_reason,
+      event?.result?.stopReason,
+    ];
+    for (const candidate of candidates) {
+      const text = String(candidate || '').trim();
+      if (text) return normalizeEventType(text);
+    }
+    return '';
+  }
+
+  function hasClaudeStructuredContentBlocks(event) {
+    const message = extractClaudeMessage(event);
+    const content = Array.isArray(message?.content)
+      ? message.content
+      : Array.isArray(event?.content)
+        ? event.content
+        : [];
+    return content.some((part) => part && typeof part === 'object' && normalizeEventType(part.type || ''));
+  }
+
+  function shouldForwardClaudeAssistantSnapshot(event) {
+    if (normalizeEventType(event?.type || '') !== 'assistant') return false;
+    const message = extractClaudeMessage(event);
+    if (normalizeEventType(message?.role || event?.role || '') !== 'assistant') return false;
+    if (!hasClaudeStructuredContentBlocks(event)) return false;
+    return extractClaudeStopReason(event) !== 'end_turn';
+  }
+
+  function buildClaudeBridgeKey(event, { hasToolResult = false, text = '' } = {}) {
+    const base = [
+      event?.timestamp || '',
+      event?.type || '',
+      event?.session_id || event?.sessionId || '',
+      hasToolResult ? 'tool_result' : '',
+      text,
+    ];
+    const message = extractClaudeMessage(event);
+    if (shouldForwardClaudeAssistantSnapshot(event)) {
+      base.push(
+        'assistant_snapshot',
+        event?.uuid || '',
+        message?.id || '',
+        extractClaudeStopReason(event),
+      );
+    }
+    return base.join('|');
   }
 
   function resolveInitialOffset({ match, bridgeStartedAtMs, baselineMatch }) {
@@ -217,11 +281,12 @@ export function createSessionProgressBridgeFactory({
       }
       if (!ev || typeof ev !== 'object') return;
       const hasToolResult = hasClaudeToolResultPayload(ev);
+      const isAssistantSnapshot = shouldForwardClaudeAssistantSnapshot(ev);
       if (String(ev.type || '').toLowerCase() === 'user' && !hasToolResult) return;
 
       const text = extractRawProgressTextFromEvent(ev);
-      if (!text && !hasToolResult) return;
-      const key = [ev.timestamp || '', ev.type || '', ev.sessionId || '', hasToolResult ? 'tool_result' : '', text].join('|');
+      if (!text && !hasToolResult && !isAssistantSnapshot) return;
+      const key = buildClaudeBridgeKey(ev, { hasToolResult, text });
       if (!rememberKey(key)) return;
       onEvent(ev);
     };
