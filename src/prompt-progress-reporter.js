@@ -325,6 +325,22 @@ function createClaudeProgressTracker({ truncateText, previewChars }) {
   const activeBlocks = new Map();
   const finalizedBlocks = [];
   const toolUseLabelsById = new Map();
+  const seenAssistantBlockKeys = new Set();
+  const seenAssistantBlockKeyQueue = [];
+  const consumedToolResultIds = new Set();
+  const consumedToolResultIdQueue = [];
+  let sawStreamEvents = false;
+
+  function rememberBoundedKey(set, queue, key) {
+    if (!key || set.has(key)) return false;
+    set.add(key);
+    queue.push(key);
+    if (queue.length > 400) {
+      const stale = queue.shift();
+      if (stale) set.delete(stale);
+    }
+    return true;
+  }
 
   function resetMessage() {
     activeBlocks.clear();
@@ -401,6 +417,7 @@ function createClaudeProgressTracker({ truncateText, previewChars }) {
       if (!toolUseId) continue;
       const label = toolUseLabelsById.get(toolUseId);
       if (!label) continue;
+      if (!rememberBoundedKey(consumedToolResultIds, consumedToolResultIdQueue, toolUseId)) continue;
       if (label === 'Update plan' || /^Update plan \(\d+ steps\)$/.test(label)) return null;
       return {
         summaryStep: `${label} completed`,
@@ -411,11 +428,73 @@ function createClaudeProgressTracker({ truncateText, previewChars }) {
     return null;
   }
 
+  // Newer Claude CLI builds stopped emitting stream_event lines even with
+  // --include-partial-messages; intermediate progress only exists as plain
+  // assistant snapshots (one event per content block, stop_reason set on the
+  // message). Derive commentary and tool activity from those snapshots so the
+  // Discord progress surfaces keep streaming like Codex. Skipped entirely once
+  // any stream_event arrives, so older CLIs never double-report.
+  function consumeAssistantSnapshot(event) {
+    if (sawStreamEvents) return null;
+    const message = event?.message && typeof event.message === 'object' ? event.message : null;
+    if (!message) return null;
+    if (normalizeProgressEventType(message.role || '') !== 'assistant') return null;
+
+    const stopReason = normalizeProgressEventType(message.stop_reason || message.stopReason || '');
+    const content = Array.isArray(message.content) ? message.content : [];
+    const messageId = normalizeProgressText(message.id || '');
+    const summaryCandidates = [];
+    const rawActivities = [];
+
+    for (const block of content) {
+      if (!block || typeof block !== 'object') continue;
+      const blockType = normalizeProgressEventType(block.type || '');
+
+      if (blockType === 'tool_use') {
+        const toolUseId = normalizeProgressText(block.id || '');
+        const blockKey = toolUseId ? `tool_use|${toolUseId}` : '';
+        if (blockKey && !rememberBoundedKey(seenAssistantBlockKeys, seenAssistantBlockKeyQueue, blockKey)) continue;
+        const normalized = {
+          kind: 'tool_use',
+          id: toolUseId,
+          name: normalizeProgressText(block.name || block.tool_name || 'tool') || 'tool',
+          input: block.input && typeof block.input === 'object' ? block.input : {},
+        };
+        const label = formatClaudeToolUseLabel(normalized, truncateText, previewChars);
+        if (normalized.id) toolUseLabelsById.set(normalized.id, label);
+        summaryCandidates.push(label);
+        if (shouldSurfaceClaudeToolActivity(normalized)) rawActivities.push(label);
+        continue;
+      }
+
+      if (blockType !== 'text') continue;
+      // end_turn text is the final answer (delivered separately); snapshots
+      // without a stop_reason are pre-final partials from the stream path.
+      if (!stopReason || stopReason === 'end_turn') continue;
+      const text = normalizeProgressText(block.text);
+      if (!text) continue;
+      const blockKey = `text|${messageId}|${text}`;
+      if (!rememberBoundedKey(seenAssistantBlockKeys, seenAssistantBlockKeyQueue, blockKey)) continue;
+      const preview = truncateText(text, previewChars);
+      if (!preview) continue;
+      summaryCandidates.push(`agent message: ${preview}`);
+      rawActivities.push(text);
+    }
+
+    if (!summaryCandidates.length && !rawActivities.length) return null;
+    return {
+      summaryStep: summaryCandidates[summaryCandidates.length - 1] || '',
+      rawActivities,
+      completedSteps: [],
+    };
+  }
+
   function capture(event) {
     const type = normalizeProgressEventType(event?.type || '');
     if (!type) return null;
 
     if (type === 'stream_event' && event.event && typeof event.event === 'object') {
+      sawStreamEvents = true;
       const nestedType = normalizeProgressEventType(event.event.type || '');
       if (nestedType === 'message_start') {
         resetMessage();
@@ -478,6 +557,10 @@ function createClaudeProgressTracker({ truncateText, previewChars }) {
       }
 
       return null;
+    }
+
+    if (type === 'assistant') {
+      return consumeAssistantSnapshot(event);
     }
 
     if (type === 'user') {

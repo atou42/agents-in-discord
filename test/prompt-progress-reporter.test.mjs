@@ -465,6 +465,138 @@ test('createPromptProgressReporterFactory derives Claude commentary and tool pro
   assert.match(finalCard, /done: Show current working directory/);
 });
 
+test('createPromptProgressReporterFactory derives Claude progress from assistant snapshots when stream events are absent', async () => {
+  const harness = createHarness({
+    session: { provider: 'claude' },
+  });
+
+  await harness.reporter.start();
+  harness.channelState.activeRun.phase = 'exec';
+
+  harness.reporter.onEvent({
+    type: 'assistant',
+    message: {
+      id: 'msg-a',
+      role: 'assistant',
+      stop_reason: 'tool_use',
+      content: [{ type: 'text', text: '我先用 ls 看一下当前目录。' }],
+    },
+  });
+  harness.reporter.onEvent({
+    type: 'assistant',
+    message: {
+      id: 'msg-a',
+      role: 'assistant',
+      stop_reason: 'tool_use',
+      content: [{
+        type: 'tool_use',
+        id: 'toolu_ls',
+        name: 'Bash',
+        input: { command: 'ls -la', description: 'List current directory' },
+      }],
+    },
+  });
+  harness.reporter.onEvent({
+    type: 'user',
+    message: {
+      role: 'user',
+      content: [{ type: 'tool_result', tool_use_id: 'toolu_ls', content: 'a.txt' }],
+    },
+  });
+  harness.reporter.onEvent({
+    type: 'assistant',
+    message: {
+      id: 'msg-b',
+      role: 'assistant',
+      stop_reason: 'end_turn',
+      content: [{ type: 'text', text: '最终答案：目录里有 a.txt。' }],
+    },
+  });
+
+  await harness.reporter.finish({ ok: true });
+
+  const finalCard = harness.edits[harness.edits.length - 1].content;
+  assert.match(finalCard, /process: 我先用 ls 看一下当前目录。/);
+  assert.match(finalCard, /process: List current directory/);
+  assert.match(finalCard, /done: List current directory/);
+  assert.doesNotMatch(finalCard, /最终答案/);
+});
+
+test('createPromptProgressReporterFactory does not duplicate Claude progress when assistant snapshots repeat', async () => {
+  const harness = createHarness({
+    session: { provider: 'claude' },
+    factoryOptions: {
+      progressEventDedupeWindowMs: 0,
+      createProgressEventDeduper: () => () => false,
+    },
+  });
+
+  await harness.reporter.start();
+  harness.channelState.activeRun.phase = 'exec';
+
+  const toolSnapshot = {
+    type: 'assistant',
+    message: {
+      id: 'msg-a',
+      role: 'assistant',
+      stop_reason: 'tool_use',
+      content: [{
+        type: 'tool_use',
+        id: 'toolu_dup',
+        name: 'Bash',
+        input: { command: 'pwd', description: 'Show working directory' },
+      }],
+    },
+  };
+  harness.reporter.onEvent(toolSnapshot);
+  harness.reporter.onEvent(toolSnapshot);
+  const toolResult = {
+    type: 'user',
+    message: {
+      role: 'user',
+      content: [{ type: 'tool_result', tool_use_id: 'toolu_dup', content: '/tmp' }],
+    },
+  };
+  harness.reporter.onEvent(toolResult);
+  harness.reporter.onEvent(toolResult);
+
+  await harness.reporter.finish({ ok: true });
+
+  const finalCard = harness.edits[harness.edits.length - 1].content;
+  const processMatches = finalCard.match(/process: Show working directory/g) || [];
+  assert.equal(processMatches.length, 1);
+  const doneMatches = finalCard.match(/done: Show working directory/g) || [];
+  assert.equal(doneMatches.length, 1);
+});
+
+test('createPromptProgressReporterFactory ignores Claude assistant snapshots once stream events are active', async () => {
+  const harness = createHarness({
+    session: { provider: 'claude' },
+  });
+
+  await harness.reporter.start();
+  harness.channelState.activeRun.phase = 'exec';
+
+  harness.reporter.onEvent({
+    type: 'stream_event',
+    event: { type: 'message_start' },
+  });
+  harness.reporter.onEvent({
+    type: 'assistant',
+    message: {
+      id: 'msg-a',
+      role: 'assistant',
+      stop_reason: 'tool_use',
+      content: [{ type: 'text', text: '流模式下的快照解说。' }],
+    },
+  });
+
+  await harness.reporter.finish({ ok: true });
+
+  const finalCard = harness.edits[harness.edits.length - 1].content;
+  assert.doesNotMatch(finalCard, /process: 流模式下的快照解说。/);
+});
+
 test('createPromptProgressReporterFactory does not let Claude system noise hide API errors', async () => {
   const harness = createHarness({
     session: { provider: 'claude' },
