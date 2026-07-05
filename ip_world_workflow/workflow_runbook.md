@@ -133,6 +133,23 @@ python3 /Users/atou/agents-in-discord/ip_world_workflow/scripts/local_world_work
 
 Stage gate: diagnosis changes at least coverage priority, card-writing emphasis, style evaluation and board reading mode.
 
+## Phase 1.75
+
+Present the IP proposal and stop for human review.
+
+This is the phase-one exit door, and it is human-shaped. Using the research from Phases 0-1.5, write `ip_proposal.md` (shape and guidance in `ip_proposal_template.md`) covering: why this IP and what its fandom cares about; the proposed main cast with counts against the observed surface; cross-source-verified reference images for protagonists and key locations; the fan red lines that must not be gotten wrong; a delight plan that proves we know the IP; and 3-5 style candidates from the library, each with its exemplar image (style space `style_index/thumbs/<ID>.png`), an IP-grounded reason, and a risk.
+
+Present it to the user and wait. Record the user's actual decisions in `checks/ip_proposal_approval.json`. The `ip_proposal` gate (enforced from `world_diagnosis` onward) fails without an approved, un-tampered proposal — and every execution stage inherits it, so there is no path into import, generation or board work around the user.
+
+Run:
+
+```bash
+python3 /Users/atou/agents-in-discord/ip_world_workflow/scripts/local_world_workflow.py check-ip-proposal \
+  --run-dir deliverables/<world-slug>
+```
+
+Stage gate: proposal exists with all six sections at real substance, references show cross-source verification, style candidates carry exemplar images, and the user's approval (with their decisions) is recorded and postdates the final proposal text.
+
 ## Phase 2
 
 Choose one world-level visual style.

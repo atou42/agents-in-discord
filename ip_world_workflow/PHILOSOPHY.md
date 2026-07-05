@@ -22,6 +22,14 @@ The single question behind every judgment call: **would a creator who knows this
 
 This is why the workflow is delivery-led, not activity-led. You do not start by importing atoms or generating images. You start by understanding the world and defining what a complete, creator-facing delivery looks like — then you derive the stages from that. Import shape, cover generation, board layout are implementation mechanics in service of the room. They are never the point.
 
+## Research before building
+
+Every IP deserves real research before a single atom is written. Not just counting Fandom category pages — understanding what the fandom actually cares about: which characters fans rank far above their screen time, which design details are identity-defining, which facts are sacred. A world built from surface data gets the shape right and the soul wrong, and IP fans detect that instantly.
+
+Reference images are facts, not decoration. Same-name characters, mid-series redesigns, film-versus-source divergence and AU versions are all real traps; a reference is only trustworthy when a second source confirms it. One wrong protagonist reference poisons every generated asset downstream.
+
+This is why phase one ends with a human review, not a green checkmark. Before execution, the builder presents a proposal — main cast and count, cross-verified references for protagonists and key locations, the fan red lines that must not be gotten wrong, a plan to delight fans by showing we know the IP, and 3-5 style candidates with exemplar images. The user confirms or corrects it. Execution before that approval wastes the most expensive part of the run on unvalidated assumptions; every hour of research and review in phase one saves many in the execution phase.
+
 ## What "good" looks like
 
 A good world:

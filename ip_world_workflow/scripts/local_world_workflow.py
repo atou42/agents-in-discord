@@ -1172,12 +1172,13 @@ def validate_import_state(base: Path) -> tuple[list[str], list[str], dict]:
     overflow_names = set()
     if cap_path.exists():
         cap_data = read_json(cap_path)
-        for item in cap_data.get("tier1CharacterOverflow", []) or []:
-            if isinstance(item, dict) and has_nonempty_string(item.get("representationAtomName")):
-                overflow_names.add(
-                    (str(item.get("representationType", "")).strip(),
-                     str(item["representationAtomName"]).strip())
-                )
+        for group in ["tier1CharacterOverflow", "tier2CharacterOverflow", "locationOverflow"]:
+            for item in cap_data.get(group, []) or []:
+                if isinstance(item, dict) and has_nonempty_string(item.get("representationAtomName")):
+                    overflow_names.add(
+                        (str(item.get("representationType", "")).strip(),
+                         str(item["representationAtomName"]).strip())
+                    )
     wild = []
     unsanctioned_secondary = []
     for atom in import_atoms:
@@ -1737,6 +1738,124 @@ def validate_final_acceptance_audit(base: Path) -> tuple[list[str], list[str], d
             " subagent/session identifier that performed the review, so the audit is traceable"
         )
     report["verdict"] = data.get("verdict")
+    return failures, warnings, report
+
+
+IP_PROPOSAL_SECTIONS = [
+    "Why This IP",
+    "Main Cast",
+    "Key Reference Images",
+    "Fan Red Lines",
+    "Delight Plan",
+    "Style Candidates",
+]
+
+
+def validate_ip_proposal(base: Path) -> tuple[list[str], list[str], dict]:
+    """The phase-one human review gate: no execution before the user approves the plan.
+
+    Before any import, generation or board work, the builder must present a
+    proposal proving it understands the IP — main cast scope, cross-verified
+    reference images for protagonists and key locations, the facts fans will
+    not forgive getting wrong, a plan to delight them, and 3-5 style candidates
+    with exemplar images from the style space. Execution without an approved
+    proposal wastes the entire execution phase on unvalidated assumptions.
+    """
+    path = base / "ip_proposal.md"
+    approval_path = base / "checks/ip_proposal_approval.json"
+    failures = []
+    warnings = []
+    report = {"path": str(path), "approvalPath": str(approval_path)}
+
+    if not path.exists():
+        return [
+            "ip_proposal.md missing: phase one requires a creator-facing proposal"
+            " (main cast, cross-verified references, fan red lines, delight plan,"
+            " 3-5 style candidates with exemplar images) reviewed by the user"
+        ], warnings, report
+    text = read_text(path)
+    if len(text.strip()) < 1200:
+        failures.append(
+            "ip_proposal.md too short to be a real proposal (need at least 1200 chars"
+            " of substantive research, not a form filled with placeholders)"
+        )
+    for heading in IP_PROPOSAL_SECTIONS:
+        if not has_markdown_section(text, heading):
+            failures.append(f"ip_proposal.md missing section: {heading}")
+
+    cast_body = markdown_section_body(text, "Main Cast")
+    if cast_body and not re.search(r"\b\d+\b", cast_body):
+        failures.append(
+            "ip_proposal.md Main Cast must state the proposed character count as a number"
+        )
+
+    ref_body = markdown_section_body(text, "Key Reference Images")
+    if ref_body:
+        url_count = len(re.findall(r"https?://", ref_body))
+        if url_count < 4:
+            failures.append(
+                "ip_proposal.md Key Reference Images needs at least 4 reference links"
+                " (protagonists and key locations)"
+            )
+        source_markers = len(re.findall(r"cross|second source|confirmed via|双源|交叉", ref_body, re.IGNORECASE))
+        if source_markers == 0:
+            failures.append(
+                "ip_proposal.md Key Reference Images must show cross-source verification:"
+                " state for each key subject how a second source confirmed the reference"
+                " is the right character/location (same-name traps, redesigns, AU versions)"
+            )
+
+    style_body = markdown_section_body(text, "Style Candidates")
+    if style_body:
+        style_ids = set(re.findall(r"\b([A-Z]{2,3}-\d{2})\b", style_body))
+        if len(style_ids) < 3:
+            failures.append(
+                "ip_proposal.md Style Candidates must present 3-5 library styles by id"
+                f" (found {len(style_ids)}); each with a reason grounded in this IP"
+            )
+        exemplar_refs = len(re.findall(r"style_index/thumbs/[A-Z0-9]+-\d+\.png|https?://\S+\.(?:png|jpg|jpeg|webp)", style_body))
+        if exemplar_refs < 3:
+            failures.append(
+                "ip_proposal.md Style Candidates must include an exemplar image per candidate"
+                " (style space has them under style_index/thumbs/<ID>.png)"
+            )
+
+    red_body = markdown_section_body(text, "Fan Red Lines")
+    if red_body and len(red_body.strip()) < 200:
+        failures.append(
+            "ip_proposal.md Fan Red Lines is too thin: name the specific facts, designs"
+            " and relationships fans will not forgive getting wrong, with why"
+        )
+
+    if not approval_path.exists():
+        failures.append(
+            "checks/ip_proposal_approval.json missing: the user has not approved the"
+            " proposal. Present it, wait for the user's explicit reply, then record"
+            ' {"approvedBy": "user", "approvedAt": <ISO>, "decisions": {...}}.'
+            " Execution stages are forbidden until this exists."
+        )
+    else:
+        approval = read_json(approval_path)
+        if approval.get("approvedBy") != "user":
+            failures.append('ip_proposal_approval.json approvedBy must be "user"')
+        if _parse_iso_ts(approval.get("approvedAt", "")) is None:
+            failures.append("ip_proposal_approval.json approvedAt missing or not ISO")
+        decisions = approval.get("decisions")
+        if not isinstance(decisions, dict) or not decisions:
+            failures.append(
+                "ip_proposal_approval.json decisions must record what the user actually"
+                " chose (at minimum the selected style and any cast/scope adjustments)"
+            )
+        else:
+            if not has_nonempty_string(decisions.get("selectedStyle")):
+                failures.append("ip_proposal_approval.json decisions.selectedStyle missing")
+        proposal_mtime = path.stat().st_mtime
+        approved_ts = _parse_iso_ts(approval.get("approvedAt", ""))
+        if approved_ts is not None and approved_ts + 1 < proposal_mtime:
+            failures.append(
+                "ip_proposal.md was modified after the user approved it; re-present and re-approve"
+            )
+    report["approved"] = approval_path.exists() and not failures
     return failures, warnings, report
 
 
@@ -2454,6 +2573,7 @@ def create_scaffold(run_dir: Path, world_name: str) -> None:
         "checks/english_provenance_check.json",
         "checks/import_smoke.json",
         "checks/style_audit.json",
+        "checks/ip_proposal_check.json",
         "checks/visible_leaks_check.json",
         "checks/final_acceptance_audit.json",
         "import/world_import.json",
@@ -2674,6 +2794,10 @@ GATE_DEFS = {
         lambda base, manifest: (*validate_world_diagnosis(base, manifest), None),
         None,
     ),
+    "ip_proposal": (
+        lambda base, manifest: validate_ip_proposal(base),
+        "checks/ip_proposal_check.json",
+    ),
     "style_decision": (
         lambda base, manifest: (*validate_style_decision(base), None),
         None,
@@ -2752,7 +2876,7 @@ STAGE_GATE_PLAN = {
     "world_understanding": ["capabilities", "source_map"],
     "delivery_contract": ["delivery_contract", "execution_plan"],
     "source_inventory": ["source_inventory", "target_lock", "fandom_reference_pack"],
-    "world_diagnosis": ["world_diagnosis"],
+    "world_diagnosis": ["world_diagnosis", "ip_proposal"],
     "style_decision": ["style_decision"],
     "atom_package": [
         "draft_import_coverage",
@@ -3152,6 +3276,17 @@ def check_snapshot_freshness(args: argparse.Namespace) -> None:
         raise SystemExit(1)
 
 
+def check_ip_proposal(args: argparse.Namespace) -> None:
+    base, _manifest, _stage_log = load_run(args.run_dir)
+    failures, warnings, report = validate_ip_proposal(base)
+    payload = {"verdict": "FAIL" if failures else "PARTIAL" if warnings else "PASS", "failures": failures, "warnings": warnings, "report": report}
+    ensure_parent(base / "checks/ip_proposal_check.json")
+    write_json(base / "checks/ip_proposal_check.json", payload)
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    if payload["verdict"] == "FAIL":
+        raise SystemExit(1)
+
+
 def check_factuality_audit(args: argparse.Namespace) -> None:
     base, _manifest, _stage_log = load_run(args.run_dir)
     failures, warnings, report = validate_factuality_audit(base)
@@ -3466,6 +3601,10 @@ def main() -> None:
     p_fresh = sub.add_parser("check-snapshot-freshness")
     p_fresh.add_argument("--run-dir", required=True)
     p_fresh.set_defaults(func=check_snapshot_freshness)
+
+    p_prop = sub.add_parser("check-ip-proposal")
+    p_prop.add_argument("--run-dir", required=True)
+    p_prop.set_defaults(func=check_ip_proposal)
 
     p_fact = sub.add_parser("check-factuality-audit")
     p_fact.add_argument("--run-dir", required=True)
