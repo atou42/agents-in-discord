@@ -769,6 +769,21 @@ async function collectPass(baseUrl, guestViewer, rows, options, runRoot, results
       try {
         return await collectRow(baseUrl, guestViewer, row, options, path.join(runRoot, "runs"));
       } catch (error) {
+        if (error.message === "fetch failed" && !error.status && !error.body) {
+          const artifact = await loadSubmittedRowArtifacts(row.runId, path.join(runRoot, "runs"));
+          return {
+            state: "pending",
+            pending: {
+              runId: row.runId,
+              ipId: row.ipId,
+              ipName: row.ip.name,
+              styleId: row.styleId,
+              styleName: row.style.name,
+              jobId: artifact.created.id,
+              status: "unknown",
+            },
+          };
+        }
         return {
           state: "errored",
           error: {
