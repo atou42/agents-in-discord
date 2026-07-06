@@ -27,11 +27,34 @@ function buildIndexMaps(ips, styles) {
   };
 }
 
-function normalizeResult(result, maps) {
+const NON_IP_DIRECTIVES = [
+  "Keep the world identity specific, not generic.",
+  "Preserve clear silhouette logic, scene readability, and material coherence.",
+  "One finished image, no text, no collage, no border.",
+];
+
+function splitPrompt(prompt) {
+  let ipPrompt = String(prompt || "");
+  const nonIp = [];
+  for (const directive of NON_IP_DIRECTIVES) {
+    if (ipPrompt.includes(directive)) {
+      nonIp.push(directive);
+      ipPrompt = ipPrompt.replace(directive, "");
+    }
+  }
+  return {
+    ipPrompt: ipPrompt.replace(/\s+/g, " ").trim(),
+    nonIpPrompt: nonIp.join(" "),
+  };
+}
+
+function normalizeResult(result, maps, request) {
   const ip = maps.ipById.get(result.ipId) || {};
   const style = maps.styleById.get(result.styleId) || {};
   const image = result.downloadedImages?.[0] || result.imageUrls?.[0] || {};
   const runParts = result.runId.match(/_r(\d+)$/);
+  const promptParts = splitPrompt(request?.prompt || "");
+  const stylePrompt = request?.styleTreatment || request?.style || "";
   return {
     runId: result.runId,
     runIndex: runParts ? Number(runParts[1]) : null,
@@ -46,6 +69,19 @@ function normalizeResult(result, maps) {
     thumbUrl: image.thumbnailUrl || image.imageUrl || image.origUrl || "",
     origUrl: image.origUrl || image.imageUrl || "",
     bytes: image.bytes || 0,
+    ipPrompt: promptParts.ipPrompt,
+    nonIpPrompt: promptParts.nonIpPrompt,
+    stylePrompt,
+    fullPrompt: [
+      "IP prompt:",
+      promptParts.ipPrompt,
+      "",
+      "Non-IP directives:",
+      promptParts.nonIpPrompt,
+      "",
+      "Style treatment:",
+      stylePrompt,
+    ].join("\n"),
   };
 }
 
@@ -60,6 +96,7 @@ function html({ summary, rows, ipFamilies, styleFamilies }) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
   <title>Krea Neta Studio 800 Run Preview</title>
   <style>
     :root {
@@ -275,7 +312,7 @@ function html({ summary, rows, ipFamilies, styleFamilies }) {
     dialog::backdrop { background: rgb(0 0 0 / 58%); }
     .modal {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 280px;
+      grid-template-columns: minmax(0, 1fr) 430px;
       max-height: min(92vh, 980px);
     }
     .modal-img {
@@ -291,6 +328,8 @@ function html({ summary, rows, ipFamilies, styleFamilies }) {
       display: grid;
       align-content: start;
       gap: 10px;
+      max-height: min(92vh, 980px);
+      overflow: auto;
     }
     .modal-side h2 {
       margin: 0;
@@ -315,6 +354,39 @@ function html({ summary, rows, ipFamilies, styleFamilies }) {
       text-decoration: none;
       font-weight: 760;
       font-size: 13px;
+    }
+    .prompt-section {
+      display: grid;
+      gap: 6px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 9px;
+      background: #fbf8ef;
+    }
+    .prompt-section strong {
+      font-size: 11px;
+      line-height: 1;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+    .prompt-section pre {
+      margin: 0;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      color: var(--ink);
+      font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    .prompt-ip {
+      border-color: #a9cbe9;
+      background: #f1f8ff;
+    }
+    .prompt-style {
+      border-color: #acd7c1;
+      background: #effaf3;
+    }
+    .prompt-non-ip {
+      border-color: #e2c084;
+      background: #fff8e6;
     }
     .empty {
       border: 1px solid var(--line);
@@ -378,6 +450,19 @@ function html({ summary, rows, ipFamilies, styleFamilies }) {
         <p id="modalRun"></p>
         <p id="modalJob"></p>
         <a class="link" id="modalOpen" target="_blank" rel="noreferrer">Open full image</a>
+        <button id="modalCopy" type="button">Copy full prompt</button>
+        <section class="prompt-section prompt-ip">
+          <strong>IP prompt</strong>
+          <pre id="modalIpPrompt"></pre>
+        </section>
+        <section class="prompt-section prompt-non-ip">
+          <strong>Non-IP directives</strong>
+          <pre id="modalNonIpPrompt"></pre>
+        </section>
+        <section class="prompt-section prompt-style">
+          <strong>Style treatment</strong>
+          <pre id="modalStylePrompt"></pre>
+        </section>
         <button id="modalClose" type="button">Close</button>
       </aside>
     </div>
@@ -401,6 +486,10 @@ function html({ summary, rows, ipFamilies, styleFamilies }) {
       modalRun: document.getElementById("modalRun"),
       modalJob: document.getElementById("modalJob"),
       modalOpen: document.getElementById("modalOpen"),
+      modalCopy: document.getElementById("modalCopy"),
+      modalIpPrompt: document.getElementById("modalIpPrompt"),
+      modalNonIpPrompt: document.getElementById("modalNonIpPrompt"),
+      modalStylePrompt: document.getElementById("modalStylePrompt"),
       modalClose: document.getElementById("modalClose"),
     };
 
@@ -470,6 +559,11 @@ function html({ summary, rows, ipFamilies, styleFamilies }) {
       els.modalRun.textContent = row.runId + " · seed " + row.seed;
       els.modalJob.textContent = "job " + row.jobId;
       els.modalOpen.href = row.origUrl || row.imageUrl || row.thumbUrl;
+      els.modalCopy.dataset.prompt = row.fullPrompt;
+      els.modalCopy.textContent = "Copy full prompt";
+      els.modalIpPrompt.textContent = row.ipPrompt || "";
+      els.modalNonIpPrompt.textContent = row.nonIpPrompt || "";
+      els.modalStylePrompt.textContent = row.stylePrompt || "";
       els.viewer.showModal();
     }
 
@@ -492,6 +586,21 @@ function html({ summary, rows, ipFamilies, styleFamilies }) {
       render();
     });
     els.modalClose.addEventListener("click", () => els.viewer.close());
+    els.modalCopy.addEventListener("click", async () => {
+      const text = els.modalCopy.dataset.prompt || "";
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        const area = document.createElement("textarea");
+        area.value = text;
+        document.body.append(area);
+        area.select();
+        document.execCommand("copy");
+        area.remove();
+      }
+      els.modalCopy.textContent = "Copied";
+      window.setTimeout(() => { els.modalCopy.textContent = "Copy full prompt"; }, 1200);
+    });
     render();
   </script>
 </body>
@@ -508,7 +617,11 @@ async function main() {
     throw new Error("Preview requires a fully completed 800-run result summary.");
   }
   const maps = buildIndexMaps(ips, styles);
-  const rows = summary.results.map((result) => normalizeResult(result, maps));
+  const rows = await Promise.all(summary.results.map(async (result) => {
+    const requestPath = path.join(RUN_ROOT, "runs", result.runId, "request.json");
+    const request = await readJson(requestPath);
+    return normalizeResult(result, maps, request);
+  }));
   await fs.mkdir(OUT_DIR, { recursive: true });
   await fs.writeFile(
     OUT_FILE,
