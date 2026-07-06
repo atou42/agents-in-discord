@@ -22,7 +22,7 @@ Run artifacts should be created in the current workspace under `deliverables/`, 
 
 `/Users/atou/agents-in-discord/ip_world_workflow`
 
-Do not start by creating a Studio world. First create a planning package with one clean-context subagent and verify the package from artifacts.
+Do not start by creating a Studio world. First create a planning package with one clean-context subagent and verify the package from artifacts. When a run reaches Phase 4, claim a pre-provisioned world from `world_pool.json` (batch-created locally ahead of time, with bound space IDs recorded) instead of blocking on live world creation.
 
 If using subagents can make the run faster or improve quality, use them proactively. Do not keep a whole world serial by default when the work can be split into clean independent slices or clean-context verification. The default delegation table is `delegation_map.json`; the execution-plan gate enforces it.
 

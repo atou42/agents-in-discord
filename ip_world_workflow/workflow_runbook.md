@@ -205,11 +205,13 @@ Stage gate: representative cards are inspected for natural English, source groun
 
 ## Phase 4
 
-Create the real Studio world in `neta.art`.
+Provision the real Studio world in `neta.art` — by default, claim one from the pre-created pool.
+
+World creation is the only step that requires the local browser session, and it needs nothing from the run (the import package carries `worldName`/`description`, so a placeholder world takes on its real identity at import time). So worlds are batch-created ahead of time and recorded in `world_pool.json` (repo root of the workflow package) with their bound `spaceId`. Phase 4 then means: claim the oldest `available` pool entry (set `status: assigned`, `assignedRun`, `assignedAt`), instead of blocking the run on a local creation session. Pool disciplines (one world one run, placeholder hygiene, refill at ≤1 available) live in the pool file itself. Only when the pool is empty does this phase fall back to live creation.
 
 Wait until the world has a real `world_...` ID and a bound Cohub `spaceId`. Do not continue until the world is actually provisioned.
 
-Default execution profile: local orchestrator with shared Chrome owner session.
+Default execution profile: claim from `world_pool.json`; fall back to local orchestrator with shared Chrome owner session when the pool is empty.
 
 The hard rule is not that everything must happen in one machine context. The hard rule is that a provisional `worldId` is not enough. The stage passes only when the execution path actually produces the real bound `spaceId`.
 

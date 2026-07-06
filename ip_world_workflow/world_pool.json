@@ -1,0 +1,23 @@
+{
+  "poolVersion": 1,
+  "purpose": "Pre-provisioned Studio worlds with bound Cohub spaces. World creation is the only stage that requires the local browser session, and it needs nothing from any run (no IP, no style, no cards) — so it is done in batches ahead of time. Phase 4 of a run claims from this pool instead of blocking on local world creation. The import package carries worldName/description, so a placeholder world takes on its real identity at import time.",
+  "disciplines": [
+    "Creation: batch-create via local Studio UI (shared Chrome owner session). Immediately after creating each world, verify it has a real world_... ID AND a bound Cohub spaceId before recording it here — a provisional worldId without a spaceId is not pool-ready.",
+    "Claiming: a run claims the OLDEST available entry (FIFO). Set status=assigned, assignedRun=<run dir>, assignedAt=<ISO>. Then run set-ids and check-bootstrap-ids as usual — the gate does not care whether the world came from the pool or was created fresh.",
+    "One world, one run, forever. Never reuse a world whose run was abandoned mid-import: mark it retired with a note instead. Residual atoms/works from a dead run are exactly the kind of contamination the gates cannot see coming.",
+    "Placeholder hygiene: pre-created worlds must stay empty (no atoms, no works, no board edits) until claimed. Name them with an obvious placeholder pattern (e.g. 'pool-slot-NN') so nobody mistakes one for a real delivery.",
+    "Refill: when available count drops to 1, batch-create more at the next convenient local session. Target buffer: 3-5 available."
+  ],
+  "entrySchema": {
+    "worldId": "world_01K...",
+    "spaceId": "uuid of the bound Cohub space",
+    "studioUrl": "https://neta.art/world/<worldId>/studio",
+    "cohubUrl": "https://cohub.run/spaces/<spaceId>",
+    "createdAt": "ISO date",
+    "status": "available | assigned | retired",
+    "assignedRun": "run dir path, when assigned",
+    "assignedAt": "ISO date, when assigned",
+    "note": "free text, required when retired"
+  },
+  "worlds": []
+}
