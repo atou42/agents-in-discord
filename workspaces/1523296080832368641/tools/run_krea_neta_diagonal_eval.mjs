@@ -30,25 +30,32 @@ const SEED_SLOTS = {
 const ASPECT_DIMENSIONS = {
   portrait_4x5: { width: 1024, height: 1280 },
   square_1x1: { width: 1024, height: 1024 },
-  landscape_16x9: { width: 1280, height: 720 },
+  landscape_16x9: { width: 1536, height: 1024 },
 };
 
 function usage() {
   console.log(`Usage:
   node tools/run_krea_neta_diagonal_eval.mjs inspect [options]
   node tools/run_krea_neta_diagonal_eval.mjs dry-run [options]
+  node tools/run_krea_neta_diagonal_eval.mjs submit [options]
+  node tools/run_krea_neta_diagonal_eval.mjs collect [options]
   node tools/run_krea_neta_diagonal_eval.mjs run [options]
 
 Options:
   --delivery-dir <path>   Delivery package root. Default: ${DEFAULT_DELIVERY_DIR}
   --base-url <url>        Krea work base URL. Default: ${DEFAULT_BASE_URL}
   --out-dir <path>        Output folder for rendered requests and run evidence.
+  --run-root <path>       Reuse or force a specific run folder.
+  --resume                Resume an existing run root and skip completed rows.
   --guest-viewer <id>     Explicit guest viewer id. Must match guest_<32hex>.
   --ready-only            Only include rows whose IP prompt pack exists.
   --ip-slugs <a,b,c>      Limit to one or more IP slugs.
   --limit <n>             Limit row count after filtering.
   --poll-ms <n>           Poll interval in milliseconds. Default: ${DEFAULT_POLL_MS}
   --timeout-ms <n>        Per-job timeout in milliseconds. Default: ${DEFAULT_TIMEOUT_MS}
+  --max-attempts <n>      Retries per row. Default: 3
+  --retry-delay-ms <n>    Delay between row retries. Default: 5000
+  --wait-until-finished   For collect, keep polling until all submitted jobs finish.
   --steps <n>             Steps override. Default: ${DEFAULT_STEPS}
   --cfg <n>               CFG override. Default: ${DEFAULT_CFG}
   --denoise <n>           Denoise override. Default: ${DEFAULT_DENOISE}
@@ -61,7 +68,10 @@ Options:
 Examples:
   node tools/run_krea_neta_diagonal_eval.mjs inspect --ready-only
   node tools/run_krea_neta_diagonal_eval.mjs dry-run --ready-only --limit 2
+  node tools/run_krea_neta_diagonal_eval.mjs submit --run-root delivery/krea_neta_diagonal_eval/execution_runs/full-run
+  node tools/run_krea_neta_diagonal_eval.mjs collect --run-root delivery/krea_neta_diagonal_eval/execution_runs/full-run --wait-until-finished
   node tools/run_krea_neta_diagonal_eval.mjs run --ready-only --ip-slugs the_lord_of_the_rings --limit 1
+  node tools/run_krea_neta_diagonal_eval.mjs run --run-root delivery/krea_neta_diagonal_eval/execution_runs/full-run --resume
 `);
 }
 
@@ -75,11 +85,16 @@ function parseArgs(argv) {
     deliveryDir: DEFAULT_DELIVERY_DIR,
     baseUrl: DEFAULT_BASE_URL,
     outDir: DEFAULT_OUT_DIR,
+    runRoot: null,
+    resume: false,
     readyOnly: false,
     ipSlugs: null,
     limit: null,
     pollMs: DEFAULT_POLL_MS,
     timeoutMs: DEFAULT_TIMEOUT_MS,
+    maxAttempts: 3,
+    retryDelayMs: 5000,
+    waitUntilFinished: false,
     steps: DEFAULT_STEPS,
     cfg: DEFAULT_CFG,
     denoise: DEFAULT_DENOISE,
@@ -97,6 +112,10 @@ function parseArgs(argv) {
       options.readyOnly = true;
       continue;
     }
+    if (arg === "--resume") {
+      options.resume = true;
+      continue;
+    }
     if (arg === "--delivery-dir") {
       options.deliveryDir = path.resolve(next);
       index += 1;
@@ -109,6 +128,11 @@ function parseArgs(argv) {
     }
     if (arg === "--out-dir") {
       options.outDir = path.resolve(next);
+      index += 1;
+      continue;
+    }
+    if (arg === "--run-root") {
+      options.runRoot = path.resolve(next);
       index += 1;
       continue;
     }
@@ -135,6 +159,20 @@ function parseArgs(argv) {
     if (arg === "--timeout-ms") {
       options.timeoutMs = Number.parseInt(next, 10);
       index += 1;
+      continue;
+    }
+    if (arg === "--max-attempts") {
+      options.maxAttempts = Number.parseInt(next, 10);
+      index += 1;
+      continue;
+    }
+    if (arg === "--retry-delay-ms") {
+      options.retryDelayMs = Number.parseInt(next, 10);
+      index += 1;
+      continue;
+    }
+    if (arg === "--wait-until-finished") {
+      options.waitUntilFinished = true;
       continue;
     }
     if (arg === "--steps") {
@@ -179,7 +217,7 @@ function parseArgs(argv) {
     }
     throw new Error(`Unknown argument: ${arg}`);
   }
-  if (!["inspect", "dry-run", "run"].includes(command)) {
+  if (!["inspect", "dry-run", "submit", "collect", "run"].includes(command)) {
     throw new Error(`Unsupported command: ${command}`);
   }
   if (options.guestViewer && !/^guest_[a-f0-9]{32}$/.test(options.guestViewer)) {
@@ -428,6 +466,20 @@ async function writeJson(filePath, value) {
   await fs.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+async function pathExists(filePath) {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function readJsonIfExists(filePath) {
+  if (!(await pathExists(filePath))) return null;
+  return readJson(filePath);
+}
+
 function extensionFromContentType(contentType) {
   const normalized = String(contentType || "").toLowerCase();
   if (normalized.includes("image/webp")) return ".webp";
@@ -457,7 +509,7 @@ async function downloadImage(url, fileStem, outDir) {
   return { filePath, bytes: buffer.length };
 }
 
-async function executeRow(baseUrl, guestViewer, row, options, outDir) {
+async function submitRow(baseUrl, guestViewer, row, options, outDir) {
   const rowDir = path.join(outDir, row.runId);
   await ensureDir(rowDir);
   const payload = requestPayloadForRow(row, options);
@@ -467,7 +519,10 @@ async function executeRow(baseUrl, guestViewer, row, options, outDir) {
     body: JSON.stringify(payload),
   });
   await writeJson(path.join(rowDir, "job_created.json"), created);
-  const final = await pollJob(baseUrl, guestViewer, created.id, options);
+  return { rowDir, payload, created };
+}
+
+async function finalizeCompletedRow(row, rowDir, payload, created, final) {
   await writeJson(path.join(rowDir, "job_final.json"), final);
   const imageUrls = Array.isArray(final.result?.images)
     ? final.result.images.map((image) => ({
@@ -505,6 +560,151 @@ async function executeRow(baseUrl, guestViewer, row, options, outDir) {
   };
   await writeJson(path.join(rowDir, "summary.json"), summary);
   return summary;
+}
+
+async function loadSubmittedRowArtifacts(runId, outDir) {
+  const rowDir = path.join(outDir, runId);
+  const payload = await readJsonIfExists(path.join(rowDir, "request.json"));
+  const created = await readJsonIfExists(path.join(rowDir, "job_created.json"));
+  if (!payload || !created?.id) {
+    throw new Error(`Missing submitted job artifacts for ${runId}`);
+  }
+  return { rowDir, payload, created };
+}
+
+async function collectRow(baseUrl, guestViewer, row, options, outDir) {
+  const { rowDir, payload, created } = await loadSubmittedRowArtifacts(row.runId, outDir);
+  const final = options.waitUntilFinished
+    ? await pollJob(baseUrl, guestViewer, created.id, options)
+    : await apiRequest(baseUrl, guestViewer, `/api/jobs/${created.id}`);
+  if (final.status === "completed") {
+    return { state: "completed", summary: await finalizeCompletedRow(row, rowDir, payload, created, final) };
+  }
+  if (final.status === "failed") {
+    await writeJson(path.join(rowDir, "job_final.json"), final);
+    return {
+      state: "failed",
+      error: {
+        runId: row.runId,
+        ipId: row.ipId,
+        ipName: row.ip.name,
+        styleId: row.styleId,
+        styleName: row.style.name,
+        attempts: 1,
+        message: final?.error?.message || `job ${created.id} failed`,
+        status: null,
+        body: final,
+      },
+    };
+  }
+  return {
+    state: "pending",
+    pending: {
+      runId: row.runId,
+      ipId: row.ipId,
+      ipName: row.ip.name,
+      styleId: row.styleId,
+      styleName: row.style.name,
+      jobId: created.id,
+      status: final.status,
+    },
+  };
+}
+
+async function executeRow(baseUrl, guestViewer, row, options, outDir) {
+  const { rowDir, payload, created } = await submitRow(baseUrl, guestViewer, row, options, outDir);
+  const final = await pollJob(baseUrl, guestViewer, created.id, options);
+  return finalizeCompletedRow(row, rowDir, payload, created, final);
+}
+
+function isCompletedSummary(summary) {
+  return Boolean(
+    summary &&
+    summary.status === "completed" &&
+    Number(summary.imageCount || 0) > 0 &&
+    Array.isArray(summary.downloadedImages) &&
+    summary.downloadedImages.length > 0
+  );
+}
+
+async function loadExistingRunState(runRoot) {
+  const aggregate = (await readJsonIfExists(path.join(runRoot, "results_summary.json"))) || {};
+  const healthCheck = (await readJsonIfExists(path.join(runRoot, "health_check.json"))) || {};
+  const runDir = path.join(runRoot, "runs");
+  const entries = await fs.readdir(runDir, { withFileTypes: true }).catch(() => []);
+  const completedByRunId = new Map();
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const summary = await readJsonIfExists(path.join(runDir, entry.name, "summary.json"));
+    if (isCompletedSummary(summary)) {
+      completedByRunId.set(summary.runId, summary);
+    }
+  }
+  return {
+    guestViewer: aggregate.guestViewer || healthCheck.guestViewer || null,
+    completedByRunId,
+    previousErrors: Array.isArray(aggregate.errors) ? aggregate.errors : [],
+  };
+}
+
+async function writeRunSummary(runRoot, guestViewer, totalRows, results, errors, pending = []) {
+  const completedRows = results.length;
+  const failedRows = errors.length;
+  await writeJson(path.join(runRoot, "results_summary.json"), {
+    guestViewer,
+    totalRows,
+    completedRows,
+    failedRows,
+    pendingRows: pending.length || (totalRows - completedRows - failedRows),
+    results,
+    errors,
+    pending,
+  });
+}
+
+async function sleep(ms) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function executeRowWithRetry(baseUrl, guestViewer, row, options, outDir) {
+  let attempt = 0;
+  let lastError = null;
+  while (attempt < options.maxAttempts) {
+    attempt += 1;
+    try {
+      const summary = await executeRow(baseUrl, guestViewer, row, options, outDir);
+      return { ok: true, summary, attempt };
+    } catch (error) {
+      lastError = error;
+      const rowDir = path.join(outDir, row.runId);
+      await ensureDir(rowDir);
+      await writeJson(path.join(rowDir, `error_attempt_${String(attempt).padStart(2, "0")}.json`), {
+        runId: row.runId,
+        attempt,
+        message: error.message,
+        status: error.status || null,
+        body: error.body || null,
+        at: new Date().toISOString(),
+      });
+      if (attempt < options.maxAttempts) {
+        await sleep(options.retryDelayMs);
+      }
+    }
+  }
+  return {
+    ok: false,
+    error: {
+      runId: row.runId,
+      ipId: row.ipId,
+      ipName: row.ip.name,
+      styleId: row.styleId,
+      styleName: row.style.name,
+      attempts: options.maxAttempts,
+      message: lastError?.message || "Unknown error",
+      status: lastError?.status || null,
+      body: lastError?.body || null,
+    },
+  };
 }
 
 async function writeRenderedPlan(rows, options, outDir) {
@@ -559,7 +759,7 @@ async function main() {
   }
 
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const runRoot = path.join(options.outDir, `${command}-${stamp}`);
+  const runRoot = options.runRoot || path.join(options.outDir, `${command}-${stamp}`);
   await ensureDir(runRoot);
   const rendered = await writeRenderedPlan(rows, options, runRoot);
   if (command === "dry-run") {
@@ -573,25 +773,129 @@ async function main() {
     return;
   }
 
-  const guestViewer = options.guestViewer || createGuestViewerUuid();
+  const hasExistingState = (await pathExists(path.join(runRoot, "results_summary.json")))
+    || (await pathExists(path.join(runRoot, "health_check.json")));
+  const shouldLoadExistingState = options.resume || command === "collect" || hasExistingState;
+  const existingState = shouldLoadExistingState ? await loadExistingRunState(runRoot) : {
+    guestViewer: null,
+    completedByRunId: new Map(),
+    previousErrors: [],
+  };
+  const guestViewer = options.guestViewer || existingState.guestViewer || createGuestViewerUuid();
   const health = await ensureBaseUrlReady(options.baseUrl, guestViewer);
   await writeJson(path.join(runRoot, "health_check.json"), {
     guestViewer,
     health,
   });
 
-  const results = [];
-  for (const row of rows) {
-    const summary = await executeRow(options.baseUrl, guestViewer, row, options, path.join(runRoot, "runs"));
-    results.push(summary);
-  }
-  await writeJson(path.join(runRoot, "results_summary.json"), {
-    guestViewer,
+  await writeJson(path.join(runRoot, "run_manifest.json"), {
+    mode: command,
+    startedAt: new Date().toISOString(),
+    resumed: options.resume,
     totalRows: rows.length,
-    completedRows: results.length,
-    results,
+    options: {
+      baseUrl: options.baseUrl,
+      maxAttempts: options.maxAttempts,
+      retryDelayMs: options.retryDelayMs,
+      steps: options.steps,
+      cfg: options.cfg,
+      denoise: options.denoise,
+      sampler: options.sampler,
+      scheduler: options.scheduler,
+      creativity: options.creativity,
+      loraId: options.loraId,
+      loraStrength: options.loraStrength,
+    },
   });
-  console.log(JSON.stringify({ mode: "run", runRoot, guestViewer, completedRows: results.length }, null, 2));
+
+  const resultsByRunId = new Map(existingState.completedByRunId);
+  const errors = [];
+  const pending = [];
+
+  if (command === "submit") {
+    for (const row of rows) {
+      if (options.resume && (await pathExists(path.join(runRoot, "runs", row.runId, "job_created.json")))) {
+        continue;
+      }
+      const submission = await submitRow(options.baseUrl, guestViewer, row, options, path.join(runRoot, "runs"));
+      pending.push({
+        runId: row.runId,
+        ipId: row.ipId,
+        ipName: row.ip.name,
+        styleId: row.styleId,
+        styleName: row.style.name,
+        jobId: submission.created.id,
+        status: submission.created.status || "queued",
+      });
+      await writeRunSummary(runRoot, guestViewer, rows.length, [], [], pending);
+    }
+    console.log(JSON.stringify({ mode: "submit", runRoot, guestViewer, submittedRows: rows.length }, null, 2));
+    return;
+  }
+
+  if (command === "collect") {
+    for (const row of rows) {
+      if (resultsByRunId.has(row.runId)) {
+        continue;
+      }
+      const outcome = await collectRow(options.baseUrl, guestViewer, row, options, path.join(runRoot, "runs"));
+      if (outcome.state === "completed") {
+        resultsByRunId.set(row.runId, outcome.summary);
+      } else if (outcome.state === "failed") {
+        errors.push(outcome.error);
+      } else {
+        pending.push(outcome.pending);
+      }
+      await writeRunSummary(
+        runRoot,
+        guestViewer,
+        rows.length,
+        rows.filter((candidate) => resultsByRunId.has(candidate.runId)).map((candidate) => resultsByRunId.get(candidate.runId)),
+        errors,
+        pending
+      );
+    }
+    const orderedResults = rows
+      .filter((row) => resultsByRunId.has(row.runId))
+      .map((row) => resultsByRunId.get(row.runId));
+    await writeRunSummary(runRoot, guestViewer, rows.length, orderedResults, errors, pending);
+    if (errors.length) {
+      console.error(JSON.stringify({ mode: "collect", runRoot, guestViewer, completedRows: orderedResults.length, failedRows: errors.length, pendingRows: pending.length }, null, 2));
+      process.exit(1);
+    }
+    console.log(JSON.stringify({ mode: "collect", runRoot, guestViewer, completedRows: orderedResults.length, pendingRows: pending.length }, null, 2));
+    return;
+  }
+
+  for (const row of rows) {
+    if (resultsByRunId.has(row.runId)) {
+      continue;
+    }
+    const outcome = await executeRowWithRetry(options.baseUrl, guestViewer, row, options, path.join(runRoot, "runs"));
+    if (outcome.ok) {
+      resultsByRunId.set(row.runId, outcome.summary);
+    } else {
+      errors.push(outcome.error);
+    }
+    await writeRunSummary(
+      runRoot,
+      guestViewer,
+      rows.length,
+      rows
+        .filter((candidate) => resultsByRunId.has(candidate.runId))
+        .map((candidate) => resultsByRunId.get(candidate.runId)),
+      errors
+    );
+  }
+  const orderedResults = rows
+    .filter((row) => resultsByRunId.has(row.runId))
+    .map((row) => resultsByRunId.get(row.runId));
+  await writeRunSummary(runRoot, guestViewer, rows.length, orderedResults, errors);
+  if (errors.length) {
+    console.error(JSON.stringify({ mode: "run", runRoot, guestViewer, completedRows: orderedResults.length, failedRows: errors.length }, null, 2));
+    process.exit(1);
+  }
+  console.log(JSON.stringify({ mode: "run", runRoot, guestViewer, completedRows: orderedResults.length }, null, 2));
 }
 
 main().catch((error) => {
