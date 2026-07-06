@@ -1,0 +1,2873 @@
+[
+  {
+    "name": "Romantic Academic Impasto",
+    "familyId": "painterly_mythic",
+    "familyLabel": "Painterly Mythic",
+    "selectionScore": 130.0,
+    "suitabilityScore": 8,
+    "riskFlags": [],
+    "styleKeywords": [
+      "academic realism",
+      "thick impasto oil",
+      "chiaroscuro lighting",
+      "romantic pastoral",
+      "pre-raphaelite influence",
+      "earthy color palette",
+      "painterly texture",
+      "melancholic atmosphere"
+    ],
+    "styleDescription": "This aesthetic explores the intersection of classical realism and tactile, expressive painterly techniques, emphasizing a deep reverence for nature and historical romanticism. The visual language centers on a rich, earthy color palette and dramatic chiaroscuro lighting that elevates both pastoral landscapes and melancholic, narrative-driven portraiture. Across all clusters, a consistent thread of nostalgic, atmospheric beauty is achieved through the layering of fine, detailed brushwork and thick, emotive impasto textures.",
+    "imageCount": 21,
+    "sourceMoodboardId": "3e07843c-0fe9-5485-af19-fe25270a1c18",
+    "previewImages": [
+      "https://gen.krea.ai/images/d70aa516-ce02-484a-9107-dca07fc440b0.png",
+      "https://gen.krea.ai/images/e640c011-5d1f-4e9b-bd94-259d5cb79fa3.png",
+      "https://gen.krea.ai/images/63e731e1-98b2-41a3-9a12-f76cebadc8aa.png",
+      "https://gen.krea.ai/images/b76930a0-a2fd-4fa8-8e32-a19148581c2a.png"
+    ],
+    "styleId": "style_painterly_mythic_01",
+    "familyIndex": 1
+  },
+  {
+    "name": "Romantic Academic Realism",
+    "familyId": "painterly_mythic",
+    "familyLabel": "Painterly Mythic",
+    "selectionScore": 90.0,
+    "suitabilityScore": 8,
+    "riskFlags": [],
+    "styleKeywords": [
+      "19th century academic oil painting",
+      "Pre-Raphaelite romanticism",
+      "chiaroscuro lighting",
+      "pastoral landscape",
+      "classical drapery",
+      "fine art oil on canvas",
+      "mythological realism"
+    ],
+    "styleDescription": "This aesthetic centers on the intersection of 19th-century academic mastery and the emotive, mythological storytelling of the Pre-Raphaelite movement. It celebrates the interplay between dramatic chiaroscuro lighting and soft, idyllic pastoral landscapes, favoring rich textures and precise, painterly brushwork. The visual language is deeply rooted in classical traditions, prioritizing elegant drapery, melancholic beauty, and a harmonious balance between human figures and lush, natural environments.",
+    "imageCount": 18,
+    "sourceMoodboardId": "8ad14183-9373-53ba-b171-569803fb7a95",
+    "previewImages": [
+      "https://gen.krea.ai/images/aa9a2f82-cd52-486d-98c1-232fc14ee263.png",
+      "https://gen.krea.ai/images/93027084-115e-42d2-af63-651726ed6a49.png",
+      "https://gen.krea.ai/images/9414569c-9101-4a17-acfb-f28f9e9b8654.png",
+      "https://gen.krea.ai/images/abece2fc-7bbf-4b0a-a664-3f4a9b3730b7.png"
+    ],
+    "styleId": "style_painterly_mythic_02",
+    "familyIndex": 2
+  },
+  {
+    "name": "Nostalgic Pastoral Fantasy",
+    "familyId": "painterly_mythic",
+    "familyLabel": "Painterly Mythic",
+    "selectionScore": 90.0,
+    "suitabilityScore": 8,
+    "riskFlags": [],
+    "styleKeywords": [
+      "Studio Ghibli inspired",
+      "nostalgic 2d hand-drawn animation",
+      "warm golden hour lighting",
+      "painterly lush landscapes",
+      "whimsical storybook fantasy",
+      "soft cel-shaded style",
+      "volumetric clouds"
+    ],
+    "styleDescription": "This aesthetic centers on the harmonious blend of classic 2D animation techniques and whimsical storybook fantasy. It prioritizes a sense of comfort and adventure, utilizing warm golden hour lighting and lush, painterly landscapes to evoke deep nostalgia. The visual language consistently features hand-drawn line work, expressive natural environments, and a vibrant, earthy color palette that celebrates the beauty of rural, magical life.",
+    "imageCount": 19,
+    "sourceMoodboardId": "377a529b-18f7-5ebe-8cd9-71a83543498b",
+    "previewImages": [
+      "https://gen.krea.ai/images/afb953d5-dc6f-4a38-b454-a81e49188c6e.png",
+      "https://gen.krea.ai/images/7beef447-78d2-4dce-9ee7-e456e88b7137.png",
+      "https://gen.krea.ai/images/918bfb20-b990-4efd-84b9-38851d84f597.png",
+      "https://gen.krea.ai/images/7c6b4552-e5b7-481c-978e-70550ce03d3d.png"
+    ],
+    "styleId": "style_painterly_mythic_03",
+    "familyIndex": 3
+  },
+  {
+    "name": "Luminous Impasto Mythos",
+    "familyId": "painterly_mythic",
+    "familyLabel": "Painterly Mythic",
+    "selectionScore": 64.0,
+    "suitabilityScore": 2,
+    "riskFlags": [],
+    "styleKeywords": [
+      "thick impasto oil painting",
+      "chiaroscuro lighting",
+      "mythological realism",
+      "vibrant warm and cool contrast",
+      "swirling textured brushstrokes",
+      "ethereal bioluminescent glow",
+      "classical romantic composition"
+    ],
+    "styleDescription": "This aesthetic explores the intersection of classical romanticism and visionary expressionism, unified by a deep reverence for tactile, heavily textured surfaces. Each composition utilizes dramatic, warm lighting and vibrant, high-contrast palettes to elevate mythological and pastoral subjects into the realm of the sublime. The overarching visual language prioritizes a sense of spiritual transcendence and heroic grandeur through rich, painterly brushwork and ethereal, glowing light sources.",
+    "imageCount": 22,
+    "sourceMoodboardId": "f201acd1-687f-508a-9b2a-c18781c8483d",
+    "previewImages": [
+      "https://gen.krea.ai/images/7fbe315c-ed92-4412-b7b0-d852d08fb0c2.png",
+      "https://gen.krea.ai/images/806dad5a-817d-4099-b356-3362cca2aa9a.png",
+      "https://gen.krea.ai/images/e3fe6a97-cdd1-4dc7-a0e8-34e8402bfc3b.png",
+      "https://gen.krea.ai/images/b756b111-80d2-4012-aa2d-1f877ef7dda4.png"
+    ],
+    "styleId": "style_painterly_mythic_04",
+    "familyIndex": 4
+  },
+  {
+    "name": "Vibrant Ghibli Fantasy",
+    "familyId": "painterly_mythic",
+    "familyLabel": "Painterly Mythic",
+    "selectionScore": 72.0,
+    "suitabilityScore": 10,
+    "riskFlags": [],
+    "styleKeywords": [
+      "Ghibli-inspired",
+      "vibrant digital painting",
+      "lush green landscape",
+      "fluffy cumulus clouds",
+      "majestic fantasy vista",
+      "bright daylight",
+      "stylized adventure art"
+    ],
+    "styleDescription": "This aesthetic centers on a lush, painterly vision of high-fantasy worlds characterized by vibrant saturated colors and an optimistic sense of wonder. It masterfully blends the idyllic charm of pastoral landscapes with epic, large-scale adventure elements like floating islands and majestic mountain vistas. Common threads across the clusters include bright, sun-drenched skies with fluffy cumulus clouds and a distinct, clean digital painting style that evokes modern anime-inspired fantasy art.",
+    "imageCount": 20,
+    "sourceMoodboardId": "23058c4a-3c49-50f8-b0c2-f07541c64ca7",
+    "previewImages": [
+      "https://gen.krea.ai/images/af44ba29-f9e0-4f61-adaf-1e180b51d9f6.png",
+      "https://gen.krea.ai/images/8818e9d4-7721-4752-8bfb-574b934b2ddd.png",
+      "https://gen.krea.ai/images/197563ac-3532-441e-a988-f36e2c357380.png",
+      "https://gen.krea.ai/images/0177108f-99aa-4abf-8c4a-de788ab3cc32.png"
+    ],
+    "styleId": "style_painterly_mythic_05",
+    "familyIndex": 5
+  },
+  {
+    "name": "Romantic Pastoral Impressionism",
+    "familyId": "painterly_mythic",
+    "familyLabel": "Painterly Mythic",
+    "selectionScore": 85.12,
+    "suitabilityScore": 4,
+    "riskFlags": [],
+    "styleKeywords": [
+      "impressionist oil painting",
+      "dappled sunlight",
+      "pastoral landscape",
+      "thick impasto brushstrokes",
+      "golden hour atmosphere",
+      "romanticized nature",
+      "atmospheric haze"
+    ],
+    "styleDescription": "This aesthetic celebrates a nostalgic and dreamlike vision of nature, characterized by the intersection of 19th-century romanticism and soft impressionistic techniques. The visual language relies on warm, golden-hour radiance and dappled light to transform landscapes and quiet scenes into ethereal, painterly compositions. By blending rich impasto textures with a serene, earth-toned palette, the style evokes a timeless sense of rural tranquility and sylvan wonder.",
+    "imageCount": 9,
+    "sourceMoodboardId": "1d2ee89b-b462-5699-a3dd-ddb1e6ee5a93",
+    "previewImages": [
+      "https://gen.krea.ai/images/80778f43-fb11-4439-afd5-078ba6997525.png",
+      "https://gen.krea.ai/images/57550f54-138e-4526-bbbb-027b927dc70f.png",
+      "https://gen.krea.ai/images/2ecbcf3e-a44c-4148-b056-0e774cccd66a.png",
+      "https://gen.krea.ai/images/3daceb71-568b-4ab6-8430-0e8b24a53ba2.png"
+    ],
+    "styleId": "style_painterly_mythic_06",
+    "familyIndex": 6
+  },
+  {
+    "name": "Surreal Pastoral Romanticism",
+    "familyId": "painterly_mythic",
+    "familyLabel": "Painterly Mythic",
+    "selectionScore": 83.25,
+    "suitabilityScore": 12,
+    "riskFlags": [],
+    "styleKeywords": [
+      "hyper-realistic surrealism",
+      "vibrant pastoral landscape",
+      "porcelain skin texture",
+      "soft romantic lighting",
+      "botanical fantasy",
+      "saturated natural colors",
+      "dreamy intimate portrait",
+      "crisp high-contrast details"
+    ],
+    "styleDescription": "This aesthetic synthesizes a dreamlike connection between the natural world and refined, intimate portraiture. It balances the expansive serenity of rolling pastoral landscapes with the hyper-detailed, tactile beauty of botanical and porcelain motifs. The overall visual identity is defined by a consistent use of vibrant natural light, saturated primary colors, and a whimsical, polished texture that bridges the gap between reality and fantasy.",
+    "imageCount": 10,
+    "sourceMoodboardId": "6b134499-0207-57a8-b924-769db7c5a17e",
+    "previewImages": [
+      "https://gen.krea.ai/images/751a7a90-a4ff-4a76-bf0a-c1dfe4c010bc.png",
+      "https://gen.krea.ai/images/dd6d3d24-5dbd-4aad-8acd-18a29a4d76f3.png",
+      "https://gen.krea.ai/images/16fbe5c4-0a73-4b68-b18e-295e52169650.png",
+      "https://gen.krea.ai/images/61279d28-15dc-43a9-a5c2-fd1e75757bce.png"
+    ],
+    "styleId": "style_painterly_mythic_07",
+    "familyIndex": 7
+  },
+  {
+    "name": "Vibrant Whimsical Fantasy",
+    "familyId": "painterly_mythic",
+    "familyLabel": "Painterly Mythic",
+    "selectionScore": 82.0,
+    "suitabilityScore": 10,
+    "riskFlags": [],
+    "styleKeywords": [
+      "stylized digital painting",
+      "whimsical fantasy landscape",
+      "vibrant saturated pastel palette",
+      "studio ghibli inspired",
+      "fluffy volumetric clouds",
+      "storybook illustration style",
+      "cozy adventure atmosphere"
+    ],
+    "styleDescription": "This aesthetic centers on a vibrant, painterly approach to high-fantasy and pastoral worldbuilding. It emphasizes a cheerful, adventurous atmosphere characterized by lush rolling landscapes, rounded organic architecture, and incredibly voluminous, fluffy clouds. The common thread across all clusters is a highly saturated, playful color palette rendered with soft, stylized digital brushstrokes that evoke a sense of idyllic, storybook wonder.",
+    "imageCount": 25,
+    "sourceMoodboardId": "d566d7e3-d44f-5867-b0c5-987ca6b87a92",
+    "previewImages": [
+      "https://gen.krea.ai/images/12a82992-d8f4-4cee-8bbd-6dcf64a91f0d.png",
+      "https://gen.krea.ai/images/a130bc3f-53bc-4c00-86bc-e2cb6a423335.png",
+      "https://gen.krea.ai/images/dfc71101-5a32-4612-9631-06dd2fdcccc1.png",
+      "https://gen.krea.ai/images/1da183f4-3ad3-4fe0-8228-e581cdf95d4a.png"
+    ],
+    "styleId": "style_painterly_mythic_08",
+    "familyIndex": 8
+  },
+  {
+    "name": "Luminous Impasto Pastoral",
+    "familyId": "painterly_mythic",
+    "familyLabel": "Painterly Mythic",
+    "selectionScore": 78.0,
+    "suitabilityScore": 6,
+    "riskFlags": [],
+    "styleKeywords": [
+      "thick impasto oil painting",
+      "visible textured brushstrokes",
+      "French Impressionist style",
+      "dappled natural sunlight",
+      "serene water reflections",
+      "warm earthy palette",
+      "pastoral romanticism"
+    ],
+    "styleDescription": "This aesthetic centers on a refined, tactile appreciation for 19th-century French Impressionism, emphasizing the interplay between thick impasto texture and soft, atmospheric light. The collection bridges the gap between intimate garden scenes and serene, rustic landscapes, unified by a warm, earth-toned palette of ochres, sages, and creamy pastels. Each composition prioritizes movement and reflection, creating a nostalgic, painterly atmosphere that feels both grounded in nature and dreamily idealized.",
+    "imageCount": 16,
+    "sourceMoodboardId": "d3c19a6e-225a-503e-a6aa-79c0cdd1120c",
+    "previewImages": [
+      "https://gen.krea.ai/images/1b1c1c3a-4c7c-43bd-9386-19efc04dbf4d.png",
+      "https://gen.krea.ai/images/2bb90280-752a-42ac-9dc7-4e4e3968a3c4.png",
+      "https://gen.krea.ai/images/1a9f83d2-bd0f-461f-8d2b-ac7707da338a.png",
+      "https://gen.krea.ai/images/2bcd6108-f3c6-4a3d-b1a8-9034d0e1918c.png"
+    ],
+    "styleId": "style_painterly_mythic_09",
+    "familyIndex": 9
+  },
+  {
+    "name": "Luminous Pastoral Fantasy",
+    "familyId": "painterly_mythic",
+    "familyLabel": "Painterly Mythic",
+    "selectionScore": 75.62,
+    "suitabilityScore": 4,
+    "riskFlags": [],
+    "styleKeywords": [
+      "studio ghibli style",
+      "vibrant pastoral landscape",
+      "fluffy cumulus clouds",
+      "lush green hills",
+      "saturated watercolor aesthetic",
+      "nostalgic summer mood",
+      "sunny fantasy world"
+    ],
+    "styleDescription": "This aesthetic centers on the intersection of idyllic pastoral landscapes and vibrant, high-fantasy world-building inspired by the iconic Studio Ghibli art style. It features a consistent focus on lush green vistas, dramatic topography, and sun-drenched architectural details that evoke a profound sense of summer nostalgia and hopeful wonder. The visual language bridges the gap between traditional watercolor textures and modern digital anime concepts to create an optimistic, storybook atmosphere.",
+    "imageCount": 13,
+    "sourceMoodboardId": "8034e1b7-85e3-50aa-9dd5-4419f634add5",
+    "previewImages": [
+      "https://gen.krea.ai/images/c459235d-a1a9-4e20-b7f1-fb4a381b63b0.png",
+      "https://gen.krea.ai/images/1082e7b9-e10a-4d71-ac1a-2c17919d29e5.png",
+      "https://gen.krea.ai/images/f451673c-1f80-4cd2-9c19-2ac69085a8c7.png",
+      "https://gen.krea.ai/images/d06c19ab-766d-4c2d-b46c-a07d4d6ee0fd.png"
+    ],
+    "styleId": "style_painterly_mythic_10",
+    "familyIndex": 10
+  },
+  {
+    "name": "Cinematic Neo-Noir Chiaroscuro",
+    "familyId": "cinematic_noir",
+    "familyLabel": "Cinematic Noir",
+    "selectionScore": 139.38,
+    "suitabilityScore": 8,
+    "riskFlags": [
+      "dark_bias"
+    ],
+    "styleKeywords": [
+      "cinematic chiaroscuro",
+      "cobalt blue atmosphere",
+      "high-contrast silhouette",
+      "sharp light slicing",
+      "neo-noir lighting",
+      "minimalist portraiture",
+      "dual-chromatic palette",
+      "dramatic low-key shadow"
+    ],
+    "styleDescription": "This aesthetic centers on high-contrast, moody portraiture defined by the interplay of deep shadows and precise, vibrant light sources. It masterfully balances saturated cobalt and cyan backgrounds with striking accents of warm golden light or sharp projected silhouettes. The overall visual language is profoundly cinematic, favoring minimalist compositions that evoke mystery, introspection, and a modern neo-noir sensibility.",
+    "imageCount": 11,
+    "sourceMoodboardId": "ea345a04-2a31-5243-9ecf-ae678fd495d8",
+    "previewImages": [
+      "https://gen.krea.ai/images/7d1db585-5482-4e6e-a805-ca45f5c5d5b3.png",
+      "https://gen.krea.ai/images/7c8103aa-0f0c-4fca-b9eb-b39fba194c07.png",
+      "https://gen.krea.ai/images/059112ed-3317-49f3-a79d-d9024d593e96.png",
+      "https://gen.krea.ai/images/4b360d75-2aa0-44d8-b8b0-277612e34510.png"
+    ],
+    "styleId": "style_cinematic_noir_01",
+    "familyIndex": 1
+  },
+  {
+    "name": "Cinematic Chiaroscuro Noir",
+    "familyId": "cinematic_noir",
+    "familyLabel": "Cinematic Noir",
+    "selectionScore": 118.0,
+    "suitabilityScore": 6,
+    "riskFlags": [
+      "dark_bias"
+    ],
+    "styleKeywords": [
+      "chiaroscuro lighting",
+      "cinematic atmosphere",
+      "analog film grain",
+      "dramatic shafts of light",
+      "high-contrast shadows",
+      "atmospheric dust motes",
+      "deep indigo and amber palette",
+      "tactile textures"
+    ],
+    "styleDescription": "This aesthetic centers on the interplay between profound darkness and piercing, warm illumination, creating a deeply moody and cinematic atmosphere. The visual language relies on high-contrast chiaroscuro techniques, often incorporating textured elements like dust motes, ethereal smoke, or fine analog film grain to add depth and tactility. Whether capturing intimate still lifes or mysterious, shadowed environments, the style consistently prioritizes a solemn, nostalgic, and introspective tone.",
+    "imageCount": 25,
+    "sourceMoodboardId": "ee84c449-f590-5d40-a41e-0bbf01a8154d",
+    "previewImages": [
+      "https://gen.krea.ai/images/f9325c09-44f5-4ead-9191-6aa6fc878deb.png",
+      "https://gen.krea.ai/images/826606f9-ab02-4995-ba22-084697429eb3.png",
+      "https://gen.krea.ai/images/8f793b98-01c1-42bd-a90d-2b286a94b760.png",
+      "https://gen.krea.ai/images/5b45285b-8a4c-4517-982d-e04e67a50476.png"
+    ],
+    "styleId": "style_cinematic_noir_02",
+    "familyIndex": 2
+  },
+  {
+    "name": "Cinematic Analog Noir",
+    "familyId": "cinematic_noir",
+    "familyLabel": "Cinematic Noir",
+    "selectionScore": 118.0,
+    "suitabilityScore": 6,
+    "riskFlags": [
+      "dark_bias"
+    ],
+    "styleKeywords": [
+      "35mm film grain",
+      "cinematic chiaroscuro",
+      "analog nostalgic aesthetic",
+      "high-contrast moody lighting",
+      "vintage lens flare",
+      "desaturated cool tones",
+      "tactile film texture"
+    ],
+    "styleDescription": "This aesthetic centers on the raw, tactile nature of vintage analog photography, blending high-contrast cinematic drama with a deeply nostalgic atmosphere. It weaves together the moody, chiaroscuro intensity of neo-noir with the dreamlike, grainy softness of 1970s and 90s film stock. A consistent thread of intimate portraiture, metallic textures, and cool-to-warm color tension defines this sophisticated, suspenseful visual language.",
+    "imageCount": 23,
+    "sourceMoodboardId": "a08e6b74-170f-5261-9e49-a01bd41bd043",
+    "previewImages": [
+      "https://gen.krea.ai/images/a1bc1a59-f7ff-4157-9f11-9668dd6dad61.png",
+      "https://gen.krea.ai/images/9f87dda8-a912-4414-a8ba-89f475c16535.png",
+      "https://gen.krea.ai/images/4e29cc73-4b0c-4a8d-9ed6-73618c93c188.png",
+      "https://gen.krea.ai/images/d3a36776-c2fd-4af5-85bf-20f4e798fff9.png"
+    ],
+    "styleId": "style_cinematic_noir_03",
+    "familyIndex": 3
+  },
+  {
+    "name": "Cinematic Nocturnal Noir",
+    "familyId": "cinematic_noir",
+    "familyLabel": "Cinematic Noir",
+    "selectionScore": 108.0,
+    "suitabilityScore": 6,
+    "riskFlags": [
+      "dark_bias"
+    ],
+    "styleKeywords": [
+      "cinematic chiaroscuro",
+      "low-key moody lighting",
+      "desaturated teal and charcoal palette",
+      "dramatic volumetric shadows",
+      "high-ISO film grain",
+      "gothic noir atmosphere",
+      "symmetrical cinematic composition"
+    ],
+    "styleDescription": "This aesthetic centers on a sophisticated mastery of chiaroscuro lighting, where deep, impenetrable shadows and selective illumination create a sense of profound psychological mystery. The visual language favors a desaturated, cool-toned palette of teals, charcoals, and twilight blues, emphasizing textures ranging from historical velvet to gritty concrete. Common threads across all clusters include a cinematic, high-contrast approach to composition that evokes an atmosphere of somber elegance and impending tension.",
+    "imageCount": 25,
+    "sourceMoodboardId": "bf4d6321-f7f0-54f9-88ee-fbf61a17f728",
+    "previewImages": [
+      "https://gen.krea.ai/images/1bfaa24b-769a-4d07-a6e9-da9794effaaf.png",
+      "https://gen.krea.ai/images/87f6c08c-3ee2-49cf-959f-a95b1628d172.png",
+      "https://gen.krea.ai/images/f900aa81-665a-474a-9971-4274675b3d69.png",
+      "https://gen.krea.ai/images/5dfd66f0-adda-4b02-a879-c8af6bfc19db.png"
+    ],
+    "styleId": "style_cinematic_noir_04",
+    "familyIndex": 4
+  },
+  {
+    "name": "Ghostly Chiaroscuro Noir",
+    "familyId": "cinematic_noir",
+    "familyLabel": "Cinematic Noir",
+    "selectionScore": 108.0,
+    "suitabilityScore": 6,
+    "riskFlags": [
+      "abstraction_risk",
+      "dark_bias"
+    ],
+    "styleKeywords": [
+      "high-contrast monochrome",
+      "chiaroscuro lighting",
+      "heavy film grain",
+      "ghostly motion blur",
+      "stark shadow play",
+      "cinematic noir portraiture",
+      "analog decay",
+      "low-key photography"
+    ],
+    "styleDescription": "This aesthetic centers on the tension between deep, engulfing shadows and stark, high-contrast highlights characteristic of classic film noir. It utilizes heavy film grain, motion blur, and experimental analog techniques to transform human subjects into fragmented, ghostly silhouettes. The overall mood is one of quiet psychological mystery, favoring intimate yet abstracted portraiture that feels both timeless and decaying.",
+    "imageCount": 22,
+    "sourceMoodboardId": "8b33f0b4-d12f-5ded-a46d-64c982cf42da",
+    "previewImages": [
+      "https://gen.krea.ai/images/f6c95a12-73cf-4b41-a321-130ad9e1484e.png",
+      "https://gen.krea.ai/images/a2de7b81-ba2b-4f44-96f6-daccfe2fc18a.png",
+      "https://gen.krea.ai/images/21367c0d-54d4-4476-96aa-464d58a983b8.png",
+      "https://gen.krea.ai/images/f5c4ceea-b0bc-4e57-b305-eb353d2090f9.png"
+    ],
+    "styleId": "style_cinematic_noir_05",
+    "familyIndex": 5
+  },
+  {
+    "name": "Cinematic Noir Chiaroscuro",
+    "familyId": "cinematic_noir",
+    "familyLabel": "Cinematic Noir",
+    "selectionScore": 108.0,
+    "suitabilityScore": 6,
+    "riskFlags": [
+      "dark_bias"
+    ],
+    "styleKeywords": [
+      "high-contrast black and white photography",
+      "chiaroscuro lighting",
+      "heavy film grain",
+      "low-key portraiture",
+      "dramatic shadows",
+      "cinematic noir style",
+      "shallow depth of field"
+    ],
+    "styleDescription": "This aesthetic centers on the interplay of deep, velvety shadows and stark, sculptural lighting within high-contrast monochromatic portraiture. It blends the raw, tactile quality of heavy film grain with a cinematic sense of mystery and emotional depth. Common threads include intimate compositions, obscured facial features, and a timeless, moody atmosphere that evokes classic film noir cinematography.",
+    "imageCount": 20,
+    "sourceMoodboardId": "f428a163-1de6-5274-b21f-73eaa56ccb5b",
+    "previewImages": [
+      "https://gen.krea.ai/images/7daf5bbf-4477-4f19-8b3c-5cd4302ab231.png",
+      "https://gen.krea.ai/images/fbee2406-d8f7-429d-8fce-c2acb90b2118.png",
+      "https://gen.krea.ai/images/f9e83e43-6ef1-47a4-8b57-d896ea80b659.png",
+      "https://gen.krea.ai/images/50b1c56a-4cb8-4187-8fd8-6e07d04af536.png"
+    ],
+    "styleId": "style_cinematic_noir_06",
+    "familyIndex": 6
+  },
+  {
+    "name": "Cinematic Abyssal Noir",
+    "familyId": "cinematic_noir",
+    "familyLabel": "Cinematic Noir",
+    "selectionScore": 104.0,
+    "suitabilityScore": 12,
+    "riskFlags": [
+      "dark_bias"
+    ],
+    "styleKeywords": [
+      "cinematic chiaroscuro",
+      "volumetric backlighting",
+      "cyan and teal color grading",
+      "high contrast silhouettes",
+      "atmospheric film grain",
+      "mystical noir mood",
+      "ethereal light shafts"
+    ],
+    "styleDescription": "This aesthetic explores the intersection of deep shadow and ethereal illumination, characterized by a consistent palette of cyan, teal, and midnight blue. The visual language favors high-contrast chiaroscuro, where dramatic backlighting and volumetric elements like rain, mist, or bioluminescence define the scene. Every composition emphasizes a sense of moody mystery and isolated figures, utilizing film grain and soft bloom to evoke a cinematic, dreamlike tension.",
+    "imageCount": 23,
+    "sourceMoodboardId": "cafb19ba-884b-5d36-b185-3ae1a711dfb2",
+    "previewImages": [
+      "https://gen.krea.ai/images/df55c16a-cf2e-4828-b9c3-39d45d786c7a.png",
+      "https://gen.krea.ai/images/ac20783f-8159-4f89-8afe-40e2219a457f.png",
+      "https://gen.krea.ai/images/b0471d68-d866-407c-a4d2-147d205e93d6.png",
+      "https://gen.krea.ai/images/2cb7ad69-86ae-4701-bf07-be4bc9770c5c.png"
+    ],
+    "styleId": "style_cinematic_noir_07",
+    "familyIndex": 7
+  },
+  {
+    "name": "Cinematic Neo-Noir Liminality",
+    "familyId": "cinematic_noir",
+    "familyLabel": "Cinematic Noir",
+    "selectionScore": 104.0,
+    "suitabilityScore": 12,
+    "riskFlags": [
+      "dark_bias"
+    ],
+    "styleKeywords": [
+      "cinematic chiaroscuro",
+      "solitary silhouette",
+      "complementary color grading",
+      "volumetric atmospheric haze",
+      "minimalist geometric architecture",
+      "high-contrast neo-noir",
+      "liminal space"
+    ],
+    "styleDescription": "This aesthetic centers on the interplay between solitary human silhouettes and stark, geometrically driven architectural environments. It utilizes high-contrast lighting schemes characterized by vibrant, complementary color palettes that define mood through atmospheric haze and deep shadows. The visual language consistently evokes a sense of mystery and transit, blending urban noir sensibilities with minimalist, graphic composition.",
+    "imageCount": 17,
+    "sourceMoodboardId": "8235848b-b447-5ce3-80fe-90491bdb68e3",
+    "previewImages": [
+      "https://gen.krea.ai/images/09b008b6-2d77-48a8-8a26-8cd55e79ee07.png",
+      "https://gen.krea.ai/images/ee6754a0-f360-4186-9377-a47e45aee4c2.png",
+      "https://gen.krea.ai/images/6b2a9a1d-c00c-443b-b472-f3fed49997af.png",
+      "https://gen.krea.ai/images/9fec2f57-f834-4e15-8376-d88fbe7c6b3d.png"
+    ],
+    "styleId": "style_cinematic_noir_08",
+    "familyIndex": 8
+  },
+  {
+    "name": "Cinematic Analog Suspense",
+    "familyId": "cinematic_noir",
+    "familyLabel": "Cinematic Noir",
+    "selectionScore": 102.0,
+    "suitabilityScore": 10,
+    "riskFlags": [
+      "dark_bias"
+    ],
+    "styleKeywords": [
+      "cinematic film still",
+      "low-key moody lighting",
+      "shallow depth of field",
+      "desaturated color palette",
+      "intense character portrait",
+      "analog film grain",
+      "suspenseful neo-noir atmosphere"
+    ],
+    "styleDescription": "This aesthetic centers on the intersection of psychological tension and raw, textured realism, drawing heavily from the visual language of vintage espionage thrillers and neo-noir cinema. It favors a muted, desaturated color palette punctuated by moody, low-key lighting that emphasizes intimate, emotionally charged facial expressions. The common thread across these clusters is a focus on shallow depth of field, tactile film grain, and a deliberate sense of atmospheric isolation within analog-inspired environments.",
+    "imageCount": 19,
+    "sourceMoodboardId": "7898d908-ac6d-52c9-a98b-446cb9352a47",
+    "previewImages": [
+      "https://gen.krea.ai/images/4def09f8-5db7-46a2-bf78-390533af8113.png",
+      "https://gen.krea.ai/images/41b4ddf1-2129-4857-a821-a973a5474976.png",
+      "https://gen.krea.ai/images/78668ad0-ee33-4a2c-86b7-7403bea27c33.png",
+      "https://gen.krea.ai/images/5dfca72b-e0e6-43ff-b744-85fad0363d71.png"
+    ],
+    "styleId": "style_cinematic_noir_09",
+    "familyIndex": 9
+  },
+  {
+    "name": "Cinematic Golden Chiaroscuro",
+    "familyId": "cinematic_noir",
+    "familyLabel": "Cinematic Noir",
+    "selectionScore": 102.0,
+    "suitabilityScore": 0,
+    "riskFlags": [],
+    "styleKeywords": [
+      "chiaroscuro portraiture",
+      "volumetric golden light",
+      "analog film grain",
+      "intimate cinematic lighting",
+      "warm amber tones",
+      "dramatic shadow play",
+      "soft focus"
+    ],
+    "styleDescription": "This aesthetic centers on the interplay between dramatic, high-contrast chiaroscuro lighting and the intimate, nostalgic warmth of golden hour. It emphasizes emotional vulnerability through soft-focus portraiture, rich textures, and a cinematic color palette dominated by amber, copper, and deep shadows. The overall visual identity is defined by a consistent thread of quiet, introspective intimacy rendered with a tactile, analog film quality.",
+    "imageCount": 16,
+    "sourceMoodboardId": "78b9bbcc-1997-5bd1-be67-abf46673640a",
+    "previewImages": [
+      "https://gen.krea.ai/images/f8e6fe97-9784-4521-bac9-6ba9502cc8dc.png",
+      "https://gen.krea.ai/images/32c4f6cc-9b8d-413c-84cc-cd7a8fa8293e.png",
+      "https://gen.krea.ai/images/1e6ad293-48fb-4649-a63c-a27d54988b5f.png",
+      "https://gen.krea.ai/images/5f5f7fd5-853a-4024-b86d-77245ce08105.png"
+    ],
+    "styleId": "style_cinematic_noir_10",
+    "familyIndex": 10
+  },
+  {
+    "name": "Bold Graphic Vectorism",
+    "familyId": "graphic_illustration",
+    "familyLabel": "Graphic Illustration",
+    "selectionScore": 107.12,
+    "suitabilityScore": 6,
+    "riskFlags": [],
+    "styleKeywords": [
+      "vector illustration",
+      "bold graphic outlines",
+      "high-contrast cel shading",
+      "minimalist composition",
+      "earthy and crimson palette",
+      "clean vector linework"
+    ],
+    "styleDescription": "This aesthetic centers on high-contrast, clean-lined vector illustrations that prioritize structural precision and dramatic visual impact. It bridges the gap between aggressive character design and sophisticated, minimalist portraiture through a shared language of bold outlines and intentional shading. The cohesive thread across these styles is a reliance on earthy, saturated color palettes and professional graphic design principles that evoke modern screenprinting and stylized illustration.",
+    "imageCount": 9,
+    "sourceMoodboardId": "5784fe41-7b8c-5148-87e1-a6534e973fc3",
+    "previewImages": [
+      "https://gen.krea.ai/images/0a2d7c4c-1eab-4c66-821a-2f20d5db6d10.png",
+      "https://gen.krea.ai/images/5b809f7b-6b81-42f5-ba30-3fe6f7f728bd.png",
+      "https://gen.krea.ai/images/64f2642b-943a-4b7f-9c15-13df517fe2d3.png",
+      "https://gen.krea.ai/images/056497e5-8fae-4ffc-93e8-b1416ce084f6.png"
+    ],
+    "styleId": "style_graphic_illustration_01",
+    "familyIndex": 1
+  },
+  {
+    "name": "Mid-Century Vector Travelogue",
+    "familyId": "graphic_illustration",
+    "familyLabel": "Graphic Illustration",
+    "selectionScore": 100.0,
+    "suitabilityScore": -2,
+    "riskFlags": [],
+    "styleKeywords": [
+      "flat vector illustration",
+      "mid-century travel poster",
+      "bold color blocking",
+      "minimalist geometric shapes",
+      "sharp graphic shadows",
+      "vibrant summer palette",
+      "scenic coastal aesthetic"
+    ],
+    "styleDescription": "This aesthetic centers on the clean, precise lines of modern vector illustration infused with the nostalgic charm of vintage travel posters. It balances minimalist geometric compositions with a vibrant, sun-drenched color palette to evoke a sense of serene, high-end leisure. The common thread across all clusters is a commitment to flat design, sharp graphic shadows, and a tranquil, dreamlike atmosphere.",
+    "imageCount": 16,
+    "sourceMoodboardId": "5238b000-af5a-5724-881e-9b2835dd15f2",
+    "previewImages": [
+      "https://gen.krea.ai/images/a3fdcb38-226a-44ef-979b-7919c038cdf9.png",
+      "https://gen.krea.ai/images/1e8e54ae-be50-4af0-8a1c-d75ccd22e3de.png",
+      "https://gen.krea.ai/images/eee4820c-c3c9-4054-b4db-13b179e7d0fb.png",
+      "https://gen.krea.ai/images/de7d3d42-7a03-4f55-8cca-04035f389a6c.png"
+    ],
+    "styleId": "style_graphic_illustration_02",
+    "familyIndex": 2
+  },
+  {
+    "name": "Graphic Risograph Pop",
+    "familyId": "graphic_illustration",
+    "familyLabel": "Graphic Illustration",
+    "selectionScore": 94.0,
+    "suitabilityScore": 2,
+    "riskFlags": [],
+    "styleKeywords": [
+      "risograph texture",
+      "bold graphic illustration",
+      "flat color blocking",
+      "retro anime style",
+      "high-contrast palette",
+      "minimalist vector art",
+      "halftone grain",
+      "sharp ink outlines"
+    ],
+    "styleDescription": "This aesthetic centers on a bold, high-contrast fusion of retro-modern graphic design and stylized anime illustration. It prioritizes clean, flat vector-like forms, vibrant color-blocking, and subtle tactile textures such as risograph grain and halftone patterns. The common thread is a nostalgic yet futuristic sensibility that balances sharp, minimalist outlines with a rebellious, high-energy color palette.",
+    "imageCount": 25,
+    "sourceMoodboardId": "389731a8-41f6-594b-b2fa-3707be304e80",
+    "previewImages": [
+      "https://gen.krea.ai/images/181ea100-dec9-40bd-b59c-2ee561fe53d8.png",
+      "https://gen.krea.ai/images/e4e733b1-04bf-4741-b452-92337cd06bb2.png",
+      "https://gen.krea.ai/images/935469b6-2ee9-4374-9068-3824e8d3bba4.png",
+      "https://gen.krea.ai/images/6404ff9e-4f43-4348-994b-70977d003bcc.png"
+    ],
+    "styleId": "style_graphic_illustration_03",
+    "familyIndex": 3
+  },
+  {
+    "name": "Dynamic Electric Vectorism",
+    "familyId": "graphic_illustration",
+    "familyLabel": "Graphic Illustration",
+    "selectionScore": 89.5,
+    "suitabilityScore": -2,
+    "riskFlags": [],
+    "styleKeywords": [
+      "flat vector illustration",
+      "bold saturated color palette",
+      "extreme low-angle perspective",
+      "clean black vector linework",
+      "dynamic athletic motion",
+      "mid-century graphic style",
+      "minimalist shading"
+    ],
+    "styleDescription": "This aesthetic centers on a high-energy fusion of mid-century graphic design and contemporary pop art, defined by its bold, flat vector execution and intense, saturated color palettes. The visual language relies heavily on extreme perspective, exaggerated proportions, and clean linework to communicate rapid movement and athletic power. By bridging retro poster aesthetics with modern corporate-inspired stylization, the overall look maintains a playful, monumental, and highly graphic identity.",
+    "imageCount": 12,
+    "sourceMoodboardId": "754ed4d7-ebb6-5b0f-a6e6-dd2846c4b037",
+    "previewImages": [
+      "https://gen.krea.ai/images/5b176148-f301-4618-9dc0-18f67317ee4a.png",
+      "https://gen.krea.ai/images/5049180c-6f3d-4968-97f2-85913b7268f5.png",
+      "https://gen.krea.ai/images/e31b5f57-51b2-4273-b411-2fb270658427.png",
+      "https://gen.krea.ai/images/8c188f1b-eb64-4fb7-90b2-b563f9205901.png"
+    ],
+    "styleId": "style_graphic_illustration_04",
+    "familyIndex": 4
+  },
+  {
+    "name": "Ornate Graphic Maximalism",
+    "familyId": "graphic_illustration",
+    "familyLabel": "Graphic Illustration",
+    "selectionScore": 81.0,
+    "suitabilityScore": 10,
+    "riskFlags": [],
+    "styleKeywords": [
+      "maximalist pattern integration",
+      "ligne claire graphic style",
+      "intricate mosaic textures",
+      "sharp ink outlines",
+      "saturated jewel tones",
+      "psychedelic surrealism",
+      "high-contrast graphic shadows"
+    ],
+    "styleDescription": "This aesthetic synthesizes the precision of ligne claire illustration with the dense, hypnotic complexity of psychedelic tapestry and mosaic art. It bridges the gap between clean, geometric domesticity and surreal, maximalist landscapes through a shared language of bold outlines and intricate pattern work. The common thread is a focus on textural saturation and high-contrast, graphic lighting that elevates both interior and exterior environments into vibrant, dreamlike vignettes.",
+    "imageCount": 8,
+    "sourceMoodboardId": "f0746ed6-cdb4-56d4-b44e-47d112559460",
+    "previewImages": [
+      "https://gen.krea.ai/images/67939d60-f33f-4fd7-b947-bd83b7a7a4f0.png",
+      "https://gen.krea.ai/images/6a07b8a0-8447-466b-8b4c-efeed90c07cf.png",
+      "https://gen.krea.ai/images/aa1da245-73c6-42fb-abcb-ba8aa40d1bdf.png",
+      "https://gen.krea.ai/images/c548359d-ddb2-46e9-8dfe-62a73b846ccc.png"
+    ],
+    "styleId": "style_graphic_illustration_05",
+    "familyIndex": 5
+  },
+  {
+    "name": "Graphic Noir Pop-Punk",
+    "familyId": "graphic_illustration",
+    "familyLabel": "Graphic Illustration",
+    "selectionScore": 108.0,
+    "suitabilityScore": 6,
+    "riskFlags": [
+      "dark_bias"
+    ],
+    "styleKeywords": [
+      "bold black ink outlines",
+      "high-contrast graphic illustration",
+      "minimalist vector art",
+      "retro screen-print texture",
+      "vibrant limited color palette",
+      "stylized monster motifs",
+      "halftone and noise overlay",
+      "flat graphic design"
+    ],
+    "styleDescription": "This aesthetic centers on a high-contrast, graphic illustration style defined by bold black linework and a restricted, punchy color palette. It bridges the gap between minimalist vector art and gritty, tactile print media by incorporating elements of retro screen-printing, halftone textures, and mischievous, stylized character designs. The overall look is consistently sharp, rebellious, and visually striking, favoring flat planes of color and dramatic negative space over complex shading or gradients.",
+    "imageCount": 17,
+    "sourceMoodboardId": "2dfda5ff-b12e-5999-bb7a-bba465996c5e",
+    "previewImages": [
+      "https://gen.krea.ai/images/222478db-a858-4c99-a56e-5ba946fa31b1.png",
+      "https://gen.krea.ai/images/0d01ac27-2f4c-4178-bb80-960a6e830ed4.png",
+      "https://gen.krea.ai/images/759a74dd-200c-402a-aad7-df9123450c01.png",
+      "https://gen.krea.ai/images/2180e525-79b3-4ac1-a3cd-122ddfcc6545.png"
+    ],
+    "styleId": "style_graphic_illustration_06",
+    "familyIndex": 6
+  },
+  {
+    "name": "Bold Graphic Vector Pop",
+    "familyId": "graphic_illustration",
+    "familyLabel": "Graphic Illustration",
+    "selectionScore": 94.0,
+    "suitabilityScore": 2,
+    "riskFlags": [],
+    "styleKeywords": [
+      "flat vector illustration",
+      "bold graphic style",
+      "saturated color blocking",
+      "minimalist clean lines",
+      "geometric character design",
+      "contemporary editorial art",
+      "high contrast pop aesthetic"
+    ],
+    "styleDescription": "This aesthetic centers on a highly stylized, flat vector illustration language that prioritizes bold graphic impact and playful, modern storytelling. It seamlessly blends the exaggerated, geometric character design of Corporate Memphis with the high-energy, surreal vibrancy of contemporary psychedelic pop. Common threads across all clusters include minimalist linework, saturated color blocking, and a deliberate avoidance of realistic shading in favor of clean, design-forward compositions.",
+    "imageCount": 23,
+    "sourceMoodboardId": "70ee4476-c9cb-5503-bc55-e3febfde1e25",
+    "previewImages": [
+      "https://gen.krea.ai/images/35459f99-9229-4c4f-99bf-54b30d50b896.png",
+      "https://gen.krea.ai/images/99381cdd-1294-4b3c-bd42-6627b04280bd.png",
+      "https://gen.krea.ai/images/a5375ed3-e423-49c0-9bff-1f53e56b963b.png",
+      "https://gen.krea.ai/images/ddd07346-b55b-4057-8531-5efd100e5349.png"
+    ],
+    "styleId": "style_graphic_illustration_07",
+    "familyIndex": 7
+  },
+  {
+    "name": "High-Contrast Graphic Minimalist",
+    "familyId": "graphic_illustration",
+    "familyLabel": "Graphic Illustration",
+    "selectionScore": 87.12,
+    "suitabilityScore": 6,
+    "riskFlags": [],
+    "styleKeywords": [
+      "minimalist vector illustration",
+      "bold flat silhouettes",
+      "duotone orange and black",
+      "high-contrast graphic art",
+      "mid-century screenprint aesthetic",
+      "clean vector line art",
+      "vibrant flat color fields"
+    ],
+    "styleDescription": "This aesthetic centers on the power of extreme graphic contrast and the interplay between bold, flat silhouettes and vibrant color fields. It draws inspiration from mid-century screenprinting and vector illustration, favoring clean lines, stencil-like compositions, and a strictly curated palette of orange, black, and cream. The overall visual language is defined by a balance of negative space and expressive, minimalist character design that feels both modern and retro.",
+    "imageCount": 9,
+    "sourceMoodboardId": "0ffa21db-cec3-5721-a3ea-ea0f3b8ad189",
+    "previewImages": [
+      "https://gen.krea.ai/images/c14ba4d6-732b-4b30-95d1-af1fc69abba2.png",
+      "https://gen.krea.ai/images/cc5b2c68-208d-446b-8341-738f481c4448.png",
+      "https://gen.krea.ai/images/2211362d-4821-40bb-97ba-5b8dea0a4489.png",
+      "https://gen.krea.ai/images/c2bff2f4-da9c-41d0-81d2-9c690c5cbd85.png"
+    ],
+    "styleId": "style_graphic_illustration_08",
+    "familyIndex": 8
+  },
+  {
+    "name": "Graphic Halftone Minimalism",
+    "familyId": "graphic_illustration",
+    "familyLabel": "Graphic Illustration",
+    "selectionScore": 86.0,
+    "suitabilityScore": 4,
+    "riskFlags": [],
+    "styleKeywords": [
+      "halftone dot pattern",
+      "high-contrast graphic illustration",
+      "retro screenprint texture",
+      "minimalist silhouette",
+      "CMYK color palette",
+      "vintage comic book print style",
+      "stark white background"
+    ],
+    "styleDescription": "This aesthetic centers on the intersection of high-contrast graphic design and vintage print techniques, utilizing visible halftone dot matrices as the primary medium for form and shading. The visual language spans from monochrome minimalism to vibrant CMYK pop art, all unified by a clean, stark approach to composition. By blending retro screenprint textures with modern vector precision, the style emphasizes bold silhouettes and intentional negative space.",
+    "imageCount": 19,
+    "sourceMoodboardId": "34190638-55fa-5ff0-b95d-895871450ae3",
+    "previewImages": [
+      "https://gen.krea.ai/images/62f8d122-83f9-49e9-9d06-3b6c2aea2442.png",
+      "https://gen.krea.ai/images/219e4354-42d1-4975-8860-01cbfb8ea557.png",
+      "https://gen.krea.ai/images/6f34d649-762d-4ba3-95b8-a4b806ec50d7.png",
+      "https://gen.krea.ai/images/7e0f9ffb-abf7-400b-9925-2f6e596dfbd8.png"
+    ],
+    "styleId": "style_graphic_illustration_09",
+    "familyIndex": 9
+  },
+  {
+    "name": "Graphic Mid-Century Whimsy",
+    "familyId": "graphic_illustration",
+    "familyLabel": "Graphic Illustration",
+    "selectionScore": 86.0,
+    "suitabilityScore": 4,
+    "riskFlags": [],
+    "styleKeywords": [
+      "mid-century graphic illustration",
+      "bold red black and cream palette",
+      "minimalist ink linework",
+      "flat 2D vector style",
+      "risograph and linocut texture",
+      "retro editorial aesthetic"
+    ],
+    "styleDescription": "This aesthetic centers on a refined, high-contrast visual language that bridges vintage fashion illustration and playful, naive graphic design. It prioritizes a strict, punchy palette of crimson red, deep black, and cream, utilizing bold linework and flat, two-dimensional compositions. The overall taste is defined by a balance between elegant, editorial sophistication and a charming, hand-crafted, screen-printed character.",
+    "imageCount": 21,
+    "sourceMoodboardId": "9c81f24f-587a-5993-82ef-e3dac9d8c798",
+    "previewImages": [
+      "https://gen.krea.ai/images/0ee2a963-680a-4fba-a148-2f9ec2852d96.png",
+      "https://gen.krea.ai/images/d8c77461-54d0-459f-a4f5-d5f4d45f68c2.png",
+      "https://gen.krea.ai/images/79ef5fe9-9905-4b7e-bb6f-b8f2a7b635aa.png",
+      "https://gen.krea.ai/images/c6792d52-f916-4989-855e-6d71cfc3ec44.png"
+    ],
+    "styleId": "style_graphic_illustration_10",
+    "familyIndex": 10
+  },
+  {
+    "name": "Classic Cel Animation",
+    "familyId": "animation_toon",
+    "familyLabel": "Animation or Toon",
+    "selectionScore": 87.62,
+    "suitabilityScore": 6,
+    "riskFlags": [],
+    "styleKeywords": [
+      "1990s anime style",
+      "hand-drawn line art",
+      "cel animation",
+      "painterly gouache background",
+      "soft natural daylight",
+      "retro anime aesthetic",
+      "expressive character design"
+    ],
+    "styleDescription": "This aesthetic celebrates the timeless artistry of late 20th-century Japanese animation, bridging the gap between pastoral storytelling and heroic historical epics. It is defined by the core elements of traditional hand-drawn line work, expressive character designs, and the distinct look of hand-painted backgrounds. By combining vibrant, nostalgic color palettes with the soft, cinematic lighting of retro television, the style captures a sense of warmth and grounded, detailed realism.",
+    "imageCount": 13,
+    "sourceMoodboardId": "a8bcd67e-1895-59e3-89db-f1983cdae4ec",
+    "previewImages": [
+      "https://gen.krea.ai/images/f3c779ea-7cac-4ab2-b103-5a9b406d1cf3.png",
+      "https://gen.krea.ai/images/399ba545-c51e-4e65-9334-bb64bc31fd36.png",
+      "https://gen.krea.ai/images/95f672ff-a7d3-403a-a22b-00f21c2a95e3.png",
+      "https://gen.krea.ai/images/27715bbb-53e8-4a41-b098-cb22be574ce8.png"
+    ],
+    "styleId": "style_animation_toon_01",
+    "familyIndex": 1
+  },
+  {
+    "name": "Vintage Rubber Hose Revival",
+    "familyId": "animation_toon",
+    "familyLabel": "Animation or Toon",
+    "selectionScore": 76.0,
+    "suitabilityScore": 4,
+    "riskFlags": [],
+    "styleKeywords": [
+      "rubber hose animation style",
+      "vintage mascot illustration",
+      "bold black outlines",
+      "mid-century cartoon aesthetic",
+      "limited flat color palette",
+      "retro screen print texture",
+      "pie-cut eyes"
+    ],
+    "styleDescription": "This aesthetic centers on the playful, nostalgic charm of 1930s rubber hose animation and mid-century collegiate design. It prioritizes bold, thick outlines, expressive character-driven compositions, and a high-contrast, limited color palette. The overall style balances graphic clarity with vintage print textures to create a cohesive, retro-modern mascot identity.",
+    "imageCount": 24,
+    "sourceMoodboardId": "a05d5c71-3e7c-50ef-861a-81f43701db2b",
+    "previewImages": [
+      "https://gen.krea.ai/images/9d2f9630-e191-4648-b67e-aa40b023ef2e.png",
+      "https://gen.krea.ai/images/2f6f8ecc-8646-4c38-9ba5-89e08613a93c.png",
+      "https://gen.krea.ai/images/541f6641-2b76-48cc-9a8e-06004c2c137d.png",
+      "https://gen.krea.ai/images/1606518f-02cd-48eb-a058-8b5486b2657a.png"
+    ],
+    "styleId": "style_animation_toon_02",
+    "familyIndex": 2
+  },
+  {
+    "name": "Playful Rubber-Hose Pop",
+    "familyId": "animation_toon",
+    "familyLabel": "Animation or Toon",
+    "selectionScore": 73.5,
+    "suitabilityScore": 2,
+    "riskFlags": [],
+    "styleKeywords": [
+      "rubber hose animation",
+      "bold black outlines",
+      "kawaii mascot design",
+      "vibrant flat colors",
+      "die-cut sticker style",
+      "pie-eyed character",
+      "retro cartoon aesthetic"
+    ],
+    "styleDescription": "This aesthetic centers on the vibrant, high-energy charm of classic rubber-hose animation fused with modern, playful sticker design. It celebrates bold black outlines, expressive anthropomorphic characters, and a warm, saturated color palette that feels both nostalgic and contemporary. The common thread is a clean, graphic approach that prioritizes whimsical character design and a cheerful, pop-culture-infused visual language.",
+    "imageCount": 12,
+    "sourceMoodboardId": "a5e68364-e974-57dd-97fd-40672b774c38",
+    "previewImages": [
+      "https://gen.krea.ai/images/ff59dd49-2a8f-4e36-bfff-cf22e1d263db.png",
+      "https://gen.krea.ai/images/b13968d9-9d35-4c0a-a4ee-1c1a52c3c1c9.png",
+      "https://gen.krea.ai/images/b4a18e95-fff4-4527-8802-8d57ab4d8e72.png",
+      "https://gen.krea.ai/images/b00834eb-7844-4b77-9dc8-44877df2fe0e.png"
+    ],
+    "styleId": "style_animation_toon_03",
+    "familyIndex": 3
+  },
+  {
+    "name": "Nostalgic Cel Animation",
+    "familyId": "animation_toon",
+    "familyLabel": "Animation or Toon",
+    "selectionScore": 69.62,
+    "suitabilityScore": -2,
+    "riskFlags": [],
+    "styleKeywords": [
+      "90s anime cel style",
+      "hand-drawn aesthetic",
+      "soft diffused lighting",
+      "slice of life",
+      "nostalgic color palette",
+      "vintage anime screencap"
+    ],
+    "styleDescription": "This aesthetic centers on the tactile, hand-drawn charm of 1980s and 1990s Japanese animation. It emphasizes quiet, slice-of-life intimacy through a combination of cel-shaded character work and soft, painted backgrounds. The overall mood is defined by warm, diffused light and a nostalgic, muted color palette that evokes a sense of comfort and reflective stillness.",
+    "imageCount": 13,
+    "sourceMoodboardId": "46f56832-aa08-5ede-b13a-e8b1ee68363e",
+    "previewImages": [
+      "https://gen.krea.ai/images/14a6f1a8-a61a-41b6-b135-1ab0d359c6da.png",
+      "https://gen.krea.ai/images/108d34ea-bf9a-4430-a67c-260bd369f241.png",
+      "https://gen.krea.ai/images/c78cffd0-f9cd-4785-9a06-58008f167c27.png",
+      "https://gen.krea.ai/images/c42a0ba2-7617-4a28-a5c9-2a5ff9e2f85c.png"
+    ],
+    "styleId": "style_animation_toon_04",
+    "familyIndex": 4
+  },
+  {
+    "name": "Bold Graphic Anime",
+    "familyId": "animation_toon",
+    "familyLabel": "Animation or Toon",
+    "selectionScore": 66.0,
+    "suitabilityScore": 4,
+    "riskFlags": [],
+    "styleKeywords": [
+      "clean bold line art",
+      "anime illustration",
+      "flat color fills",
+      "high-contrast graphic style",
+      "expressive character design",
+      "vibrant color blocking",
+      "modern anime aesthetic"
+    ],
+    "styleDescription": "This aesthetic centers on high-impact, clean-lined anime illustration that balances vibrant, high-contrast graphic design with cozy, character-focused storytelling. It bridges the gap between modern, edgy techwear concepts and soft, expressive kawaii character designs. The common thread across all clusters is a commitment to bold outlines, flat or cell-shaded color fills, and a focus on emotive, stylized character archetypes.",
+    "imageCount": 17,
+    "sourceMoodboardId": "c5d8cba1-6050-51fe-a5af-5282789b690d",
+    "previewImages": [
+      "https://gen.krea.ai/images/f511e6ef-c4b1-4f93-84fd-95f2686e57ff.png",
+      "https://gen.krea.ai/images/8cf80602-336c-40b6-a4eb-5f0f4256bf60.png",
+      "https://gen.krea.ai/images/abdbc485-fc8f-4daf-9ccb-6946d3f12133.png",
+      "https://gen.krea.ai/images/c4006b16-d39d-4d6b-a8bc-60247ea94e57.png"
+    ],
+    "styleId": "style_animation_toon_05",
+    "familyIndex": 5
+  },
+  {
+    "name": "Midnight Cel Aesthetic",
+    "familyId": "animation_toon",
+    "familyLabel": "Animation or Toon",
+    "selectionScore": 77.75,
+    "suitabilityScore": 6,
+    "riskFlags": [
+      "dark_bias"
+    ],
+    "styleKeywords": [
+      "1990s retro anime cel",
+      "hand-drawn ink linework",
+      "nocturnal moody color palette",
+      "cinematic atmospheric lighting",
+      "vintage OVA aesthetic",
+      "high contrast cell shading",
+      "nostalgic sci-fi design"
+    ],
+    "styleDescription": "This aesthetic centers on the evocative, hand-drawn atmosphere of late 1980s and early 1990s Japanese cel animation. It weaves together threads of gothic noir intensity, retro-futuristic maritime sci-fi, and moody urban nightlife. The common visual language is defined by sharp ink linework, high-contrast cell shading, and a deep, cool-toned color palette punctuated by glowing artificial light.",
+    "imageCount": 14,
+    "sourceMoodboardId": "db12ed29-82ff-565f-bff0-918186a31e89",
+    "previewImages": [
+      "https://gen.krea.ai/images/c23c4336-bbe8-4aaf-a849-0843d8acb6d7.png",
+      "https://gen.krea.ai/images/b067b100-30df-4f66-9e3b-8317a8392fb9.png",
+      "https://gen.krea.ai/images/648ea91d-0442-4e9b-be12-73ca32ddf224.png",
+      "https://gen.krea.ai/images/ed7044a1-0c7f-4ce0-bda5-97e97581fe28.png"
+    ],
+    "styleId": "style_animation_toon_06",
+    "familyIndex": 6
+  },
+  {
+    "name": "Graphic Cartoon Expressionism",
+    "familyId": "animation_toon",
+    "familyLabel": "Animation or Toon",
+    "selectionScore": 76.0,
+    "suitabilityScore": 4,
+    "riskFlags": [],
+    "styleKeywords": [
+      "character model sheet",
+      "bold black linework",
+      "expressive cartoon style",
+      "flat digital color",
+      "indie animation aesthetic",
+      "exaggerated proportions",
+      "minimalist solid background"
+    ],
+    "styleDescription": "This aesthetic centers on the structural integrity of character design, prioritizing expressive line work and bold, flat-colored compositions. It bridges the gap between retro 90s animation and contemporary indie webcomic sensibilities, celebrating exaggerated proportions and surreal, playful characterizations. The common thread across all clusters is a clean, graphic approach to visual storytelling that emphasizes character model sheets and emotive gesture.",
+    "imageCount": 24,
+    "sourceMoodboardId": "fe366c5e-dfb6-58d4-9c66-6b4936bd4ceb",
+    "previewImages": [
+      "https://gen.krea.ai/images/d1b3b663-b362-47e6-9009-9d6e05530ce5.png",
+      "https://gen.krea.ai/images/cdbceb07-ed70-44c6-b87c-aff5555946b0.png",
+      "https://gen.krea.ai/images/da72722b-0333-474a-8fe1-ddb2ad824a9e.png",
+      "https://gen.krea.ai/images/d78e6ee0-a0d4-4707-a180-4cb27bb42f1d.png"
+    ],
+    "styleId": "style_animation_toon_07",
+    "familyIndex": 7
+  },
+  {
+    "name": "Nostalgic Nocturnal Anime",
+    "familyId": "animation_toon",
+    "familyLabel": "Animation or Toon",
+    "selectionScore": 70.62,
+    "suitabilityScore": 0,
+    "riskFlags": [],
+    "styleKeywords": [
+      "1990s anime style",
+      "hand-painted cel animation",
+      "nocturnal city lighting",
+      "vintage VHS film grain",
+      "cinematic retro anime",
+      "moody atmospheric color palette"
+    ],
+    "styleDescription": "This aesthetic centers on the evocative, hand-drawn charm of 1990s Japanese cel animation, emphasizing a balance between urban isolation and nocturnal beauty. It weaves together moody, atmospheric storytelling with the distinct visual language of vintage VHS-era film grain and soft, painterly backgrounds. The common thread is a deep appreciation for cinematic framing and the quiet, melancholic glow of city lights against deep blue night skies.",
+    "imageCount": 5,
+    "sourceMoodboardId": "651bccd7-8a26-5fa3-bae8-918e0334019b",
+    "previewImages": [
+      "https://gen.krea.ai/images/93b3f36a-9e0e-4b40-9f76-a824e178b5be.png",
+      "https://gen.krea.ai/images/4cc4ae53-6366-4f6f-b67d-67cd3806ad7f.png",
+      "https://gen.krea.ai/images/17289375-b4a3-4fe1-9be3-f25b57a28cb5.png",
+      "https://gen.krea.ai/images/048a1a6b-ef8b-4a34-8586-76a16247d55b.png"
+    ],
+    "styleId": "style_animation_toon_08",
+    "familyIndex": 8
+  },
+  {
+    "name": "Nostalgic Retro Anime",
+    "familyId": "animation_toon",
+    "familyLabel": "Animation or Toon",
+    "selectionScore": 67.88,
+    "suitabilityScore": 6,
+    "riskFlags": [],
+    "styleKeywords": [
+      "90s retro anime style",
+      "hand-painted watercolor background",
+      "cel-shaded animation",
+      "nostalgic atmosphere",
+      "lush landscape",
+      "soft natural lighting",
+      "vintage film grain"
+    ],
+    "styleDescription": "This aesthetic centers on the evocative, hand-drawn charm of 1980s and 1990s Japanese animation. It weaves together melancholic twilight moods with lush, pastoral landscapes and earthy fantasy settings, all unified by a shared sense of quiet wonder and deep nostalgia. The visual language relies heavily on the marriage of clean, cel-shaded character linework with rich, painterly watercolor or gouache backgrounds to create a soft, cinematic atmosphere.",
+    "imageCount": 15,
+    "sourceMoodboardId": "56574e1f-0a4c-52f8-bb5c-ef53f3697385",
+    "previewImages": [
+      "https://gen.krea.ai/images/7deaccd9-0c1e-4547-817a-2083bde45e46.png",
+      "https://gen.krea.ai/images/bb29a4e0-ecf4-4f5f-85cf-597eaf245656.png",
+      "https://gen.krea.ai/images/740135c0-d056-41ca-834a-f1c263c64c36.png",
+      "https://gen.krea.ai/images/394e37be-00fc-43e3-92bd-b38b7ef40dec.png"
+    ],
+    "styleId": "style_animation_toon_09",
+    "familyIndex": 9
+  },
+  {
+    "name": "Nostalgic Twilight Anime",
+    "familyId": "animation_toon",
+    "familyLabel": "Animation or Toon",
+    "selectionScore": 67.88,
+    "suitabilityScore": 6,
+    "riskFlags": [],
+    "styleKeywords": [
+      "retro anime aesthetic",
+      "twilight gradient sky",
+      "silhouette landscape",
+      "vibrant purple and orange sunset",
+      "lo-fi digital painting",
+      "nostalgic atmosphere",
+      "cel-shaded texture"
+    ],
+    "styleDescription": "This aesthetic centers on the intersection of melancholic introspection and vibrant, retro-inspired dreamscapes. It weaves together the high-contrast drama of 90s cel animation with the soft, emotive gradients of modern scenic anime. The common thread is a profound focus on twilight lighting, where silhouettes are framed by glowing, painterly skies that evoke a deep sense of nostalgic longing.",
+    "imageCount": 15,
+    "sourceMoodboardId": "a6e5cefa-c26f-54f1-bc6d-06be14743711",
+    "previewImages": [
+      "https://gen.krea.ai/images/65d2a2d2-3d51-4fc0-8d7f-50a9fa262b36.png",
+      "https://gen.krea.ai/images/073e0d33-b901-4422-952c-549b18ef0be8.png",
+      "https://gen.krea.ai/images/13634e7e-8d80-4b4c-8c5e-73142a0b9fe7.png",
+      "https://gen.krea.ai/images/f9545217-7dee-4eff-82be-74519f35fb20.png"
+    ],
+    "styleId": "style_animation_toon_10",
+    "familyIndex": 10
+  },
+  {
+    "name": "Gilded Gothic Decay",
+    "familyId": "gothic_baroque",
+    "familyLabel": "Gothic or Baroque",
+    "selectionScore": 80.0,
+    "suitabilityScore": 8,
+    "riskFlags": [
+      "dark_bias"
+    ],
+    "styleKeywords": [
+      "chiaroscuro lighting",
+      "gilded gold leaf",
+      "melancholic gothic portraiture",
+      "cracked plaster texture",
+      "high-contrast noir",
+      "metallic organic decay",
+      "surreal fragmentation"
+    ],
+    "styleDescription": "This aesthetic explores the intersection of classical opulence and entropic fragmentation, blending Renaissance-inspired portraiture with harsh, modern textures. It centers on a high-contrast chiaroscuro foundation, where deep, somber shadows serve as a canvas for intricate gold leaf and metallic detailing. The visual language consistently utilizes themes of decay, such as cracked surfaces and singed edges, to create a haunting yet luxurious atmosphere of melancholic beauty.",
+    "imageCount": 21,
+    "sourceMoodboardId": "9e5b92d6-58fa-577f-8032-dac3fed388d8",
+    "previewImages": [
+      "https://gen.krea.ai/images/d56c78ed-9f5d-4acb-9719-e6f3537cc782.png",
+      "https://gen.krea.ai/images/889b239b-e554-4f4f-8215-508b918106a6.png",
+      "https://gen.krea.ai/images/101788b7-bad9-4bb1-84a2-20014b349551.png",
+      "https://gen.krea.ai/images/eee2365d-879c-4aed-a8c4-d6459b009622.png"
+    ],
+    "styleId": "style_gothic_baroque_01",
+    "familyIndex": 1
+  },
+  {
+    "name": "Sacred Gothic Opulence",
+    "familyId": "gothic_baroque",
+    "familyLabel": "Gothic or Baroque",
+    "selectionScore": 72.0,
+    "suitabilityScore": 10,
+    "riskFlags": [
+      "dark_bias"
+    ],
+    "styleKeywords": [
+      "gothic baroque",
+      "chiaroscuro lighting",
+      "ornate metallic halo",
+      "intricate lace and embroidery",
+      "dark fantasy portrait",
+      "monochromatic high contrast",
+      "sacred mystery"
+    ],
+    "styleDescription": "This aesthetic centers on a refined, dark, and highly ornamental fusion of ecclesiastical gothic and royal fantasy elements. It emphasizes a dramatic interplay of chiaroscuro lighting, intricate metallic textures, and a somber, devotional atmosphere across both gold and silver color palettes. The visual narrative is consistently melancholic, mysterious, and deeply ornate, characterized by a focus on sacred symbolism and ethereal portraiture.",
+    "imageCount": 19,
+    "sourceMoodboardId": "d42fb32a-2107-5f61-b9c7-c0123bec57ef",
+    "previewImages": [
+      "https://gen.krea.ai/images/f7f60848-bcaf-4cf5-b7a0-916d1d415001.png",
+      "https://gen.krea.ai/images/4c534f01-5a6e-46d7-b083-38bf7f6dcabf.png",
+      "https://gen.krea.ai/images/c055e493-b4be-4e96-8955-2da442926a98.png",
+      "https://gen.krea.ai/images/3766daee-94f4-4f67-9115-336fe4c732c8.png"
+    ],
+    "styleId": "style_gothic_baroque_02",
+    "familyIndex": 2
+  },
+  {
+    "name": "Baroque Infernal Gothic",
+    "familyId": "gothic_baroque",
+    "familyLabel": "Gothic or Baroque",
+    "selectionScore": 68.0,
+    "suitabilityScore": 6,
+    "riskFlags": [
+      "dark_bias"
+    ],
+    "styleKeywords": [
+      "chiaroscuro lighting",
+      "baroque oil painting style",
+      "deep crimson and black palette",
+      "regal gothic aesthetic",
+      "intricate metallic textures",
+      "dramatic shadows",
+      "infernal dark fantasy"
+    ],
+    "styleDescription": "This aesthetic synthesizes the dramatic intensity of classical chiaroscuro with the dark, ornate sensibilities of gothic and infernal fantasy. It balances the regal opulence of heavy velvet drapery and metallic armor with the raw, volatile energy of embers, smoke, and sharp, jagged silhouettes. The common thread across all clusters is a high-contrast, moody atmosphere rendered with rich, painterly textures and a saturated palette of deep crimson, gold, and pitch black.",
+    "imageCount": 19,
+    "sourceMoodboardId": "c98d6d8f-4283-5ef4-8fc4-449473b8a7a5",
+    "previewImages": [
+      "https://gen.krea.ai/images/346c5a1f-fc43-45c3-b7ff-59dad138109c.png",
+      "https://gen.krea.ai/images/1d13eec2-75a8-4678-b555-0d41132e4c1b.png",
+      "https://gen.krea.ai/images/cd2b087e-33f5-4f83-8c78-6e8482772176.png",
+      "https://gen.krea.ai/images/4c96602b-0abe-4fa9-a744-40fa1855520e.png"
+    ],
+    "styleId": "style_gothic_baroque_03",
+    "familyIndex": 3
+  },
+  {
+    "name": "Crimson Gothic Opulence",
+    "familyId": "gothic_baroque",
+    "familyLabel": "Gothic or Baroque",
+    "selectionScore": 57.88,
+    "suitabilityScore": 6,
+    "riskFlags": [],
+    "styleKeywords": [
+      "crimson and gold palette",
+      "gothic surrealism",
+      "baroque and byzantine textures",
+      "dramatic low-key lighting",
+      "intricate gold leaf ornamentation",
+      "uncanny theatrical portraiture",
+      "mystical sci-fi fusion"
+    ],
+    "styleDescription": "This aesthetic synthesizes the haunting drama of gothic surrealism with the ornate craftsmanship of Byzantine, steampunk, and kabuki-inspired motifs. It is anchored by a consistent, high-contrast palette of deep crimson, metallic gold, and obsidian black. The style bridges the gap between ancient, weathered textures and sleek, futuristic geometry to create an atmosphere of regal, uncanny elegance.",
+    "imageCount": 15,
+    "sourceMoodboardId": "b740a714-d8d0-5a7f-ae49-8fc0ab23ee2d",
+    "previewImages": [
+      "https://gen.krea.ai/images/a1830224-5a79-43e0-b70b-b49d4ea0a26f.png",
+      "https://gen.krea.ai/images/e286172e-de10-4a87-96df-0b24446fb5b1.png",
+      "https://gen.krea.ai/images/57affb51-06ae-4645-b2e2-3d71a37789d8.png",
+      "https://gen.krea.ai/images/e88000c9-9d34-408d-aa63-5e213afcd2db.png"
+    ],
+    "styleId": "style_gothic_baroque_04",
+    "familyIndex": 4
+  },
+  {
+    "name": "Opulent Gothic Surrealism",
+    "familyId": "gothic_baroque",
+    "familyLabel": "Gothic or Baroque",
+    "selectionScore": 56.0,
+    "suitabilityScore": 4,
+    "riskFlags": [
+      "dark_bias"
+    ],
+    "styleKeywords": [
+      "dark baroque",
+      "gothic couture",
+      "spiked halo crown",
+      "chiaroscuro lighting",
+      "intricate gold filigree",
+      "black lace veil",
+      "macabre elegance"
+    ],
+    "styleDescription": "This aesthetic synthesizes the haunting elegance of baroque artistry with the sharp, avant-garde edges of dark couture. It thrives on a sophisticated interplay between fragile textures like lace and bone and the heavy, regal weight of tarnished gold and spiked metalwork. Common threads of solemnity, religious iconography, and chiaroscuro lighting create a deeply atmospheric, melancholic, and mysterious visual identity.",
+    "imageCount": 18,
+    "sourceMoodboardId": "6913bd97-3547-5e77-bb98-02bfbf97c232",
+    "previewImages": [
+      "https://gen.krea.ai/images/ebd92de4-c38b-414f-a444-cdeadb1c31e9.png",
+      "https://gen.krea.ai/images/5fcf3097-ede3-4b82-a03b-d6b1a4debfeb.png",
+      "https://gen.krea.ai/images/b74438f1-da8a-4c37-b9f2-fcc461b2d687.png",
+      "https://gen.krea.ai/images/9b36f77c-9cad-4077-a546-a484aa52978c.png"
+    ],
+    "styleId": "style_gothic_baroque_05",
+    "familyIndex": 5
+  },
+  {
+    "name": "Gilded Gothic Cosmicism",
+    "familyId": "gothic_baroque",
+    "familyLabel": "Gothic or Baroque",
+    "selectionScore": 70.0,
+    "suitabilityScore": 8,
+    "riskFlags": [],
+    "styleKeywords": [
+      "ornate gilded armor",
+      "chiaroscuro lighting",
+      "vintage film texture",
+      "jeweled mosaic details",
+      "high-contrast cinematic composition",
+      "mystical fantasy atmosphere",
+      "retro-futuristic sci-fi elements"
+    ],
+    "styleDescription": "This aesthetic synthesizes a deep appreciation for high-fantasy heroism with a cinematic, retro-futuristic sensibility. It centers on the interplay between ornate, jewel-encrusted craftsmanship and dramatic, high-contrast lighting environments that evoke a sense of ancient mystery. By blending textures like oil-painted pixels, shimmering filigree, and soft-focus film grain, the visual identity maintains a consistent atmosphere of opulent, somber grandeur.",
+    "imageCount": 22,
+    "sourceMoodboardId": "8839945b-fc6a-56ff-a635-5b9747d78d44",
+    "previewImages": [
+      "https://gen.krea.ai/images/7814f280-e6bb-4d21-a1da-aa51d6d018ae.png",
+      "https://gen.krea.ai/images/70f8cfd1-d895-45cd-84c6-1321e0de579f.png",
+      "https://gen.krea.ai/images/9596a8e1-f3b4-420b-a0b7-4da03a3594bf.png",
+      "https://gen.krea.ai/images/af494cf9-887e-4af9-b0bb-d84cae471bbb.png"
+    ],
+    "styleId": "style_gothic_baroque_06",
+    "familyIndex": 6
+  },
+  {
+    "name": "Sacred Obsidian Noir",
+    "familyId": "gothic_baroque",
+    "familyLabel": "Gothic or Baroque",
+    "selectionScore": 68.88,
+    "suitabilityScore": 8,
+    "riskFlags": [
+      "dark_bias"
+    ],
+    "styleKeywords": [
+      "chiaroscuro portrait",
+      "gothic regal aesthetic",
+      "ornate metallic crowns",
+      "macabre occult symbolism",
+      "low-key lighting",
+      "intricate lace veils",
+      "desaturated cool tones",
+      "symmetrical composition"
+    ],
+    "styleDescription": "This aesthetic centers on the intersection of macabre high-fantasy and solemn baroque spirituality, defined by the heavy use of chiaroscuro to sculpt pale subjects against absolute darkness. By blending ornate metallic textures like gold crowns and lace with visceral, dark gothic elements, it creates a hauntingly regal atmosphere. The overall visual identity is one of melancholy power, utilizing cool-toned shadows and rich, symmetrical compositions to evoke a sense of occult royalty.",
+    "imageCount": 7,
+    "sourceMoodboardId": "c0a96d6c-cdd7-54f7-bb11-cff035d3cfaf",
+    "previewImages": [
+      "https://gen.krea.ai/images/85e0bb60-ec23-451a-91b6-13cbc7c34327.png",
+      "https://gen.krea.ai/images/598ea176-94c6-4bc2-b316-fcc65d9f0fc6.png",
+      "https://gen.krea.ai/images/37304566-cd91-4672-9e43-de96a43bfc41.png",
+      "https://gen.krea.ai/images/eecff2d9-9c21-404a-8faa-64199118e03c.png"
+    ],
+    "styleId": "style_gothic_baroque_07",
+    "familyIndex": 7
+  },
+  {
+    "name": "Sacred Gilded Void",
+    "familyId": "gothic_baroque",
+    "familyLabel": "Gothic or Baroque",
+    "selectionScore": 66.0,
+    "suitabilityScore": 4,
+    "riskFlags": [
+      "dark_bias"
+    ],
+    "styleKeywords": [
+      "chiaroscuro lighting",
+      "gilded gold accents",
+      "sacred dark art",
+      "veiled figure",
+      "ethereal atmospheric smoke",
+      "baroque gothic",
+      "celestial mysticism",
+      "deep void background"
+    ],
+    "styleDescription": "This aesthetic explores the intersection of dark, ritualistic mysticism and opulent metallic brilliance. It centers on high-contrast chiaroscuro lighting that carves intricate, semi-faceless figures from absolute black voids, utilizing gold leaf and ethereal light to denote divinity. The visual language blends classical religious iconography with grim, eldritch textures to create a solemn, atmospheric sense of sacred darkness.",
+    "imageCount": 17,
+    "sourceMoodboardId": "3d40cf6c-12e1-58a8-8a96-3e5c6dbe3d96",
+    "previewImages": [
+      "https://gen.krea.ai/images/aeaea2d4-e901-475e-aa82-c0ddf827f7b0.png",
+      "https://gen.krea.ai/images/e51a1efc-c62c-49dd-9040-da6770a78088.png",
+      "https://gen.krea.ai/images/272b8e66-28ab-4567-99c2-3c53a32a0021.png",
+      "https://gen.krea.ai/images/97557f84-5941-418d-85b8-0eea5ef76858.png"
+    ],
+    "styleId": "style_gothic_baroque_08",
+    "familyIndex": 8
+  },
+  {
+    "name": "Sublime Chiaroscuro Gothic",
+    "familyId": "gothic_baroque",
+    "familyLabel": "Gothic or Baroque",
+    "selectionScore": 64.0,
+    "suitabilityScore": 12,
+    "riskFlags": [
+      "dark_bias"
+    ],
+    "styleKeywords": [
+      "chiaroscuro lighting",
+      "volcanic amber and deep blue palette",
+      "monumental gothic architecture",
+      "atmospheric volumetric fog",
+      "surreal entropic decay",
+      "cosmic surrealism",
+      "high-contrast cinematic composition"
+    ],
+    "styleDescription": "This aesthetic explores the intersection of dark gothic decay, monumental geological scale, and surreal cosmic phenomena. It is unified by a sophisticated use of chiaroscuro lighting, where high-contrast volcanic oranges and deep, atmospheric blues define the volume of both architectural ruins and organic landscapes. The overall mood is one of awe-inspiring entropic grandeur, characterized by dense, smoky atmospheres and meticulously textured, otherworldly environments.",
+    "imageCount": 19,
+    "sourceMoodboardId": "e3f0f153-407e-564e-b55c-ba16db1167de",
+    "previewImages": [
+      "https://gen.krea.ai/images/f68f1e76-759e-40ef-9ab3-1c3a21725528.png",
+      "https://gen.krea.ai/images/d18e18f6-9612-43a1-b9e7-58107234b129.png",
+      "https://gen.krea.ai/images/8c18dd13-8302-490c-a5de-8c3d7a96dd19.png",
+      "https://gen.krea.ai/images/9e107993-f864-463b-b7fc-a9a3b469967b.png"
+    ],
+    "styleId": "style_gothic_baroque_09",
+    "familyIndex": 9
+  },
+  {
+    "name": "Liquid Gothic Sovereign",
+    "familyId": "gothic_baroque",
+    "familyLabel": "Gothic or Baroque",
+    "selectionScore": 61.38,
+    "suitabilityScore": 0,
+    "riskFlags": [
+      "dark_bias"
+    ],
+    "styleKeywords": [
+      "dark gothic fantasy",
+      "liquid chrome texture",
+      "sharp metallic spikes",
+      "high-contrast studio lighting",
+      "avant-garde armor",
+      "monochromatic palette",
+      "reflective metallic sheen",
+      "ritualistic elegance"
+    ],
+    "styleDescription": "This aesthetic synthesizes dark, ritualistic gothic elements with high-fashion, avant-garde industrial textures. It centers on the interplay between deep, monochromatic shadows and the hyper-reflective, liquid-like sheen of polished chrome and sharp metallic armory. By balancing soft organic textiles like satin and lace against aggressive, spiked hardware, the style achieves a sophisticated yet imposing cyber-gothic presence.",
+    "imageCount": 11,
+    "sourceMoodboardId": "86db601e-5719-5e8a-b4be-61ba6d3d08a1",
+    "previewImages": [
+      "https://gen.krea.ai/images/bdc92935-98d5-4bfa-af40-1c430892629c.png",
+      "https://gen.krea.ai/images/7b4da85a-a97c-4458-99d5-17945a39725f.png",
+      "https://gen.krea.ai/images/713dc6d8-f0f1-4145-8c3d-64dc76fa262a.png",
+      "https://gen.krea.ai/images/37138b69-4086-4730-b5d3-1f3acfbae725.png"
+    ],
+    "styleId": "style_gothic_baroque_10",
+    "familyIndex": 10
+  },
+  {
+    "name": "Rustic Risograph Americana",
+    "familyId": "retro_printmaking",
+    "familyLabel": "Retro Printmaking",
+    "selectionScore": 136.0,
+    "suitabilityScore": 4,
+    "riskFlags": [],
+    "styleKeywords": [
+      "risograph print",
+      "linocut illustration",
+      "textured cream paper",
+      "hand-carved aesthetic",
+      "grainy ink texture",
+      "bold graphic minimalism",
+      "vintage woodblock print",
+      "misregistered ink layers"
+    ],
+    "styleDescription": "This aesthetic centers on the tactile, imperfect charm of traditional printmaking techniques like risograph, linocut, and woodblock printing. It favors a cohesive visual language of grainy textures, bold graphic silhouettes, and a curated palette of cobalt, crimson, and cream. The style balances whimsical folk-art sensibilities with a structured, minimalist approach to composition. Each piece evokes a nostalgic, hand-stamped quality that celebrates the beauty of artisanal print production.",
+    "imageCount": 25,
+    "sourceMoodboardId": "bbee3b4e-104c-5b7b-b507-eda952d8bff6",
+    "previewImages": [
+      "https://gen.krea.ai/images/f1f42c48-dcd4-4c0d-b2d4-0582d8be775f.png",
+      "https://gen.krea.ai/images/23ba09df-5203-470d-9e2e-213dbe4504a8.png",
+      "https://gen.krea.ai/images/ca66d4ee-e313-4838-a030-15cb73cbef2c.png",
+      "https://gen.krea.ai/images/2cddba22-77cd-4f38-878b-9dbac3a6ea2b.png"
+    ],
+    "styleId": "style_retro_printmaking_01",
+    "familyIndex": 1
+  },
+  {
+    "name": "Classical Intaglio Monochromatism",
+    "familyId": "retro_printmaking",
+    "familyLabel": "Retro Printmaking",
+    "selectionScore": 106.0,
+    "suitabilityScore": 4,
+    "riskFlags": [],
+    "styleKeywords": [
+      "intaglio engraving",
+      "cross-hatching",
+      "chiaroscuro ink illustration",
+      "aged parchment",
+      "monochrome etching",
+      "stipple texture",
+      "vintage printmaking style"
+    ],
+    "styleDescription": "This aesthetic centers on the rigorous discipline of historical printmaking techniques, favoring the tactile depth of copperplate etching, aquatint, and banknote engraving. It bridges the gap between scientific naturalism and dramatic baroque portraiture through a shared language of meticulous cross-hatching and stippling. The overall visual identity is defined by a moody, monochrome palette of deep ink against aged parchment, emphasizing structural form and archival texture.",
+    "imageCount": 21,
+    "sourceMoodboardId": "a74f9783-f191-5047-94be-b14f3d65bd2c",
+    "previewImages": [
+      "https://gen.krea.ai/images/deb5bfb2-8e1e-4e89-aab9-dd3ad6c17b97.png",
+      "https://gen.krea.ai/images/d0c07731-720f-4abb-8ff2-4bcb9d804762.png",
+      "https://gen.krea.ai/images/c384a63d-3cd6-4cd5-972e-9ad1ac661e33.png",
+      "https://gen.krea.ai/images/34b12818-d68c-4e57-b473-0ee4bbabd683.png"
+    ],
+    "styleId": "style_retro_printmaking_02",
+    "familyIndex": 2
+  },
+  {
+    "name": "Hypnotic Linocut Nocturne",
+    "familyId": "retro_printmaking",
+    "familyLabel": "Retro Printmaking",
+    "selectionScore": 98.0,
+    "suitabilityScore": 6,
+    "riskFlags": [],
+    "styleKeywords": [
+      "linocut printmaking",
+      "high-contrast duotone",
+      "concentric line patterns",
+      "surreal woodblock texture",
+      "minimalist graphic illustration",
+      "hand-carved organic aesthetic"
+    ],
+    "styleDescription": "This aesthetic explores the intersection of traditional printmaking techniques and surreal, high-contrast graphic design. It centers on the tactile beauty of linocut and woodblock textures, utilizing repetitive concentric patterns to create a sense of hypnotic depth. The overall taste favors a moody, nocturnal atmosphere balanced by bold, artisanal silhouettes and a restricted, vibrant duo-tone color palette.",
+    "imageCount": 25,
+    "sourceMoodboardId": "4d1bd7b6-e593-5cda-ba79-1679c85316db",
+    "previewImages": [
+      "https://gen.krea.ai/images/c8e931c2-c903-49cc-bc74-783f6b9c3467.png",
+      "https://gen.krea.ai/images/034b3605-731e-4cf8-aadf-0fc66162c565.png",
+      "https://gen.krea.ai/images/9618678f-d5ba-4f09-b162-7bfc59f6b291.png",
+      "https://gen.krea.ai/images/02b1d57d-672c-4e7b-925a-65af1cab74c1.png"
+    ],
+    "styleId": "style_retro_printmaking_03",
+    "familyIndex": 3
+  },
+  {
+    "name": "Monochrome Etched Surrealism",
+    "familyId": "retro_printmaking",
+    "familyLabel": "Retro Printmaking",
+    "selectionScore": 100.0,
+    "suitabilityScore": -2,
+    "riskFlags": [],
+    "styleKeywords": [
+      "intaglio printmaking",
+      "woodcut engraving",
+      "cross-hatching",
+      "chiaroscuro",
+      "monochrome etching",
+      "surreal allegory",
+      "antique parchment texture"
+    ],
+    "styleDescription": "This aesthetic centers on the meticulous craftsmanship of historical intaglio printmaking, utilizing traditional woodcut and copperplate engraving techniques to render subjects with immense depth. It bridges the gap between classical antiquity and surreal allegory, favoring dramatic chiaroscuro and dense cross-hatch patterning. The overall visual language is defined by high-contrast monochrome tones and the tactile quality of aged, vintage paper.",
+    "imageCount": 25,
+    "sourceMoodboardId": "efeb3788-63a9-516f-9b0c-55fd7ebfcc37",
+    "previewImages": [
+      "https://gen.krea.ai/images/bdb6d21c-1e06-4b48-9d93-b2136592e095.png",
+      "https://gen.krea.ai/images/dc13b9b4-c6ce-40ba-b8f9-6009d74ed316.png",
+      "https://gen.krea.ai/images/ee2f809a-a766-4ac0-af6d-fcb5cc932a3a.png",
+      "https://gen.krea.ai/images/4b3940b4-c5ea-4788-ae98-feaff4b4103f.png"
+    ],
+    "styleId": "style_retro_printmaking_04",
+    "familyIndex": 4
+  },
+  {
+    "name": "Atmospheric Shin-Hanga Prints",
+    "familyId": "retro_printmaking",
+    "familyLabel": "Retro Printmaking",
+    "selectionScore": 94.0,
+    "suitabilityScore": 2,
+    "riskFlags": [],
+    "styleKeywords": [
+      "shin-hanga style",
+      "japanese woodblock print",
+      "textured washi paper",
+      "hasui kawase inspired",
+      "atmospheric perspective",
+      "traditional ukiyo-e",
+      "muted earth tones"
+    ],
+    "styleDescription": "This aesthetic centers on the refined elegance of early 20th-century Shin-Hanga woodblock printing, emphasizing a harmonious blend of traditional Japanese architecture and transient seasonal moods. It captures a deep sense of nostalgia through atmospheric rainy scenes, vibrant autumn landscapes, and the delicate interplay of light and shadow. The visual language is defined by textured paper grains, bold keylines, and a sophisticated, muted palette punctuated by deliberate, vibrant color accents.",
+    "imageCount": 24,
+    "sourceMoodboardId": "06da051d-6024-5bf1-b33a-ddc0c9c7f7f3",
+    "previewImages": [
+      "https://gen.krea.ai/images/f8fdd799-6516-4d53-8502-51242ce2bef6.png",
+      "https://gen.krea.ai/images/9d784d82-5734-4ce7-bd94-03b8a1a0e420.png",
+      "https://gen.krea.ai/images/0dedfdce-7848-42a1-953a-ff81c1669839.png",
+      "https://gen.krea.ai/images/0038507c-e2b3-4aab-9678-ded3ef9e5e1d.png"
+    ],
+    "styleId": "style_retro_printmaking_05",
+    "familyIndex": 5
+  },
+  {
+    "name": "Rustic Artisanal Printmaking",
+    "familyId": "retro_printmaking",
+    "familyLabel": "Retro Printmaking",
+    "selectionScore": 113.12,
+    "suitabilityScore": 2,
+    "riskFlags": [],
+    "styleKeywords": [
+      "linocut print",
+      "monochromatic ink illustration",
+      "textured cream paper",
+      "rustic block print",
+      "hand-carved aesthetic",
+      "cross-hatching detail",
+      "vintage engraving style"
+    ],
+    "styleDescription": "This aesthetic centers on the tactile warmth of traditional printmaking techniques like woodcut, linocut, and archival etching. It emphasizes a monochromatic color palette, favoring deep blues, forest greens, or classic black ink layered over textured, cream-colored paper. The overall visual language is defined by organic imperfections, rustic folk-art influences, and the deliberate, hand-crafted charm of manual block printing.",
+    "imageCount": 9,
+    "sourceMoodboardId": "bae8553c-aa98-5ed3-ad41-a6e37a98d272",
+    "previewImages": [
+      "https://gen.krea.ai/images/b5c56f34-dc14-4cff-b4d3-21a23a3f5f68.png",
+      "https://gen.krea.ai/images/99e2b4c9-e3f6-4567-886e-3a3c00db149c.png",
+      "https://gen.krea.ai/images/5593bcae-7625-45aa-a0d3-1335a8b5620a.png",
+      "https://gen.krea.ai/images/0da423e3-b02a-4461-8260-e57a6d809905.png"
+    ],
+    "styleId": "style_retro_printmaking_06",
+    "familyIndex": 6
+  },
+  {
+    "name": "Textured Folk Printmaking",
+    "familyId": "retro_printmaking",
+    "familyLabel": "Retro Printmaking",
+    "selectionScore": 106.0,
+    "suitabilityScore": 4,
+    "riskFlags": [],
+    "styleKeywords": [
+      "textured screenprint",
+      "minimalist folk illustration",
+      "grainy risograph aesthetic",
+      "distressed linocut texture",
+      "muted earth tones",
+      "graphic flat art",
+      "nocturnal color palette"
+    ],
+    "styleDescription": "This aesthetic centers on a marriage of minimalist graphic design and tactile, traditional printmaking techniques like screen printing, risograph, and linocut. It favors flattened, organic shapes and high-contrast silhouettes that evoke a sense of nostalgic, nocturnal, and earthy storytelling. By balancing muted, grounded palettes with whimsical folk-art motifs, the style creates a cozy, serene atmosphere that feels both vintage and contemporary.",
+    "imageCount": 22,
+    "sourceMoodboardId": "a09c0e56-5347-5e7f-8020-b50a2de0fa5d",
+    "previewImages": [
+      "https://gen.krea.ai/images/720614d8-9a24-46a9-b41e-8e739511ac9c.png",
+      "https://gen.krea.ai/images/100dbcea-97f9-46c6-8696-49cc5cd428d6.png",
+      "https://gen.krea.ai/images/3f5a444f-87a1-4641-9822-e3673ffee764.png",
+      "https://gen.krea.ai/images/63479203-9311-491b-9b34-eb280988d91b.png"
+    ],
+    "styleId": "style_retro_printmaking_07",
+    "familyIndex": 7
+  },
+  {
+    "name": "Textured Retro Folk Graphics",
+    "familyId": "retro_printmaking",
+    "familyLabel": "Retro Printmaking",
+    "selectionScore": 106.0,
+    "suitabilityScore": 4,
+    "riskFlags": [],
+    "styleKeywords": [
+      "linocut printmaking",
+      "risograph texture",
+      "bold graphic illustration",
+      "warm mustard yellow palette",
+      "distressed ink finish",
+      "folk art aesthetic",
+      "high contrast composition"
+    ],
+    "styleDescription": "This aesthetic centers on a cohesive fusion of tactile printmaking techniques, ranging from linocut and woodblock prints to vibrant risograph and oil pastel effects. A warm, saturated palette of amber, mustard, and deep black ties together a diverse array of folk-inspired, mid-century, and counterculture motifs. The overall visual language is characterized by bold, graphic compositions that prioritize hand-crafted texture and high-contrast, minimalist layouts.",
+    "imageCount": 22,
+    "sourceMoodboardId": "19e63dbf-bfd4-5733-a43d-1e11c3832716",
+    "previewImages": [
+      "https://gen.krea.ai/images/846f535f-72a3-4d60-a9ca-c156bfcdca6a.png",
+      "https://gen.krea.ai/images/1bdee5d7-9ae9-4c4e-9a37-8b8227b57c2f.png",
+      "https://gen.krea.ai/images/30094dbb-5a71-43ad-94a1-a07e7cffcff3.png",
+      "https://gen.krea.ai/images/d606b6dd-5c95-448c-b356-879680b98775.png"
+    ],
+    "styleId": "style_retro_printmaking_08",
+    "familyIndex": 8
+  },
+  {
+    "name": "Acid Relief Printmaking",
+    "familyId": "retro_printmaking",
+    "familyLabel": "Retro Printmaking",
+    "selectionScore": 103.62,
+    "suitabilityScore": 2,
+    "riskFlags": [],
+    "styleKeywords": [
+      "linocut print",
+      "acid green and black",
+      "hand-carved woodblock texture",
+      "high-contrast graphic silhouette",
+      "gritty zine aesthetic",
+      "relief printmaking",
+      "ink chatter"
+    ],
+    "styleDescription": "This aesthetic centers on the tactile, raw energy of traditional relief printmaking, defined by bold gouge marks and high-contrast graphic silhouettes. It bridges the gap between rustic folk-art engraving and a modern, vibrant punk-zine sensibility. By utilizing a striking acid green and black duotone palette, the style emphasizes artisanal textures and gritty, hand-carved imperfections.",
+    "imageCount": 13,
+    "sourceMoodboardId": "88a9a329-ac5e-56ca-b149-eb48d4039657",
+    "previewImages": [
+      "https://gen.krea.ai/images/bd3bded2-12c7-425e-9dbb-eb761df0994e.png",
+      "https://gen.krea.ai/images/c5c16453-284c-4be8-9e20-d4f8c3595a53.png",
+      "https://gen.krea.ai/images/84af3ccf-755b-4df1-9879-82e8b50693c5.png",
+      "https://gen.krea.ai/images/6b959645-abfc-494b-a67a-5eda0cae7705.png"
+    ],
+    "styleId": "style_retro_printmaking_09",
+    "familyIndex": 9
+  },
+  {
+    "name": "Tactile Risograph Duotone",
+    "familyId": "retro_printmaking",
+    "familyLabel": "Retro Printmaking",
+    "selectionScore": 96.0,
+    "suitabilityScore": 4,
+    "riskFlags": [],
+    "styleKeywords": [
+      "risograph print",
+      "duotone color palette",
+      "halftone texture",
+      "screenprint registration error",
+      "textured off-white paper",
+      "minimalist graphic illustration",
+      "retro printmaking"
+    ],
+    "styleDescription": "This aesthetic explores the intersection of retro printmaking and bold, minimalist graphic design through high-contrast duotone palettes. It emphasizes physical materiality by incorporating halftone patterns, screen-print registration errors, and textured paper backgrounds. The style consistently balances vibrant, complementary color schemes with sharp, illustrative silhouettes to evoke a sense of vintage, tactile artistry.",
+    "imageCount": 18,
+    "sourceMoodboardId": "817bfe0d-f022-5b08-bc64-67bb754550c7",
+    "previewImages": [
+      "https://gen.krea.ai/images/90f15620-1c5d-40be-98bc-601d81bf4157.png",
+      "https://gen.krea.ai/images/6bdcacdb-b330-41be-a0aa-d7bd0dae5d5f.png",
+      "https://gen.krea.ai/images/3e01aada-a60a-4ee4-abf8-eb8e4abbb6e4.png",
+      "https://gen.krea.ai/images/ddee7f70-f178-43e3-a2ca-4d2157c8ee51.png"
+    ],
+    "styleId": "style_retro_printmaking_10",
+    "familyIndex": 10
+  },
+  {
+    "name": "Surreal Chrome Futurism",
+    "familyId": "solarpunk_futurist",
+    "familyLabel": "Solarpunk or Futurist",
+    "selectionScore": 99.75,
+    "suitabilityScore": -2,
+    "riskFlags": [],
+    "styleKeywords": [
+      "surreal avant-garde fashion",
+      "liquid chrome",
+      "biomorphic futurism",
+      "high-contrast metallic textures",
+      "cybernetic humanoid",
+      "minimalist studio lighting",
+      "prismatic refraction"
+    ],
+    "styleDescription": "This aesthetic synthesizes high-fashion avant-garde sensibilities with a cold, clinical, and biomechanical futurism. It bridges the gap between delicate organic elements like roses and the harsh, reflective reality of liquid chrome and cybernetic integration. The visual language is defined by a tension between soft, ethereal textures and sharp, high-contrast metallic surfaces, resulting in a polished and transhumanist identity.",
+    "imageCount": 14,
+    "sourceMoodboardId": "ce174e47-1a6b-5ca0-88b0-63752020c588",
+    "previewImages": [
+      "https://gen.krea.ai/images/83b48731-7766-44d9-8b2a-3ac34c5dd479.png",
+      "https://gen.krea.ai/images/a6504a90-7478-4fd6-b0a3-e9e03d1d0db2.png",
+      "https://gen.krea.ai/images/073f26b0-272a-46e1-8b62-c63f052f4e6e.png",
+      "https://gen.krea.ai/images/85c9b838-3426-4f75-af84-ccb8f1ca2d03.png"
+    ],
+    "styleId": "style_solarpunk_futurist_01",
+    "familyIndex": 1
+  },
+  {
+    "name": "Ethereal Solarpunk Dreamscapes",
+    "familyId": "solarpunk_futurist",
+    "familyLabel": "Solarpunk or Futurist",
+    "selectionScore": 86.0,
+    "suitabilityScore": 14,
+    "riskFlags": [],
+    "styleKeywords": [
+      "aerial landscape",
+      "golden hour lighting",
+      "biophilic architecture",
+      "vibrant flower fields",
+      "surreal utopian landscape",
+      "atmospheric haze",
+      "solarpunk aesthetic"
+    ],
+    "styleDescription": "This aesthetic synthesizes organic topography with utopian fantasy, bridging the gap between natural earth contours and imaginative, biophilic architecture. It favors a saturated, vibrant color palette bathed in warm, atmospheric golden hour light to create a sense of harmonious, dreamlike wonder. Whether through futuristic cityscapes or whimsical pastoral villages, the visual identity consistently celebrates the seamless integration of lush, blooming nature with structured, surreal design.",
+    "imageCount": 21,
+    "sourceMoodboardId": "40e73ee4-6d55-55db-85f0-7bd66ec8d898",
+    "previewImages": [
+      "https://gen.krea.ai/images/36eb4bf9-9f5b-47c0-9a3f-a6f99640bf27.png",
+      "https://gen.krea.ai/images/c9c7fdc2-0d98-4da8-b21e-912d65af87ec.png",
+      "https://gen.krea.ai/images/9511ee47-7820-475f-afc7-3e62520d2687.png",
+      "https://gen.krea.ai/images/41ca1056-bcea-42ac-99a4-eefb2d508040.png"
+    ],
+    "styleId": "style_solarpunk_futurist_02",
+    "familyIndex": 2
+  },
+  {
+    "name": "Biophilic Solarpunk Horizon",
+    "familyId": "solarpunk_futurist",
+    "familyLabel": "Solarpunk or Futurist",
+    "selectionScore": 69.88,
+    "suitabilityScore": 8,
+    "riskFlags": [],
+    "styleKeywords": [
+      "solarpunk",
+      "biophilic architecture",
+      "aerial perspective",
+      "organic curves",
+      "misty tropical landscape",
+      "vertical forests",
+      "eco-futurism"
+    ],
+    "styleDescription": "This aesthetic synthesizes advanced architectural futurism with organic, earth-bound landscapes to create a harmonious vision of sustainable progress. It emphasizes the seamless integration of flowing white structures, terraced agriculture, and dense tropical foliage within expansive, misty environments. The common thread is an optimistic, high-tech pastoralism defined by soft, natural illumination and a vibrant, verdant color palette.",
+    "imageCount": 15,
+    "sourceMoodboardId": "00c729c9-78fb-5280-8a28-30e0632d4b20",
+    "previewImages": [
+      "https://gen.krea.ai/images/0f2312be-aa32-4906-a708-526b6e84a909.png",
+      "https://gen.krea.ai/images/b2cf616e-fafe-403d-8350-329d595a535f.png",
+      "https://gen.krea.ai/images/ac921d5a-b26c-4250-a216-893d287a996f.png",
+      "https://gen.krea.ai/images/0367d712-9927-4559-a791-74a4409dfcf7.png"
+    ],
+    "styleId": "style_solarpunk_futurist_03",
+    "familyIndex": 3
+  },
+  {
+    "name": "Surreal Chrome Pastoralism",
+    "familyId": "solarpunk_futurist",
+    "familyLabel": "Solarpunk or Futurist",
+    "selectionScore": 36.0,
+    "suitabilityScore": 4,
+    "riskFlags": [],
+    "styleKeywords": [
+      "liquid chrome",
+      "surreal pastoral landscape",
+      "dappled sunlight",
+      "vibrant greenery",
+      "hyper-reflective surface",
+      "dreamcore aesthetic",
+      "liminal space",
+      "3d render"
+    ],
+    "styleDescription": "This aesthetic explores the harmonious yet uncanny intersection of polished, futuristic metallic forms and untamed, vibrant natural landscapes. It bridges the gap between hyper-realistic digital rendering and dreamlike, liminal environments where domestic or industrial objects are reclaimed by lush, sun-drenched meadows. The visual language relies heavily on the interplay of high-contrast reflections, dappled sunlight, and a saturated color palette that evokes both nostalgia and a sense of surreal isolation.",
+    "imageCount": 18,
+    "sourceMoodboardId": "7123cb77-d8ff-5f62-8bd5-130d397d0bb5",
+    "previewImages": [
+      "https://gen.krea.ai/images/fc40db7b-6baf-4870-9b77-e57a8fc12be1.png",
+      "https://gen.krea.ai/images/bd5ba64a-9a47-4b76-b083-adec8085477d.png",
+      "https://gen.krea.ai/images/89ed7bff-d6db-4cc9-a961-1b7c43a1853a.png",
+      "https://gen.krea.ai/images/3bc78434-31df-4341-8f98-1f86635d6920.png"
+    ],
+    "styleId": "style_solarpunk_futurist_04",
+    "familyIndex": 4
+  },
+  {
+    "name": "Lush Mythic Solarpunk",
+    "familyId": "solarpunk_futurist",
+    "familyLabel": "Solarpunk or Futurist",
+    "selectionScore": 30.0,
+    "suitabilityScore": -2,
+    "riskFlags": [],
+    "styleKeywords": [
+      "stylized digital painting",
+      "volumetric lighting",
+      "overgrown architecture",
+      "painterly texture",
+      "vibrant color palette",
+      "solarpunk aesthetic",
+      "dramatic golden hour",
+      "mythic scale"
+    ],
+    "styleDescription": "This aesthetic centers on the harmonious integration of overgrown, decaying architecture with vibrant natural ecosystems. It balances a nostalgic sense of solitary ruins with an optimistic, futuristic vision, all rendered through a consistent, stylized painterly lens. The common thread across all clusters is the masterful use of dramatic volumetric lighting and a rich, high-contrast color palette that emphasizes depth and atmosphere.",
+    "imageCount": 25,
+    "sourceMoodboardId": "d22877e4-dd7f-5495-bdec-b72ce618ca03",
+    "previewImages": [
+      "https://gen.krea.ai/images/b42816fd-b4c5-4b84-9925-2f33b5987371.png",
+      "https://gen.krea.ai/images/9f8dd259-3e10-48b1-bb04-6afb2028bea7.png",
+      "https://gen.krea.ai/images/3ecf4768-1d0c-41a8-b77d-b2e3dbf6c3a3.png",
+      "https://gen.krea.ai/images/c72044fd-7cb3-4c35-8520-f68d8b9b190f.png"
+    ],
+    "styleId": "style_solarpunk_futurist_05",
+    "familyIndex": 5
+  },
+  {
+    "name": "Vibrant Chrome Cyber-Surrealism",
+    "familyId": "solarpunk_futurist",
+    "familyLabel": "Solarpunk or Futurist",
+    "selectionScore": 90.0,
+    "suitabilityScore": -2,
+    "riskFlags": [],
+    "styleKeywords": [
+      "liquid chrome texture",
+      "high-contrast pop surrealism",
+      "saturated crimson red",
+      "retro-futuristic airbrush style",
+      "reflective metallic surfaces",
+      "cybernetic aesthetic",
+      "bold studio lighting",
+      "starburst lens flares"
+    ],
+    "styleDescription": "This aesthetic centers on a high-contrast fusion of liquid chrome surfaces and saturated primary color palettes, specifically deep crimson and electric blue. It expertly bridges the gap between 1980s airbrush nostalgia and futuristic cyberpunk design through polished, reflective textures and dramatic studio lighting. The overall visual identity is defined by sharp, graphic compositions that emphasize a sleek, metallic, and avant-garde sensibility.",
+    "imageCount": 25,
+    "sourceMoodboardId": "9c3d11b8-1d46-51eb-b66a-e7ee6d4d12ad",
+    "previewImages": [
+      "https://gen.krea.ai/images/aa03cdd9-e492-4c29-b8a2-0a2c62c3166b.png",
+      "https://gen.krea.ai/images/38616353-072b-4d22-bc3c-5f7099d702e9.png",
+      "https://gen.krea.ai/images/8d60ba3c-723d-4286-a997-7a12a87d1977.png",
+      "https://gen.krea.ai/images/e852fd5e-a212-47ce-b0c2-1806c8e41f5a.png"
+    ],
+    "styleId": "style_solarpunk_futurist_06",
+    "familyIndex": 6
+  },
+  {
+    "name": "Baroque Cybernetic Opulence",
+    "familyId": "solarpunk_futurist",
+    "familyLabel": "Solarpunk or Futurist",
+    "selectionScore": 84.75,
+    "suitabilityScore": 4,
+    "riskFlags": [],
+    "styleKeywords": [
+      "baroque futurism",
+      "gilded biomechanical filigree",
+      "porcelain skin texture",
+      "avant-garde high fashion",
+      "studio portrait lighting",
+      "opulent metallic embellishments",
+      "surreal cybernetic anatomy"
+    ],
+    "styleDescription": "This aesthetic synthesizes historical ecclesiastical grandiosity with cutting-edge biomechanical futurism to create a high-fashion, avant-garde visual language. It centers on the juxtaposition of luxurious gold filigree and crystalline textures against the cold, precise reality of cybernetic modifications and porcelain-like skin. The overall mood is defined by a powerful, mysterious intensity captured through sharp studio lighting and minimalist, high-contrast backgrounds.",
+    "imageCount": 6,
+    "sourceMoodboardId": "0b28e1f2-c0d3-50e1-9a0d-b8ce06e56027",
+    "previewImages": [
+      "https://gen.krea.ai/images/92fee141-6c85-4d97-a702-02bcc1adcdd9.png",
+      "https://gen.krea.ai/images/3ad07515-e040-4bd3-a21b-865797e47029.png",
+      "https://gen.krea.ai/images/29537710-3c76-4401-a2b9-96e230af2b40.png",
+      "https://gen.krea.ai/images/6ee98621-ffc2-4962-a755-358cb7eacbcc.png"
+    ],
+    "styleId": "style_solarpunk_futurist_07",
+    "familyIndex": 7
+  },
+  {
+    "name": "Cinematic Cybernetic Noir",
+    "familyId": "solarpunk_futurist",
+    "familyLabel": "Solarpunk or Futurist",
+    "selectionScore": 76.75,
+    "suitabilityScore": 6,
+    "riskFlags": [
+      "dark_bias"
+    ],
+    "styleKeywords": [
+      "cybernetic portraiture",
+      "chiaroscuro lighting",
+      "futuristic eyewear",
+      "cinematic 35mm film grain",
+      "high contrast composition",
+      "minimalist cyberpunk",
+      "saturated amber and blue palette"
+    ],
+    "styleDescription": "This aesthetic synthesizes high-tech futuristic elements with the raw, dramatic intensity of classic chiaroscuro portraiture. It balances clean, minimalist sci-fi geometry with the tactile, organic grit of heavy film grain and deep shadows. The result is a sophisticated visual language that uses saturated primary colors and localized lighting to create intimate, cinematic portraits that feel both synthetic and profoundly human.",
+    "imageCount": 6,
+    "sourceMoodboardId": "8cb04789-bf5d-533e-9cb9-7223d7f998ab",
+    "previewImages": [
+      "https://gen.krea.ai/images/cfc0867b-2715-478e-8dd9-9fcdd8e760f4.png",
+      "https://gen.krea.ai/images/a2a89b51-84be-4a8e-9c71-d93bfb732249.png",
+      "https://gen.krea.ai/images/305aec71-e547-47c9-bf1a-a21a49ec6fbc.png",
+      "https://gen.krea.ai/images/74349e3a-857a-4580-859b-792915ad2436.png"
+    ],
+    "styleId": "style_solarpunk_futurist_08",
+    "familyIndex": 8
+  },
+  {
+    "name": "Nocturnal Cybernetic Noir",
+    "familyId": "solarpunk_futurist",
+    "familyLabel": "Solarpunk or Futurist",
+    "selectionScore": 74.0,
+    "suitabilityScore": 2,
+    "riskFlags": [
+      "macro_bias",
+      "dark_bias"
+    ],
+    "styleKeywords": [
+      "monochromatic cobalt blue lighting",
+      "extreme close-up portrait",
+      "high-contrast chiaroscuro",
+      "cybernetic noir aesthetic",
+      "shallow depth of field",
+      "bioluminescent skin texture",
+      "cinematic anamorphic lens flare"
+    ],
+    "styleDescription": "This aesthetic explores the intersection of high-tech futurism and moody, ritualistic intimacy through a strictly monochromatic blue color palette. It prioritizes extreme macro photography and cinematic lighting to emphasize textures, from wet-look skin to stark charcoal markings. The common thread across all clusters is a deep, shadow-heavy atmosphere that utilizes intense cool-toned highlights to create a sense of suspenseful, cybernetic mystery.",
+    "imageCount": 24,
+    "sourceMoodboardId": "69c18005-84a6-598c-baf5-c2a1b7be9b13",
+    "previewImages": [
+      "https://gen.krea.ai/images/cd32f6e0-5cef-4874-9eac-ea44fd7d7d58.png",
+      "https://gen.krea.ai/images/f010c9a8-b176-4d10-9a04-a76675768ceb.png",
+      "https://gen.krea.ai/images/c6503493-244b-400c-b835-c44b217af33a.png",
+      "https://gen.krea.ai/images/f0833dca-ece0-48f6-956a-5e0c72b72b49.png"
+    ],
+    "styleId": "style_solarpunk_futurist_09",
+    "familyIndex": 9
+  },
+  {
+    "name": "Fragmented Cybernetic Portraiture",
+    "familyId": "solarpunk_futurist",
+    "familyLabel": "Solarpunk or Futurist",
+    "selectionScore": 73.62,
+    "suitabilityScore": 2,
+    "riskFlags": [],
+    "styleKeywords": [
+      "glitch art portrait",
+      "pixel sorting",
+      "chiaroscuro lighting",
+      "digital disintegration",
+      "chromatic aberration",
+      "horizontal scanlines",
+      "cybernetic identity"
+    ],
+    "styleDescription": "This aesthetic explores the intersection of classical portraiture and systemic digital decay. It emphasizes a high-contrast, chiaroscuro-heavy foundation that is systematically dismantled through pixel-sorting, scanline distortion, and vibrant chromatic artifacts. The visual language oscillates between stark monochrome minimalism and neon-saturated cybernetic alienation, focusing on the disintegration of human identity within a digital void.",
+    "imageCount": 13,
+    "sourceMoodboardId": "e8d742cf-54be-514e-8703-8c95789f2228",
+    "previewImages": [
+      "https://gen.krea.ai/images/8ef1bc59-6229-4211-87ea-6c7e64b52844.png",
+      "https://gen.krea.ai/images/09937ffa-d22f-4078-8ebf-af89ec33a58d.png",
+      "https://gen.krea.ai/images/e71a89c6-9e3d-4545-8e3d-6bd536fc24e9.png",
+      "https://gen.krea.ai/images/710e97af-f165-4516-88ed-980b7e8812df.png"
+    ],
+    "styleId": "style_solarpunk_futurist_10",
+    "familyIndex": 10
+  },
+  {
+    "name": "Tactile Fiber Landscapes",
+    "familyId": "tactile_handcrafted",
+    "familyLabel": "Tactile or Handcrafted",
+    "selectionScore": 138.0,
+    "suitabilityScore": 6,
+    "riskFlags": [],
+    "styleKeywords": [
+      "tactile textile landscape",
+      "3D embroidery relief",
+      "needle felted fiber art",
+      "chunky yarn texture",
+      "handcrafted wool tapestry",
+      "whimsical pastoral scene",
+      "intricate stitch detail"
+    ],
+    "styleDescription": "This aesthetic centers on the intricate beauty of handcrafted textile arts, specifically landscapes rendered through embroidery, needle felting, and wool tufting. It favors a deeply tactile, three-dimensional quality where layered fibers, chunky yarn, and varied stitch techniques create a rich sense of relief and depth. The overall mood is consistently cozy and whimsical, defined by a vibrant yet soft color palette that bridges pastoral charm with folk-art sensibilities.",
+    "imageCount": 21,
+    "sourceMoodboardId": "4f7c1cd5-0841-594e-89a7-0b7e019f8618",
+    "previewImages": [
+      "https://gen.krea.ai/images/7d5cff29-aa47-4d99-b186-9617e4894881.png",
+      "https://gen.krea.ai/images/802ab13b-79f8-4d83-b0dd-bd3cc18051da.png",
+      "https://gen.krea.ai/images/6268c472-7453-4706-bb8f-2809007cf30e.png",
+      "https://gen.krea.ai/images/7519555f-129d-4ccb-92bb-5fdcfe3eb5d8.png"
+    ],
+    "styleId": "style_tactile_handcrafted_01",
+    "familyIndex": 1
+  },
+  {
+    "name": "Tactile Whimsical Craft",
+    "familyId": "tactile_handcrafted",
+    "familyLabel": "Tactile or Handcrafted",
+    "selectionScore": 114.0,
+    "suitabilityScore": 2,
+    "riskFlags": [],
+    "styleKeywords": [
+      "tactile fiber textures",
+      "felted wool aesthetic",
+      "whimsical stop-motion style",
+      "soft pastel color palette",
+      "miniature diorama look",
+      "fuzzy flocked surfaces",
+      "bright optimistic daylight",
+      "cozy yarncraft details"
+    ],
+    "styleDescription": "This aesthetic centers on a tactile, miniature world defined by soft-sculpture materials like felt, wool, and yarn. It masterfully blends the nostalgic charm of stop-motion puppetry with a dreamy, pastel-infused color palette and bright, optimistic lighting. The common thread across all clusters is a deep appreciation for rich, flocked, and fuzzy textures that evoke a sense of cozy, handcrafted wonder.",
+    "imageCount": 20,
+    "sourceMoodboardId": "77881c2e-9f63-5652-9b6b-407bd91a31f7",
+    "previewImages": [
+      "https://gen.krea.ai/images/a52ca223-db0e-4857-9c08-b677a3fa60d3.png",
+      "https://gen.krea.ai/images/f1ef4e41-afea-41cc-9c04-69269d830735.png",
+      "https://gen.krea.ai/images/88af9888-a3ab-4f59-bf7a-c9a1ad552b28.png",
+      "https://gen.krea.ai/images/afb167ac-73cc-481d-a1e7-5b201616e01f.png"
+    ],
+    "styleId": "style_tactile_handcrafted_02",
+    "familyIndex": 2
+  },
+  {
+    "name": "Tactile Whimsical Stop-Motion",
+    "familyId": "tactile_handcrafted",
+    "familyLabel": "Tactile or Handcrafted",
+    "selectionScore": 113.62,
+    "suitabilityScore": 2,
+    "riskFlags": [],
+    "styleKeywords": [
+      "tactile stop-motion style",
+      "felt and claymation textures",
+      "vibrant primary color palette",
+      "miniature diorama composition",
+      "shallow depth of field",
+      "whimsical character design",
+      "soft studio lighting"
+    ],
+    "styleDescription": "This aesthetic celebrates a love for physical, handcrafted textures such as felt, wool, and matte claymation, unified by a playful and nostalgic toy-like charm. The visual language balances clean studio-lit compositions with moody, atmospheric dioramas that emphasize miniature-scale storytelling. By blending adult corporate settings with the innocent, vibrant geometry of children's media, the style creates a unique and immersive world that feels both tactile and surreal.",
+    "imageCount": 13,
+    "sourceMoodboardId": "c941e73a-3c57-5484-96d6-2589a038cfd6",
+    "previewImages": [
+      "https://gen.krea.ai/images/bc3209c5-54c5-400c-a54b-40a959071f88.png",
+      "https://gen.krea.ai/images/cb2355ba-6852-4e06-ad7c-e825e82f3a5b.png",
+      "https://gen.krea.ai/images/100c4225-54bb-4cd4-9163-5f8389e4ef2b.png",
+      "https://gen.krea.ai/images/9a99f05c-dea4-458f-b37a-46f73bac1a7a.png"
+    ],
+    "styleId": "style_tactile_handcrafted_03",
+    "familyIndex": 3
+  },
+  {
+    "name": "Artisanal Folk Whimsy",
+    "familyId": "tactile_handcrafted",
+    "familyLabel": "Tactile or Handcrafted",
+    "selectionScore": 26.62,
+    "suitabilityScore": 6,
+    "riskFlags": [],
+    "styleKeywords": [
+      "gouache illustration",
+      "folk art aesthetic",
+      "hand-painted textures",
+      "simplified organic silhouettes",
+      "flat color blocking",
+      "minimalist composition",
+      "whimsical storytelling"
+    ],
+    "styleDescription": "This aesthetic celebrates a harmonious blend of artisanal folk art and gentle, minimalist storytelling. It bridges the gap between vibrant, high-contrast gouache textures and soft, serene pastel palettes to create a warm and inviting visual narrative. The common threads of simplified silhouettes, hand-painted textures, and organic motifs ensure a cohesive sense of playful wonder across both bold and muted color schemes.",
+    "imageCount": 5,
+    "sourceMoodboardId": "fd4a8b78-ee43-512b-9987-dfb79300a897",
+    "previewImages": [
+      "https://gen.krea.ai/images/742e76d3-0de8-4e78-a714-6b95f462535b.png",
+      "https://gen.krea.ai/images/f60d06ae-40b7-40fc-97b1-5557f79f32dc.png",
+      "https://gen.krea.ai/images/db2e0d35-f424-439c-8469-7193ccf9b5ca.png",
+      "https://gen.krea.ai/images/e5595e01-ac2a-4bb6-9c34-6c3a26a441d2.png"
+    ],
+    "styleId": "style_tactile_handcrafted_04",
+    "familyIndex": 4
+  },
+  {
+    "name": "Textured Editorial Folk",
+    "familyId": "tactile_handcrafted",
+    "familyLabel": "Tactile or Handcrafted",
+    "selectionScore": 32.62,
+    "suitabilityScore": 2,
+    "riskFlags": [],
+    "styleKeywords": [
+      "risograph illustration",
+      "fine cross-hatching",
+      "stippled micro-texture",
+      "muted vintage palette",
+      "flat graphic composition",
+      "textured cream paper",
+      "mid-century editorial style"
+    ],
+    "styleDescription": "This aesthetic synthesizes the charm of mid-century folk art with the precision of classic editorial illustration. It prioritizes a tactile, handcrafted quality achieved through intricate ink work, stippling, and cross-hatching on warm, textured paper. The visual language balances flat, minimalist compositions with a muted color palette punctuated by sharp, vibrant accents of orange or coral.",
+    "imageCount": 5,
+    "sourceMoodboardId": "3ed5e618-c08f-54c3-a61f-22051a5e8ee8",
+    "previewImages": [
+      "https://gen.krea.ai/images/483a121a-03db-4ae4-893c-4ec189f3af36.png",
+      "https://gen.krea.ai/images/5c1a0a2f-3ba4-47ae-9158-90660452a698.png",
+      "https://gen.krea.ai/images/bfb43828-eb2e-4d21-b2a3-28945a3335f6.png",
+      "https://gen.krea.ai/images/8af63807-4de0-4f82-8b38-b5732515e197.png"
+    ],
+    "styleId": "style_tactile_handcrafted_05",
+    "familyIndex": 5
+  },
+  {
+    "name": "Tactile Surrealist Collage",
+    "familyId": "tactile_handcrafted",
+    "familyLabel": "Tactile or Handcrafted",
+    "selectionScore": 75.0,
+    "suitabilityScore": 4,
+    "riskFlags": [],
+    "styleKeywords": [
+      "analog paper collage",
+      "tactile layering",
+      "surrealist photomontage",
+      "vintage film grain",
+      "graphic paper cutouts",
+      "high-contrast edges",
+      "mixed media art",
+      "nostalgic editorial aesthetic"
+    ],
+    "styleDescription": "This aesthetic explores the intersection of vintage nostalgia and avant-garde surrealism through the lens of physical, mixed-media artistry. It bridges the gap between retro, grainy portraiture and high-contrast graphic elements, utilizing layered paper cutouts and tactile textures to distort and reimagine human subjects. The visual language oscillates between warm, desaturated earth tones and bold, saturated color accents, creating a dreamlike and introspective atmosphere.",
+    "imageCount": 8,
+    "sourceMoodboardId": "8e3de268-32a4-5554-b91a-6fea841c61bb",
+    "previewImages": [
+      "https://gen.krea.ai/images/93fa6274-85b8-4ed1-94bf-744817d2747a.png",
+      "https://gen.krea.ai/images/bfc885ce-d454-4132-bf49-722cd729f134.png",
+      "https://gen.krea.ai/images/d00cba4b-abeb-4c69-aff2-5ba7c47163d3.png",
+      "https://gen.krea.ai/images/96a17c67-4a8e-4e9f-8045-3a8b1638b10f.png"
+    ],
+    "styleId": "style_tactile_handcrafted_06",
+    "familyIndex": 6
+  },
+  {
+    "name": "Tactile Neo-Punk Collage",
+    "familyId": "tactile_handcrafted",
+    "familyLabel": "Tactile or Handcrafted",
+    "selectionScore": 74.0,
+    "suitabilityScore": 2,
+    "riskFlags": [],
+    "styleKeywords": [
+      "torn paper collage",
+      "halftone screen print",
+      "risograph texture",
+      "punk zine aesthetic",
+      "high contrast graphic design",
+      "mixed media assemblage",
+      "vibrant neon accents"
+    ],
+    "styleDescription": "This aesthetic centers on a raw, DIY-driven fusion of analog print techniques and surrealist graphic design. It masterfully balances the gritty, rebellious energy of punk zine culture with the tactile, layered complexity of handcrafted paper collage. The common threads of halftone textures, screen-printed overlays, and high-contrast color palettes create a cohesive, underground visual language that feels both nostalgic and subversively modern.",
+    "imageCount": 24,
+    "sourceMoodboardId": "6551e7dd-3403-5fee-903e-27108217ad97",
+    "previewImages": [
+      "https://gen.krea.ai/images/48570d25-a4b4-4ad7-9d84-2ffd85566a90.png",
+      "https://gen.krea.ai/images/7f1e4b58-93d5-4050-9c09-801fe9b6a3d6.png",
+      "https://gen.krea.ai/images/d45b520e-e5ba-4055-ae12-f71e3a61ef69.png",
+      "https://gen.krea.ai/images/7507e1af-19c3-4929-8555-2bc9c16012a0.png"
+    ],
+    "styleId": "style_tactile_handcrafted_07",
+    "familyIndex": 7
+  },
+  {
+    "name": "Midcentury Tactile Print",
+    "familyId": "tactile_handcrafted",
+    "familyLabel": "Tactile or Handcrafted",
+    "selectionScore": 66.0,
+    "suitabilityScore": 4,
+    "riskFlags": [],
+    "styleKeywords": [
+      "mid-century print aesthetic",
+      "halftone dot texture",
+      "vintage lithograph style",
+      "tactile yarn embroidery",
+      "distressed paper patina",
+      "saturated retro palette",
+      "graphic screenprint illustration"
+    ],
+    "styleDescription": "This aesthetic centers on the nostalgic intersection of mid-century commercial print techniques and tactile fiber art. It favors a rich, organic color palette of warm citrus tones, deep ochres, and forest greens layered over aged textures like newsprint and woven textiles. The overall look is characterized by a blend of graphic halftone patterns, stippled lithographic shading, and the dense, physical depth of needlepoint and embroidery.",
+    "imageCount": 25,
+    "sourceMoodboardId": "b73b9fdb-b2fd-527d-b0a9-d5a62d42bb83",
+    "previewImages": [
+      "https://gen.krea.ai/images/2e18611f-2def-4514-91a6-a8c97aab8cf7.png",
+      "https://gen.krea.ai/images/94e31a3d-1214-4daa-8669-59f184fbc21c.png",
+      "https://gen.krea.ai/images/21de4eea-87b8-4274-a3dc-36d285155bf1.png",
+      "https://gen.krea.ai/images/e333c52d-d7fb-4f29-acbb-ad1466757688.png"
+    ],
+    "styleId": "style_tactile_handcrafted_08",
+    "familyIndex": 8
+  },
+  {
+    "name": "Graphic Surrealist Collage",
+    "familyId": "tactile_handcrafted",
+    "familyLabel": "Tactile or Handcrafted",
+    "selectionScore": 65.12,
+    "suitabilityScore": 4,
+    "riskFlags": [],
+    "styleKeywords": [
+      "surreal collage",
+      "risograph texture",
+      "geometric pop art",
+      "halftone stipple",
+      "vibrant color blocking",
+      "tactile paper cutout",
+      "absurdist composition"
+    ],
+    "styleDescription": "This aesthetic explores a vibrant intersection of retro graphic design and absurdist surrealism, characterized by bold color blocking and tactile print textures. It seamlessly blends the structured, geometric precision of risograph printing with the whimsical, layered depth of handmade paper cutouts. The overall visual language prioritizes high-contrast, playful compositions that bridge the gap between digital vector clarity and vintage analog charm.",
+    "imageCount": 9,
+    "sourceMoodboardId": "936ca87f-b7c0-5be8-b2f8-0f8bfadd3097",
+    "previewImages": [
+      "https://gen.krea.ai/images/a4054324-67f0-4c84-9220-dcdc0d795dbf.png",
+      "https://gen.krea.ai/images/86d71a61-dcc5-4023-8417-faa59d29b290.png",
+      "https://gen.krea.ai/images/7af21359-b508-4898-8a93-b5f08fd57aa5.png",
+      "https://gen.krea.ai/images/5ba34c63-09b1-4081-a2c9-59388d1529f4.png"
+    ],
+    "styleId": "style_tactile_handcrafted_09",
+    "familyIndex": 9
+  },
+  {
+    "name": "Tactile Deconstructed Collage",
+    "familyId": "tactile_handcrafted",
+    "familyLabel": "Tactile or Handcrafted",
+    "selectionScore": 64.0,
+    "suitabilityScore": 2,
+    "riskFlags": [],
+    "styleKeywords": [
+      "analogue paper collage",
+      "grid-based mosaic",
+      "woven vintage photography",
+      "tactile paper texture",
+      "fragmented geometric composition",
+      "muted retro color palette",
+      "deconstructed imagery"
+    ],
+    "styleDescription": "This aesthetic centers on the physical manipulation of imagery through grid-based reconstruction, weaving, and mosaic techniques. It blends nostalgic, muted vintage color palettes with a tactile, analogue sensibility that emphasizes paper grain, rough-cut edges, and geometric fragmentation. The style bridges the gap between traditional craft and surreal distortion, creating a rhythmic visual language that treats photographs as raw, deconstructible material.",
+    "imageCount": 23,
+    "sourceMoodboardId": "edd1e235-37f3-56fa-b112-16d595e064af",
+    "previewImages": [
+      "https://gen.krea.ai/images/15c9cbf6-827d-40d2-a722-57763c4a8fbe.png",
+      "https://gen.krea.ai/images/3124320b-171e-4758-a4f8-a775323a2428.png",
+      "https://gen.krea.ai/images/43c28dc0-581a-4570-8241-4322e9f03968.png",
+      "https://gen.krea.ai/images/52fce425-a37b-40e2-a443-82ffe31f5eb0.png"
+    ],
+    "styleId": "style_tactile_handcrafted_10",
+    "familyIndex": 10
+  },
+  {
+    "name": "Surreal Liminal Pastoral",
+    "familyId": "surreal_scene_readable",
+    "familyLabel": "Surreal but Scene-Readable",
+    "selectionScore": 124.0,
+    "suitabilityScore": 12,
+    "riskFlags": [],
+    "styleKeywords": [
+      "liminal space",
+      "surrealist minimalist landscape",
+      "vibrant green hills",
+      "sharp dramatic shadows",
+      "uncanny dreamcore",
+      "clean digital render",
+      "perfect blue sky"
+    ],
+    "styleDescription": "This aesthetic centers on a surrealist interpretation of minimalist landscapes, characterized by vibrant, saturated colors and uncanny, toy-like compositions. It bridges the gap between digital dreamscapes and classic surrealist painting, utilizing sharp lighting and clean textures to evoke a sense of peaceful, liminal isolation. The common threads across all clusters are pristine blue skies, rolling green topography, and a deliberate, high-contrast visual clarity that feels both nostalgic and otherworldly.",
+    "imageCount": 25,
+    "sourceMoodboardId": "c2898b95-1ef6-5137-805f-b23d917bb1bd",
+    "previewImages": [
+      "https://gen.krea.ai/images/6474de78-5f62-42d9-abd1-d51dea86ca3e.png",
+      "https://gen.krea.ai/images/3d0b9843-3309-4444-a923-7ed1031b45e3.png",
+      "https://gen.krea.ai/images/7d1a7c61-0230-4eca-9010-6ad901f94930.png",
+      "https://gen.krea.ai/images/9a815320-ac32-4a31-988c-087b9f64a7c5.png"
+    ],
+    "styleId": "style_surreal_scene_readable_01",
+    "familyIndex": 1
+  },
+  {
+    "name": "Liminal Surrealist Distortion",
+    "familyId": "surreal_scene_readable",
+    "familyLabel": "Surreal but Scene-Readable",
+    "selectionScore": 117.75,
+    "suitabilityScore": 6,
+    "riskFlags": [],
+    "styleKeywords": [
+      "liminal space",
+      "surrealist perspective",
+      "dreamcore",
+      "fisheye lens distortion",
+      "industrial gothic fusion",
+      "fluorescent lighting",
+      "impossible sky portal",
+      "uncanny valley"
+    ],
+    "styleDescription": "This aesthetic explores the unsettling convergence of mundane, sterile environments and impossible, dreamlike vistas. It utilizes extreme wide-angle perspectives and dramatic lighting to transform everyday architectural spaces into portals of uncanny escapism. The common thread across the collection is a sense of liminality, where cold industrial or gothic structures are juxtaposed against vibrant, surreal sky elements to evoke a disorienting, high-contrast atmosphere.",
+    "imageCount": 14,
+    "sourceMoodboardId": "a3683aab-4958-580d-b417-11e930b0c208",
+    "previewImages": [
+      "https://gen.krea.ai/images/df7c74da-8af8-4f02-8b9d-09f6646d5151.png",
+      "https://gen.krea.ai/images/0c9f397d-472d-4895-8aa1-a230c6cf0966.png",
+      "https://gen.krea.ai/images/2b816155-3d89-43b8-813c-1b57f174a4c7.png",
+      "https://gen.krea.ai/images/1ea99278-37fd-4c30-8bb8-97dadda26736.png"
+    ],
+    "styleId": "style_surreal_scene_readable_02",
+    "familyIndex": 2
+  },
+  {
+    "name": "Hyperreal Digital Dreamscapes",
+    "familyId": "surreal_scene_readable",
+    "familyLabel": "Surreal but Scene-Readable",
+    "selectionScore": 112.0,
+    "suitabilityScore": 10,
+    "riskFlags": [],
+    "styleKeywords": [
+      "hyperreal digital aesthetic",
+      "vibrant green and cobalt blue palette",
+      "surreal liminal landscape",
+      "clean 3D CGI render",
+      "miniature world diorama",
+      "nostalgic dreamscape",
+      "minimalist surrealism"
+    ],
+    "styleDescription": "This aesthetic centers on the intersection of hyper-saturated, nostalgic digital environments and surrealist miniature worlds. It balances the pristine, clean precision of early-2000s CGI with the dreamlike, liminal quality of isolated, vibrant landscapes. The common thread is a commitment to high-contrast, saturated color palettes featuring deep blues and intense greens, often presented through unconventional perspectives like fish-eye lenses or floating dioramas.",
+    "imageCount": 25,
+    "sourceMoodboardId": "b7cb0eb5-ae8c-5705-a31d-a987b58a52aa",
+    "previewImages": [
+      "https://gen.krea.ai/images/45f2ff7b-7ce4-4f5f-9479-68fd523bc6bb.png",
+      "https://gen.krea.ai/images/97dda58f-3320-4865-8566-dda975cbe8d9.png",
+      "https://gen.krea.ai/images/8ccfe6eb-aa91-4168-8368-c2fca2e8bbf0.png",
+      "https://gen.krea.ai/images/1f53c59f-0c22-4c6e-b64a-73dea34df082.png"
+    ],
+    "styleId": "style_surreal_scene_readable_03",
+    "familyIndex": 3
+  },
+  {
+    "name": "Surrealist Liminal Horizons",
+    "familyId": "surreal_scene_readable",
+    "familyLabel": "Surreal but Scene-Readable",
+    "selectionScore": 97.88,
+    "suitabilityScore": 6,
+    "riskFlags": [],
+    "styleKeywords": [
+      "liminal space",
+      "surrealist landscape",
+      "one-point perspective",
+      "vast blue sky",
+      "minimalist composition",
+      "dreamlike isolation",
+      "sharp geometric shadows"
+    ],
+    "styleDescription": "This aesthetic centers on the intersection of vast, minimalist landscapes and surrealist dreamscapes defined by a profound sense of temporal and spatial isolation. Common threads include a deep commitment to one-point perspective, expansive blue skies, and the juxtaposition of sharp geometric shadows against organic, uncanny focal points. The visual language shifts between vibrant, saturated primary colors and soft, atmospheric pastel gradients, creating a consistent feeling of meditative, dreamlike solitude.",
+    "imageCount": 15,
+    "sourceMoodboardId": "b8126755-84da-537a-9f70-6c287bbda11a",
+    "previewImages": [
+      "https://gen.krea.ai/images/d5092677-b1cc-414c-8706-e5e209cdf098.png",
+      "https://gen.krea.ai/images/308d84b5-26e7-45f0-b8a4-c4d9e0b4bf37.png",
+      "https://gen.krea.ai/images/cac7c42e-eac2-4c50-b4a7-d4690175ce23.png",
+      "https://gen.krea.ai/images/7496e5f0-71f1-4f42-983a-27305610bcd6.png"
+    ],
+    "styleId": "style_surreal_scene_readable_04",
+    "familyIndex": 4
+  },
+  {
+    "name": "Retro-Surrealist Neon Dreamscape",
+    "familyId": "surreal_scene_readable",
+    "familyLabel": "Surreal but Scene-Readable",
+    "selectionScore": 90.0,
+    "suitabilityScore": 8,
+    "riskFlags": [],
+    "styleKeywords": [
+      "1980s sci-fi airbrush",
+      "nocturnal neon glow",
+      "retro-surrealist dreamscape",
+      "grainy analog texture",
+      "geometric cosmic composition",
+      "low-angle perspective",
+      "risograph halftone effect"
+    ],
+    "styleDescription": "This aesthetic synthesizes the nostalgic textures of 1980s airbrush illustration with the surreal, liminal qualities of cosmic-infused urban environments. It bridges the gap between retro-futurism and lo-fi analog print styles, utilizing high-contrast neon palettes against deep, nocturnal voids. Every composition is unified by a sense of monumental scale and a dreamlike, hazy atmosphere that evokes vintage sci-fi wonder.",
+    "imageCount": 20,
+    "sourceMoodboardId": "736258f0-dec2-50da-b78b-dad7e53b5177",
+    "previewImages": [
+      "https://gen.krea.ai/images/6f6079a7-f8d5-462f-93d1-0c91026f8ed3.png",
+      "https://gen.krea.ai/images/b804b7f9-8649-4fa3-9a2b-3241f7ffc6ef.png",
+      "https://gen.krea.ai/images/6f991e97-4e28-4ddc-b732-1c705c5c2ac9.png",
+      "https://gen.krea.ai/images/55379b3c-b088-4048-8d75-5e29aeef65e1.png"
+    ],
+    "styleId": "style_surreal_scene_readable_05",
+    "familyIndex": 5
+  },
+  {
+    "name": "Nocturnal Surrealist Chiaroscuro",
+    "familyId": "surreal_scene_readable",
+    "familyLabel": "Surreal but Scene-Readable",
+    "selectionScore": 109.62,
+    "suitabilityScore": 8,
+    "riskFlags": [],
+    "styleKeywords": [
+      "chiaroscuro lighting",
+      "deep twilight blue",
+      "glowing amber accents",
+      "surrealist dreamscape",
+      "painterly impasto texture",
+      "liminal isolation",
+      "melancholic atmosphere"
+    ],
+    "styleDescription": "This aesthetic centers on the interplay between deep, melancholic twilight blues and intense, glowing amber light sources. It favors a blend of surrealist dreamscapes and tactile, painterly textures that evoke a sense of profound isolation and mystery. The common thread is a somber, cinematic atmosphere that utilizes high-contrast chiaroscuro to highlight solitary subjects against vast, desolate, or liminal environments.",
+    "imageCount": 13,
+    "sourceMoodboardId": "deb10c2e-ca9e-577b-ab9f-3a09d81fbc92",
+    "previewImages": [
+      "https://gen.krea.ai/images/340b2915-f963-426d-bd07-51506e040412.png",
+      "https://gen.krea.ai/images/eba3bbb6-5669-4bc6-8929-dea88b8bbd4e.png",
+      "https://gen.krea.ai/images/e53be319-d33d-420f-b7a3-fff5539fc2f3.png",
+      "https://gen.krea.ai/images/d3638c0c-619d-43a6-bd42-518bb7f70264.png"
+    ],
+    "styleId": "style_surreal_scene_readable_06",
+    "familyIndex": 6
+  },
+  {
+    "name": "Surrealist Tactile Theater",
+    "familyId": "surreal_scene_readable",
+    "familyLabel": "Surreal but Scene-Readable",
+    "selectionScore": 97.88,
+    "suitabilityScore": 6,
+    "riskFlags": [],
+    "styleKeywords": [
+      "surrealist diorama",
+      "theatrical set design",
+      "tactile craft textures",
+      "sculptural fabric installations",
+      "whimsical sky motifs",
+      "liminal studio space",
+      "vibrant high-contrast palettes",
+      "staged artificial landscape"
+    ],
+    "styleDescription": "This aesthetic centers on a theatrical, staged interplay between surrealist concepts and tactile, handmade materiality. It bridges the gap between high-fashion avant-garde and DIY craft, utilizing sky-themed motifs and dramatic, sculptural installations to create dreamlike, liminal environments. The common thread across these clusters is a deliberate artificiality, where meticulously constructed sets and layered textures evoke a sense of whimsical, staged wonder.",
+    "imageCount": 15,
+    "sourceMoodboardId": "767bd63e-5b12-5ee6-a5ad-9bf92ec1cb22",
+    "previewImages": [
+      "https://gen.krea.ai/images/874d7e3f-472c-44d8-a71a-0ccb73473330.png",
+      "https://gen.krea.ai/images/304c7f2b-041b-4942-8009-a5b0f2ee6ea1.png",
+      "https://gen.krea.ai/images/56b2c631-f170-49de-8fc7-a38103aa03e3.png",
+      "https://gen.krea.ai/images/5ba8f0d8-54f6-4a82-baa6-0096323821b5.png"
+    ],
+    "styleId": "style_surreal_scene_readable_07",
+    "familyIndex": 7
+  },
+  {
+    "name": "Surrealist Saturated Americana",
+    "familyId": "surreal_scene_readable",
+    "familyLabel": "Surreal but Scene-Readable",
+    "selectionScore": 92.0,
+    "suitabilityScore": 10,
+    "riskFlags": [],
+    "styleKeywords": [
+      "hyper-saturated primary colors",
+      "sharp natural sunlight",
+      "vibrant blue sky",
+      "minimalist pastoral composition",
+      "uncanny surrealist juxtapostion",
+      "high contrast cinematography",
+      "liminal dreamcore atmosphere"
+    ],
+    "styleDescription": "This aesthetic fuses the sharp, high-contrast clarity of classic Americana photography with the uncanny, dreamlike sensibilities of retro surrealism. It is defined by a consistent, hyper-vibrant palette of deep ultramarine skies and vivid grassy greens, framed through minimalist or liminal compositions. The visual narrative oscillates between adventurous outdoor realism and impossible, nostalgic dreamscapes characterized by crisp sunlight and clean, geometric horizons.",
+    "imageCount": 25,
+    "sourceMoodboardId": "6933a1d6-a0b9-566d-b252-3c6ee8b97d92",
+    "previewImages": [
+      "https://gen.krea.ai/images/29476735-dce6-410b-b41d-85dba1492a20.png",
+      "https://gen.krea.ai/images/f345487b-7867-4ad5-9844-126cea65dd51.png",
+      "https://gen.krea.ai/images/628a13f0-9b53-4aa2-ac3f-e614a115c859.png",
+      "https://gen.krea.ai/images/e8d38d59-7ccc-4a30-9ca7-8816fbf777e0.png"
+    ],
+    "styleId": "style_surreal_scene_readable_08",
+    "familyIndex": 8
+  },
+  {
+    "name": "Surreal Liminal Minimalism",
+    "familyId": "surreal_scene_readable",
+    "familyLabel": "Surreal but Scene-Readable",
+    "selectionScore": 91.75,
+    "suitabilityScore": 0,
+    "riskFlags": [],
+    "styleKeywords": [
+      "surrealist landscape",
+      "liminal space",
+      "one-point perspective",
+      "minimalist composition",
+      "dreamlike atmosphere",
+      "saturated blue sky",
+      "stark lighting",
+      "retro-surrealist"
+    ],
+    "styleDescription": "This aesthetic centers on vast, atmospheric landscapes defined by powerful one-point perspective and a deep sense of isolation. It bridges the gap between clean, graphic minimalism and 1970s-inspired retro-surrealism, often utilizing striking color contrasts and dreamlike, uncanny focal points. The common thread is a quiet, liminal quality where the horizon serves as the primary anchor for the viewer's gaze.",
+    "imageCount": 14,
+    "sourceMoodboardId": "3300b632-5720-5e27-9c81-490fe09413b4",
+    "previewImages": [
+      "https://gen.krea.ai/images/39fbff5d-2e70-47b3-8bd0-7433dd994029.png",
+      "https://gen.krea.ai/images/0312877c-dee0-461d-b31f-2d3a596be43c.png",
+      "https://gen.krea.ai/images/1b8e7faf-434a-4eb5-8296-3a21ad1d02b5.png",
+      "https://gen.krea.ai/images/af77f8c6-a31b-47b0-ab16-e70f1cf04b30.png"
+    ],
+    "styleId": "style_surreal_scene_readable_09",
+    "familyIndex": 9
+  },
+  {
+    "name": "Liminal Surrealist Pastoral",
+    "familyId": "surreal_scene_readable",
+    "familyLabel": "Surreal but Scene-Readable",
+    "selectionScore": 90.0,
+    "suitabilityScore": 8,
+    "riskFlags": [],
+    "styleKeywords": [
+      "minimalist surrealism",
+      "liminal space",
+      "vibrant green hills",
+      "saturated blue sky",
+      "dreamcore",
+      "sharp shadows",
+      "uncanny CGI"
+    ],
+    "styleDescription": "This aesthetic centers on the convergence of hyper-saturated pastoral landscapes and uncanny, minimalist surrealism. It utilizes the clean, nostalgic visual language of early CGI and digital dreamscapes to evoke a sense of peaceful isolation. By blending vibrant green hills with cloudless azure skies and stark, geometric subjects, the style creates a liminal, dreamlike atmosphere that feels both artificial and deeply serene.",
+    "imageCount": 18,
+    "sourceMoodboardId": "5a306582-e5d7-54fe-9a20-afb7e87797b5",
+    "previewImages": [
+      "https://gen.krea.ai/images/640d0a0d-8770-42dc-a385-171124d053d6.png",
+      "https://gen.krea.ai/images/b33a4b91-33eb-4456-a846-ba3106d59723.png",
+      "https://gen.krea.ai/images/1227907c-21a0-4341-b99d-f5738cbc78da.png",
+      "https://gen.krea.ai/images/6ff7d81a-8a28-440e-800b-3c95363d9498.png"
+    ],
+    "styleId": "style_surreal_scene_readable_10",
+    "familyIndex": 10
+  },
+  {
+    "name": "Luminous Twilight Etherealism",
+    "familyId": "luminous_ethereal",
+    "familyLabel": "Luminous Ethereal",
+    "selectionScore": 132.0,
+    "suitabilityScore": 10,
+    "riskFlags": [
+      "dark_bias"
+    ],
+    "styleKeywords": [
+      "bioluminescent glow",
+      "twilight blue hour",
+      "ethereal soft focus",
+      "golden hour bloom",
+      "surreal dreamscape",
+      "stardust particles",
+      "silhouette photography",
+      "misty atmospheric depth"
+    ],
+    "styleDescription": "This aesthetic centers on the interplay between deep, cool twilight environments and radiant, warm bioluminescent highlights. It emphasizes a dreamlike, surreal atmosphere characterized by soft-focus textures, motion-blurred silhouettes, and delicate particle effects. The common thread is a sense of mystical transcendence achieved through the high-contrast tension between darkness and inner glowing light.",
+    "imageCount": 22,
+    "sourceMoodboardId": "85454856-881a-555e-8e2b-29639d7e565d",
+    "previewImages": [
+      "https://gen.krea.ai/images/6c089d7c-2773-406c-a6b9-1120f4c0a2c2.png",
+      "https://gen.krea.ai/images/b4018f5f-5c6e-4f89-9b2e-3917d35e8af0.png",
+      "https://gen.krea.ai/images/7a85f868-f826-4b5f-9b27-4e6f7c69afa9.png",
+      "https://gen.krea.ai/images/920fb805-1552-40d7-aca3-4ad521a3aa8d.png"
+    ],
+    "styleId": "style_luminous_ethereal_01",
+    "familyIndex": 1
+  },
+  {
+    "name": "Luminous Celestial Fantasy",
+    "familyId": "luminous_ethereal",
+    "familyLabel": "Luminous Ethereal",
+    "selectionScore": 114.0,
+    "suitabilityScore": 12,
+    "riskFlags": [],
+    "styleKeywords": [
+      "celestial fantasy anime",
+      "bioluminescent glow",
+      "deep indigo night sky",
+      "ethereal magical lighting",
+      "glowing crystalline elements",
+      "surreal cosmic dreamscape",
+      "vibrant high-contrast palette"
+    ],
+    "styleDescription": "This aesthetic explores the intersection of high-fantasy anime and surreal cosmic dreamscapes, unified by a love for deep, moody nighttime environments punctuated by brilliant bioluminescent light. The imagery balances ethereal character-driven storytelling with vast, imaginative vistas where celestial bodies and marine motifs merge into a singular, magical reality. High-contrast lighting, shimmering particles, and a rich palette of indigo, teal, and vibrant gold define this serene yet otherworldly visual identity.",
+    "imageCount": 16,
+    "sourceMoodboardId": "9d0945c9-b415-58a3-8ab0-1d5b76098866",
+    "previewImages": [
+      "https://gen.krea.ai/images/916eeeee-ff85-47bd-a46b-7045dd2edc9b.png",
+      "https://gen.krea.ai/images/dd4bde42-2393-41e2-9d72-70e2405ecf36.png",
+      "https://gen.krea.ai/images/85934d9d-af2f-4ef2-a80c-b7b849270071.png",
+      "https://gen.krea.ai/images/52369d61-33da-444c-a590-32d92884955b.png"
+    ],
+    "styleId": "style_luminous_ethereal_02",
+    "familyIndex": 2
+  },
+  {
+    "name": "Luminous Spectral Noir",
+    "familyId": "luminous_ethereal",
+    "familyLabel": "Luminous Ethereal",
+    "selectionScore": 108.0,
+    "suitabilityScore": 16,
+    "riskFlags": [
+      "dark_bias"
+    ],
+    "styleKeywords": [
+      "bioluminescent glow",
+      "dark fantasy illustration",
+      "chiaroscuro lighting",
+      "painterly digital texture",
+      "neon accent lighting",
+      "ethereal atmospheric depth",
+      "high-contrast noir"
+    ],
+    "styleDescription": "This aesthetic centers on a high-contrast union of dark fantasy and neon-infused dreamscapes, characterized by deep, moody palettes punctuated by vibrant bioluminescent glows. It bridges the gap between gothic mystery and ethereal surrealism using expressive, painterly brushwork and dramatic chiaroscuro lighting. Across all clusters, the common thread is the use of electric, saturated light sources to carve figures and mystical elements out of pitch-black, atmospheric voids.",
+    "imageCount": 20,
+    "sourceMoodboardId": "ee8be4d7-45b2-593e-ab7e-db4fa9b95181",
+    "previewImages": [
+      "https://gen.krea.ai/images/d834d70d-88cf-43c5-af27-2bcd6a087338.png",
+      "https://gen.krea.ai/images/37644ef6-296a-4d31-a673-6cc3720d6af4.png",
+      "https://gen.krea.ai/images/0f72d5d5-85c5-48f0-9f02-9c756a5d93f8.png",
+      "https://gen.krea.ai/images/48a5962f-1458-425e-9dfd-cc6a0cc43f4f.png"
+    ],
+    "styleId": "style_luminous_ethereal_03",
+    "familyIndex": 3
+  },
+  {
+    "name": "Ethereal Celestial Storybook",
+    "familyId": "luminous_ethereal",
+    "familyLabel": "Luminous Ethereal",
+    "selectionScore": 95.75,
+    "suitabilityScore": 4,
+    "riskFlags": [],
+    "styleKeywords": [
+      "storybook watercolor illustration",
+      "ethereal celestial motifs",
+      "soft textured brushwork",
+      "muted earthy color palette",
+      "glowing gold leaf accents",
+      "magical realism",
+      "dreamy atmospheric lighting",
+      "delicate ink linework"
+    ],
+    "styleDescription": "This aesthetic centers on a dreamlike, narrative quality defined by soft watercolor and gouache textures layered against moody, atmospheric backdrops. It seamlessly blends cozy, nostalgic elements with celestial motifs like glowing stardust, gold leaf, and crescent moons. The common thread is a gentle, melancholic wonder expressed through muted earth tones, delicate ink linework, and a pervasive sense of magical realism.",
+    "imageCount": 14,
+    "sourceMoodboardId": "4461a496-6dad-5bc5-9178-a6d42e95a355",
+    "previewImages": [
+      "https://gen.krea.ai/images/ac00a281-b538-424b-801c-944f36cd6585.png",
+      "https://gen.krea.ai/images/2365d34c-2246-4c8f-adb8-efe45f068599.png",
+      "https://gen.krea.ai/images/a9903c3d-96a0-4ac2-8029-730556c065c4.png",
+      "https://gen.krea.ai/images/2fa6a1d4-0bd4-40bd-ba5a-9136a860283a.png"
+    ],
+    "styleId": "style_luminous_ethereal_04",
+    "familyIndex": 4
+  },
+  {
+    "name": "Luminous Cosmic Nostalgia",
+    "familyId": "luminous_ethereal",
+    "familyLabel": "Luminous Ethereal",
+    "selectionScore": 96.0,
+    "suitabilityScore": 4,
+    "riskFlags": [
+      "dark_bias"
+    ],
+    "styleKeywords": [
+      "bioluminescent glow",
+      "cosmic pointillism",
+      "shimmering stardust",
+      "vintage film grain",
+      "dreamy twilight atmosphere",
+      "retro-surrealist fantasy",
+      "high-contrast chiaroscuro"
+    ],
+    "styleDescription": "This aesthetic explores the intersection of dark, atmospheric mystery and vibrant, light-filled surrealism. It weaves together the tactile depth of pointillism and heavy impasto with the ethereal, shimmering quality of cosmic stardust and retro-futuristic fantasy. The common thread is a deep, moody twilight palette illuminated by bioluminescent glows, sparkling flares, and a nostalgic, grainy film finish.",
+    "imageCount": 23,
+    "sourceMoodboardId": "54522b0a-c4ec-5877-a356-469e4670f347",
+    "previewImages": [
+      "https://gen.krea.ai/images/394369f3-dab2-4524-bb92-c711222cef0e.png",
+      "https://gen.krea.ai/images/63e4bc63-9b76-4044-ae2c-9262ae68ca8e.png",
+      "https://gen.krea.ai/images/1f898023-2762-4b08-abe7-477288a9c354.png",
+      "https://gen.krea.ai/images/b5f0821b-9961-4e0b-9cb5-9659a4b76191.png"
+    ],
+    "styleId": "style_luminous_ethereal_05",
+    "familyIndex": 5
+  },
+  {
+    "name": "Bioluminescent Abyssal Mysticism",
+    "familyId": "luminous_ethereal",
+    "familyLabel": "Luminous Ethereal",
+    "selectionScore": 98.0,
+    "suitabilityScore": 6,
+    "riskFlags": [
+      "dark_bias"
+    ],
+    "styleKeywords": [
+      "bioluminescent glow",
+      "atmospheric dark fantasy",
+      "submerged ancient ruins",
+      "caustic light rays",
+      "moss-covered monoliths",
+      "deep teal and indigo palette",
+      "surreal subterranean landscape"
+    ],
+    "styleDescription": "This aesthetic centers on a surreal, dark-fantasy synthesis of submerged ruins, cavernous depths, and alien forest environments. It consistently prioritizes high-contrast lighting, where vibrant bioluminescent cyan and emerald glows pierce through deep, atmospheric shadows. The visual language favors ancient, decaying architecture reclaimed by nature, emphasizing a haunting, tranquil, and grand scale.",
+    "imageCount": 16,
+    "sourceMoodboardId": "6a48d434-3778-59b2-8bd3-195eb5efc2e6",
+    "previewImages": [
+      "https://gen.krea.ai/images/3e825aa4-dea3-49b3-9aa1-fbc2bf952e58.png",
+      "https://gen.krea.ai/images/919e34ac-46c8-403e-b9c8-34c99f42f28a.png",
+      "https://gen.krea.ai/images/25535666-d1ab-4bae-bd67-901f1cde6685.png",
+      "https://gen.krea.ai/images/9afc54a4-2799-45e1-8671-d183f1cc4876.png"
+    ],
+    "styleId": "style_luminous_ethereal_06",
+    "familyIndex": 6
+  },
+  {
+    "name": "Luminous Cobalt Twilight",
+    "familyId": "luminous_ethereal",
+    "familyLabel": "Luminous Ethereal",
+    "selectionScore": 98.0,
+    "suitabilityScore": 6,
+    "riskFlags": [],
+    "styleKeywords": [
+      "bioluminescent glow",
+      "cobalt blue twilight",
+      "silhouette contrast",
+      "anamorphic lens flare",
+      "soft film grain",
+      "ethereal atmosphere",
+      "cinematic deep shadow"
+    ],
+    "styleDescription": "This aesthetic explores the profound intersection of deep indigo nocturnal environments and intense, ethereal light sources. Each composition balances sharp silhouettes against radiant glows, utilizing vintage film textures to evoke a sense of cosmic isolation and mysterious stillness. The visual language consistently pairs the cold, grounding weight of twilight with the vibrant, transcendent energy of overexposed light flares.",
+    "imageCount": 18,
+    "sourceMoodboardId": "42e294f0-5d10-5e25-8912-7068977dd523",
+    "previewImages": [
+      "https://gen.krea.ai/images/60030d92-61f5-4d3e-ad0c-4d404f197510.png",
+      "https://gen.krea.ai/images/17aac5e6-d72b-459e-b2c3-8e30ea7ccf91.png",
+      "https://gen.krea.ai/images/f0c31ed8-98cf-46f7-ba7e-d5c55d4565b2.png",
+      "https://gen.krea.ai/images/7dc24d3e-8f77-4554-8a18-f61c864a575d.png"
+    ],
+    "styleId": "style_luminous_ethereal_07",
+    "familyIndex": 7
+  },
+  {
+    "name": "Ethereal Nocturnal Silhouette",
+    "familyId": "luminous_ethereal",
+    "familyLabel": "Luminous Ethereal",
+    "selectionScore": 97.62,
+    "suitabilityScore": 6,
+    "riskFlags": [
+      "dark_bias"
+    ],
+    "styleKeywords": [
+      "nocturnal atmospheric silhouette",
+      "deep indigo and cyan palette",
+      "ethereal backlit glow",
+      "dense misty forest",
+      "cinematic high contrast",
+      "dreamy bokeh textures",
+      "mysterious midnight blue"
+    ],
+    "styleDescription": "This aesthetic centers on the interplay between stark, high-contrast silhouettes and luminous, mist-filled nocturnal environments. It weaves together deep indigo, cobalt, and cyan palettes to create a moody, dreamlike atmosphere defined by soft-focus bokeh and glowing backlighting. The visual identity consistently prioritizes mysterious, introspective, and atmospheric depth through the use of heavy vignettes and ethereal rim lighting.",
+    "imageCount": 13,
+    "sourceMoodboardId": "399d5d10-0ec6-5d3e-9343-396fc1c2ef9b",
+    "previewImages": [
+      "https://gen.krea.ai/images/7aea476d-0873-4196-b192-d116aadc55a9.png",
+      "https://gen.krea.ai/images/549929ae-07a4-49fe-bf57-2fc78fb50424.png",
+      "https://gen.krea.ai/images/371bc7a5-4314-41bb-b62f-384a8a04687b.png",
+      "https://gen.krea.ai/images/31854bc5-9e67-4585-8e7e-887aea3383c1.png"
+    ],
+    "styleId": "style_luminous_ethereal_08",
+    "familyIndex": 8
+  },
+  {
+    "name": "Luminous Cosmic Nocturnes",
+    "familyId": "luminous_ethereal",
+    "familyLabel": "Luminous Ethereal",
+    "selectionScore": 96.0,
+    "suitabilityScore": 4,
+    "riskFlags": [],
+    "styleKeywords": [
+      "nocturnal surrealism",
+      "impasto texture",
+      "bioluminescent glow",
+      "cosmic dreamscape",
+      "painterly brushwork",
+      "twilight color palette",
+      "ethereal lighting"
+    ],
+    "styleDescription": "This aesthetic centers on the intersection of deep nocturnal landscapes and ethereal, glowing celestial phenomena. It consistently utilizes a rich, painterly approach characterized by heavy impasto textures and impressionistic brushstrokes to ground dreamlike, surreal subjects. The visual language bridges the gap between quiet, solitary introspection and the vast, vibrant expanse of the cosmos through a high-contrast palette of deep blues and radiant, glowing highlights.",
+    "imageCount": 23,
+    "sourceMoodboardId": "952cc100-c5a6-5cf5-890a-56db40808f0f",
+    "previewImages": [
+      "https://gen.krea.ai/images/d7fecc8b-64da-4d24-bb0a-57ee4abc01f7.png",
+      "https://gen.krea.ai/images/cb028112-6877-4e2e-a235-a40436cb3f9c.png",
+      "https://gen.krea.ai/images/838463a7-1363-4490-841e-6d5e1c4d88fe.png",
+      "https://gen.krea.ai/images/f037b117-3359-4086-aaf0-111c24968519.png"
+    ],
+    "styleId": "style_luminous_ethereal_09",
+    "familyIndex": 9
+  },
+  {
+    "name": "Ethereal Celestial Dreamscapes",
+    "familyId": "luminous_ethereal",
+    "familyLabel": "Luminous Ethereal",
+    "selectionScore": 93.88,
+    "suitabilityScore": 12,
+    "riskFlags": [],
+    "styleKeywords": [
+      "celestial vortex",
+      "silhouetted figure",
+      "ethereal stardust",
+      "dreamy soft-focus",
+      "nocturnal fantasy",
+      "bioluminescent glow",
+      "deep indigo palette",
+      "cinematic cosmic scale"
+    ],
+    "styleDescription": "This aesthetic explores the intersection of human introspection and the vast, swirling mysteries of the cosmos. It centers on silhouetted figures positioned against dramatic, luminous night skies characterized by vortexes, galaxies, and soft-focus magical light. The visual language balances deep indigo and teal shadows with radiant golden and cyan highlights to create a sense of serene, atmospheric wonder.",
+    "imageCount": 15,
+    "sourceMoodboardId": "b66cfa64-f917-502b-831b-f7cb94a3287d",
+    "previewImages": [
+      "https://gen.krea.ai/images/d3025dba-b761-4f37-bef9-ed856ca1b5fd.png",
+      "https://gen.krea.ai/images/4c0743e9-87fe-4710-a5e0-ee6261335dec.png",
+      "https://gen.krea.ai/images/09002b51-354d-4f0e-8401-b5c4332d4efb.png",
+      "https://gen.krea.ai/images/eb38dac9-2370-4dd8-bc84-ba96d6bd1914.png"
+    ],
+    "styleId": "style_luminous_ethereal_10",
+    "familyIndex": 10
+  }
+]
