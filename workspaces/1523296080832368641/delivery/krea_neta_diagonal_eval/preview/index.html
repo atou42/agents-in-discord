@@ -164,10 +164,48 @@
       border: 1px solid var(--line);
       color: var(--muted);
       border-radius: 999px;
-      padding: 3px 6px;
+      padding: 4px 7px;
       font-size: 10px;
       line-height: 1;
+      font-weight: 760;
       background: #fbf8ef;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .tag small {
+      font-size: 9px;
+      font-weight: 850;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      opacity: .72;
+      margin-right: 3px;
+    }
+    .tag-run {
+      color: #5f5b53;
+      border-color: #d8cfbd;
+      background: #f7f1e4;
+    }
+    .tag-ip {
+      color: #16436b;
+      border-color: #a9cbe9;
+      background: #eaf5ff;
+    }
+    .tag-style {
+      color: #18553f;
+      border-color: #acd7c1;
+      background: #e9f8ef;
+    }
+    .tag-class {
+      color: #75440d;
+      border-color: #e2c084;
+      background: #fff4d9;
+    }
+    .tag-style-class {
+      color: #67316a;
+      border-color: #d8b3dd;
+      background: #fbebff;
     }
     dialog {
       width: min(1120px, calc(100vw - 24px));
@@ -337,9 +375,11 @@
           <div class="ip">${row.ipName}</div>
           <div class="style">${row.styleName}</div>
           <div class="tags">
-            <span class="tag">run ${row.runIndex}</span>
-            <span class="tag">${row.ipFamily}</span>
-            <span class="tag">${row.styleFamily}</span>
+            <span class="tag tag-run"><small>Run</small>${row.runIndex}</span>
+            <span class="tag tag-ip"><small>IP</small>${row.ipName}</span>
+            <span class="tag tag-style"><small>Style</small>${row.styleName}</span>
+            <span class="tag tag-class"><small>IP Cat</small>${row.ipFamily}</span>
+            <span class="tag tag-style-class"><small>Style Cat</small>${row.styleFamily}</span>
           </div>
         </div>`;
       node.addEventListener("click", () => openViewer(row));
