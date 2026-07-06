@@ -156,7 +156,7 @@ Choose one world-level visual style.
 
 The style must be good enough to carry character portraits, environment scenes, objects, event scenes and KV inside one modern visual language. Do not pick a style separately per object type.
 
-Default execution profile: local orchestrator plus one clean-context style-selector subagent that only does style-candidate lookup and comparison.
+Default execution profile: the dedicated style-selection space (`IP World Style Selection`, see `capabilities.json` styleSelectionSpace) runs the audition against the run's reference pack. It reads the colleague-maintained Studio_ArtStyle library (`capabilities.json` styleSpace) upstream, strictly read-only — reference by id, never copy or modify.
 
 This phase outputs a style decision with rationale and negative constraints.
 
@@ -185,7 +185,7 @@ Do not treat browser translation or generic web translation as an acceptable pro
 
 Treat the schema as guide rails rather than a rigid stencil. The agent should answer the core questions for each atom type, but it may vary emphasis, sequencing and sentence shape to fit the IP, the entity and the actual source depth.
 
-Default execution profile: local orchestrator for synthesis plus delegated narrow workers whenever they improve speed or quality. Character-card expansion, repairs and adversarial checks are default delegation candidates rather than last-resort manual cleanup.
+Default execution profile: local orchestrator for synthesis plus delegated narrow workers whenever they improve speed or quality. Character-card batches belong in the character-craft space (`capabilities.json` characterCraftSpace — six-section dossiers, trait dimensionalization via its bundled character-traits skill, shared-exemplar batch discipline); location cards and spatial anchoring belong in the geography space (`capabilities.json` worldGeographySpace). Both write their outputs back into the run directory.
 
 This phase outputs a structured import JSON that is fit for `narrating import`, not a raw metadata wrapper.
 
@@ -314,7 +314,7 @@ Stage gate: at least one meaningful work or media artifact exists in product sta
 
 Lay out or repair the Studio board so the world reads clearly.
 
-Default execution profile: bound Studio space, with local screenshot review or browser-backed verification.
+Default execution profile: bound Studio space, with local screenshot review or browser-backed verification. The zoning plan itself comes from the geography space (`capabilities.json` worldGeographySpace), which writes `manifests/board_zoning_proposal.md` into the run dir — zones should mirror canonical geography and the fandom's reading path, not just card types.
 
 The board should have a visible world title and prologue plus distinct zones for character, location, organization or lore, and event material. The work cards should also be placed deliberately rather than left floating.
 
