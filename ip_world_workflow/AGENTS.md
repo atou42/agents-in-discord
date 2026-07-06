@@ -36,4 +36,13 @@ Gate scripts are read-only for run agents. `local_world_workflow.py` verifies it
 
 Phase one ends with the user, not with a script. Before any execution (import, generation, board), present `ip_proposal.md` — cast scope, cross-verified references, fan red lines, delight plan, 3-5 style candidates with exemplar images — and wait for explicit approval, recorded in `checks/ip_proposal_approval.json`. The `ip_proposal` gate blocks every execution stage until it exists. Silence is not approval.
 
-The workflow is modularizing into dedicated Cohub spaces, each independently runnable and accumulating its own methodology across runs. Live so far (IDs in `capability_registry.json`): the **proposal space** (phase-one research producing `ip_proposal.md`), the **acceptance space** (clean-context adversarial audits — `verifierSessionId` in audit files should come from its sessions), the **style space** (candidate comparison), and the **domain knowledge space** (KB1 canon extraction, KB2 counter-example library, KB3 style audition, KB4 original worldbuilding — the method layer both consume). Modules exchange work only through run-directory artifacts; hard verdicts remain with the git gate script.
+The workflow is modularized into dedicated Cohub spaces, each independently runnable and accumulating its own methodology across runs. All IDs live in `capability_registry.json`; canonical charters/methods live in `spaces/` here in git (space copies are mirrors):
+
+- **proposal** — phase-one research producing `ip_proposal.md`; ends with user confirmation
+- **style selection** — audition 3-5 candidates against the reference pack; reads the colleague-maintained Studio_ArtStyle asset library upstream (read-only); ends with user confirmation
+- **character craft** — six-section card batches with trait dimensionalization (bundled character-traits skill); shared-exemplar batch discipline
+- **world geography** — location cards with relative-position anchors; board zoning proposals that mirror canonical geography
+- **acceptance** — clean-context adversarial audits (style/factuality/final); `verifierSessionId` in audit files should come from its sessions
+- **domain knowledge** (user-maintained) — KB1-KB4 method layer all of the above consume; new failure modes feed back into KB2
+
+Modules exchange work only through run-directory artifacts; hard verdicts remain with the git gate script.
