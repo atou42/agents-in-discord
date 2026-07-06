@@ -17,6 +17,7 @@ const DEFAULT_LORA_ID = "none";
 const DEFAULT_LORA_STRENGTH = 0;
 const DEFAULT_POLL_MS = 2000;
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
+const DEFAULT_COLLECT_CONCURRENCY = 8;
 const SEED_SLOTS = {
   1: "110001",
   2: "220002",
@@ -55,7 +56,8 @@ Options:
   --timeout-ms <n>        Per-job timeout in milliseconds. Default: ${DEFAULT_TIMEOUT_MS}
   --max-attempts <n>      Retries per row. Default: 3
   --retry-delay-ms <n>    Delay between row retries. Default: 5000
-  --wait-until-finished   For collect, keep polling until all submitted jobs finish.
+  --collect-concurrency <n> Parallel status checks during collect. Default: ${DEFAULT_COLLECT_CONCURRENCY}
+  --wait-until-finished   For collect, repeat status scans until all submitted jobs finish.
   --steps <n>             Steps override. Default: ${DEFAULT_STEPS}
   --cfg <n>               CFG override. Default: ${DEFAULT_CFG}
   --denoise <n>           Denoise override. Default: ${DEFAULT_DENOISE}
@@ -94,6 +96,7 @@ function parseArgs(argv) {
     timeoutMs: DEFAULT_TIMEOUT_MS,
     maxAttempts: 3,
     retryDelayMs: 5000,
+    collectConcurrency: DEFAULT_COLLECT_CONCURRENCY,
     waitUntilFinished: false,
     steps: DEFAULT_STEPS,
     cfg: DEFAULT_CFG,
@@ -168,6 +171,11 @@ function parseArgs(argv) {
     }
     if (arg === "--retry-delay-ms") {
       options.retryDelayMs = Number.parseInt(next, 10);
+      index += 1;
+      continue;
+    }
+    if (arg === "--collect-concurrency") {
+      options.collectConcurrency = Number.parseInt(next, 10);
       index += 1;
       continue;
     }
@@ -574,9 +582,7 @@ async function loadSubmittedRowArtifacts(runId, outDir) {
 
 async function collectRow(baseUrl, guestViewer, row, options, outDir) {
   const { rowDir, payload, created } = await loadSubmittedRowArtifacts(row.runId, outDir);
-  const final = options.waitUntilFinished
-    ? await pollJob(baseUrl, guestViewer, created.id, options)
-    : await apiRequest(baseUrl, guestViewer, `/api/jobs/${created.id}`);
+  const final = await apiRequest(baseUrl, guestViewer, `/api/jobs/${created.id}`);
   if (final.status === "completed") {
     return { state: "completed", summary: await finalizeCompletedRow(row, rowDir, payload, created, final) };
   }
@@ -633,8 +639,12 @@ async function loadExistingRunState(runRoot) {
   const runDir = path.join(runRoot, "runs");
   const entries = await fs.readdir(runDir, { withFileTypes: true }).catch(() => []);
   const completedByRunId = new Map();
+  const submittedRunIds = new Set();
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
+    if (await pathExists(path.join(runDir, entry.name, "job_created.json"))) {
+      submittedRunIds.add(entry.name);
+    }
     const summary = await readJsonIfExists(path.join(runDir, entry.name, "summary.json"));
     if (isCompletedSummary(summary)) {
       completedByRunId.set(summary.runId, summary);
@@ -643,6 +653,7 @@ async function loadExistingRunState(runRoot) {
   return {
     guestViewer: aggregate.guestViewer || healthCheck.guestViewer || null,
     completedByRunId,
+    submittedRunIds,
     previousErrors: Array.isArray(aggregate.errors) ? aggregate.errors : [],
   };
 }
@@ -664,6 +675,22 @@ async function writeRunSummary(runRoot, guestViewer, totalRows, results, errors,
 
 async function sleep(ms) {
   await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function mapLimit(items, limit, iteratee) {
+  const outputs = new Array(items.length);
+  let cursor = 0;
+  async function worker() {
+    while (true) {
+      const index = cursor;
+      cursor += 1;
+      if (index >= items.length) return;
+      outputs[index] = await iteratee(items[index], index);
+    }
+  }
+  const workerCount = Math.max(1, Math.min(limit, items.length || 1));
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return outputs;
 }
 
 async function executeRowWithRetry(baseUrl, guestViewer, row, options, outDir) {
@@ -727,6 +754,58 @@ async function writeRenderedPlan(rows, options, outDir) {
   return rendered;
 }
 
+function orderedResultsForRows(rows, resultsByRunId) {
+  return rows
+    .filter((row) => resultsByRunId.has(row.runId))
+    .map((row) => resultsByRunId.get(row.runId));
+}
+
+async function collectPass(baseUrl, guestViewer, rows, options, runRoot, resultsByRunId, errors) {
+  const pendingRows = rows.filter((row) => !resultsByRunId.has(row.runId));
+  const outcomes = await mapLimit(
+    pendingRows,
+    options.collectConcurrency,
+    async (row) => {
+      try {
+        return await collectRow(baseUrl, guestViewer, row, options, path.join(runRoot, "runs"));
+      } catch (error) {
+        return {
+          state: "errored",
+          error: {
+            runId: row.runId,
+            ipId: row.ipId,
+            ipName: row.ip.name,
+            styleId: row.styleId,
+            styleName: row.style.name,
+            attempts: 1,
+            message: error.message,
+            status: error.status || null,
+            body: error.body || null,
+          },
+        };
+      }
+    }
+  );
+  const pending = [];
+  for (let index = 0; index < pendingRows.length; index += 1) {
+    const row = pendingRows[index];
+    const outcome = outcomes[index];
+    if (!outcome) continue;
+    if (outcome.state === "completed") {
+      resultsByRunId.set(row.runId, outcome.summary);
+      continue;
+    }
+    if (outcome.state === "failed" || outcome.state === "errored") {
+      errors.push(outcome.error);
+      continue;
+    }
+    pending.push(outcome.pending);
+  }
+  const orderedResults = orderedResultsForRows(rows, resultsByRunId);
+  await writeRunSummary(runRoot, guestViewer, rows.length, orderedResults, errors, pending);
+  return { orderedResults, pending };
+}
+
 function inspectSummary(rows, delivery, options) {
   const readyIpSlugs = new Set(Object.keys(delivery.promptPacks));
   const missingPromptPacks = delivery.ips
@@ -779,6 +858,7 @@ async function main() {
   const existingState = shouldLoadExistingState ? await loadExistingRunState(runRoot) : {
     guestViewer: null,
     completedByRunId: new Map(),
+    submittedRunIds: new Set(),
     previousErrors: [],
   };
   const guestViewer = options.guestViewer || existingState.guestViewer || createGuestViewerUuid();
@@ -834,36 +914,27 @@ async function main() {
   }
 
   if (command === "collect") {
-    for (const row of rows) {
-      if (resultsByRunId.has(row.runId)) {
-        continue;
+    const collectableRows = rows.filter((row) => existingState.submittedRunIds.has(row.runId) || resultsByRunId.has(row.runId));
+    let pass = 0;
+    let orderedResults = orderedResultsForRows(collectableRows, resultsByRunId);
+    let pendingForPass = pending;
+    do {
+      pass += 1;
+      const collected = await collectPass(options.baseUrl, guestViewer, collectableRows, options, runRoot, resultsByRunId, errors);
+      orderedResults = collected.orderedResults;
+      pendingForPass = collected.pending;
+      if (!options.waitUntilFinished || !pendingForPass.length || errors.length) {
+        break;
       }
-      const outcome = await collectRow(options.baseUrl, guestViewer, row, options, path.join(runRoot, "runs"));
-      if (outcome.state === "completed") {
-        resultsByRunId.set(row.runId, outcome.summary);
-      } else if (outcome.state === "failed") {
-        errors.push(outcome.error);
-      } else {
-        pending.push(outcome.pending);
-      }
-      await writeRunSummary(
-        runRoot,
-        guestViewer,
-        rows.length,
-        rows.filter((candidate) => resultsByRunId.has(candidate.runId)).map((candidate) => resultsByRunId.get(candidate.runId)),
-        errors,
-        pending
-      );
-    }
-    const orderedResults = rows
-      .filter((row) => resultsByRunId.has(row.runId))
-      .map((row) => resultsByRunId.get(row.runId));
-    await writeRunSummary(runRoot, guestViewer, rows.length, orderedResults, errors, pending);
+      await sleep(options.pollMs);
+    } while (true);
+
+    await writeRunSummary(runRoot, guestViewer, collectableRows.length, orderedResults, errors, pendingForPass);
     if (errors.length) {
-      console.error(JSON.stringify({ mode: "collect", runRoot, guestViewer, completedRows: orderedResults.length, failedRows: errors.length, pendingRows: pending.length }, null, 2));
+      console.error(JSON.stringify({ mode: "collect", runRoot, guestViewer, completedRows: orderedResults.length, failedRows: errors.length, pendingRows: pendingForPass.length }, null, 2));
       process.exit(1);
     }
-    console.log(JSON.stringify({ mode: "collect", runRoot, guestViewer, completedRows: orderedResults.length, pendingRows: pending.length }, null, 2));
+    console.log(JSON.stringify({ mode: "collect", runRoot, guestViewer, completedRows: orderedResults.length, pendingRows: pendingForPass.length, passes: pass }, null, 2));
     return;
   }
 
