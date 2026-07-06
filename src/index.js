@@ -139,9 +139,11 @@ import * as discordMessageInput from './discord-message-input.js';
 import {
   configureRuntimeProxy,
   createDiscordClient,
+  ensureDiscordWsProxyPatch,
   normalizeSlashPrefix,
   readAntigravityDefaults,
   readAntigravityModelCatalog,
+  readClaudeDefaults,
   readCodexDefaults,
   readCodexModelCatalog,
   readCodexProfileCatalog,
@@ -206,6 +208,15 @@ const { logs: proxyLogs, restProxyAgent } = configureRuntimeProxy({
 if (proxyLogs.length) {
   for (const line of proxyLogs) {
     console.log(line);
+  }
+}
+
+if (globalThis.__discordWsAgent) {
+  const wsPatch = ensureDiscordWsProxyPatch({ rootDir: ROOT });
+  if (wsPatch.status === 'patched') {
+    console.log('🩹 Patched @discordjs/ws for proxy-aware gateway connections');
+  } else if (wsPatch.status === 'pattern_missing') {
+    console.warn(`⚠️ Could not patch @discordjs/ws automatically: ${wsPatch.targetPath}`);
   }
 }
 
@@ -397,7 +408,7 @@ const CODEX_APP_SERVER_MAX_SESSIONS = Math.max(
 const CODEX_APP_SERVER_DISABLED_MCP_SERVERS = normalizeDisabledMcpServers(
   process.env.CODEX__APP_SERVER_DISABLED_MCP_SERVERS
     || process.env.CODEX_APP_SERVER_DISABLED_MCP_SERVERS
-    || 'flomo',
+    || '',
 );
 const PROJECT_UPGRADE_CHECK_INTERVAL_MS = normalizeIntervalMs(
   process.env.AGENTS_IN_DISCORD_UPGRADE_CHECK_INTERVAL_MS,
@@ -508,6 +519,7 @@ const appContext = createAppContext({
     readDefaultCodexProfile: resolveDefaultCodexProfile,
     defaultModel: DEFAULT_MODEL,
     readCodexDefaults,
+    readClaudeDefaults: () => readClaudeDefaults({ env: SPAWN_ENV }),
     readAntigravityDefaults: () => readAntigravityDefaults({ env: SPAWN_ENV }),
     readCodexProfileCatalog,
     normalizeProvider,

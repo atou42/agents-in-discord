@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ProxyAgent, setGlobalDispatcher } from 'undici';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 
 import { autoRepairProxyEnv } from './proxy-env.js';
@@ -34,6 +35,10 @@ export function resolveCodexConfigPath({ env = process.env } = {}) {
 
 export function resolveAntigravitySettingsPath({ env = process.env } = {}) {
   return path.join(resolveCodexHome(env), '.gemini', 'antigravity-cli', 'settings.json');
+}
+
+export function resolveClaudeSettingsPath({ env = process.env } = {}) {
+  return path.join(resolveCodexHome(env), '.claude', 'settings.json');
 }
 
 function resolveAntigravityLogDir({ env = process.env } = {}) {
@@ -217,6 +222,56 @@ export function readCodexProfileCatalog({ env = process.env } = {}) {
 
 export function readAntigravityDefaults({ env = process.env } = {}) {
   const settingsPath = resolveAntigravitySettingsPath({ env });
+  try {
+    const settings = readJsonObjectFile(settingsPath);
+    const model = normalizeOptionalJsonString(settings.model);
+    return {
+      model,
+      modelConfigured: Boolean(model),
+      profile: null,
+      profileConfigured: false,
+      effort: null,
+      effortConfigured: false,
+      fastMode: false,
+      fastModeConfigured: false,
+      source: 'settings.json',
+      settingsPath,
+      error: null,
+    };
+  } catch (err) {
+    if (err?.code === 'ENOENT') {
+      return {
+        model: null,
+        modelConfigured: false,
+        profile: null,
+        profileConfigured: false,
+        effort: null,
+        effortConfigured: false,
+        fastMode: false,
+        fastModeConfigured: false,
+        source: 'provider',
+        settingsPath,
+        error: null,
+      };
+    }
+    return {
+      model: null,
+      modelConfigured: false,
+      profile: null,
+      profileConfigured: false,
+      effort: null,
+      effortConfigured: false,
+      fastMode: false,
+      fastModeConfigured: false,
+      source: 'settings.json',
+      settingsPath,
+      error: String(err?.message || err || 'unknown error'),
+    };
+  }
+}
+
+export function readClaudeDefaults({ env = process.env } = {}) {
+  const settingsPath = resolveClaudeSettingsPath({ env });
   try {
     const settings = readJsonObjectFile(settingsPath);
     const model = normalizeOptionalJsonString(settings.model);
@@ -662,6 +717,7 @@ export function configureRuntimeProxy({
   envFilePath = null,
   autoRepairProxyEnvFn = autoRepairProxyEnv,
   createHttpProxyAgent = (uri) => new ProxyAgent({ uri }),
+  createHttpsProxyAgent = (uri) => new HttpsProxyAgent(uri),
   createSocksProxyAgent = (uri) => new SocksProxyAgent(uri),
   setGlobalDispatcherFn = setGlobalDispatcher,
   globalTarget = globalThis,
@@ -684,13 +740,18 @@ export function configureRuntimeProxy({
     setGlobalDispatcherFn(restProxyAgent);
   }
 
-  if (socksProxy) {
-    wsProxyAgent = createSocksProxyAgent(socksProxy);
+  const wsProxy = String(env.DISCORD_WS_PROXY || '').trim() || socksProxy || httpProxy || null;
+  if (wsProxy) {
+    if (/^socks/i.test(wsProxy)) {
+      wsProxyAgent = createSocksProxyAgent(wsProxy);
+    } else {
+      wsProxyAgent = createHttpsProxyAgent(wsProxy);
+    }
     globalTarget.__discordWsAgent = wsProxyAgent;
   }
 
-  if (httpProxy || socksProxy) {
-    logs.push(`🌐 Proxy: REST=${httpProxy || '(none)'} | WS=${socksProxy || '(none)'} | INSECURE_TLS=${insecureTls}`);
+  if (httpProxy || wsProxy) {
+    logs.push(`🌐 Proxy: REST=${httpProxy || '(none)'} | WS=${wsProxy || '(none)'} | INSECURE_TLS=${insecureTls}`);
   }
 
   return {
@@ -702,6 +763,35 @@ export function configureRuntimeProxy({
     socksProxy,
     wsProxyAgent,
   };
+}
+
+export function ensureDiscordWsProxyPatch({
+  rootDir,
+  existsSync = fs.existsSync,
+  readFileSync = fs.readFileSync,
+  writeFileSync = fs.writeFileSync,
+} = {}) {
+  const targetPath = path.join(rootDir, 'node_modules', '@discordjs', 'ws', 'dist', 'index.js');
+  if (!existsSync(targetPath)) {
+    return { status: 'missing', targetPath };
+  }
+
+  const source = readFileSync(targetPath, 'utf8');
+  if (source.includes('agent: globalThis.__discordWsAgent')) {
+    return { status: 'already_patched', targetPath };
+  }
+
+  const constructorPattern = /new WebSocketConstructor\(url, \[\], \{\s*/g;
+  if (!constructorPattern.test(source)) {
+    return { status: 'pattern_missing', targetPath };
+  }
+
+  const patched = source.replace(
+    constructorPattern,
+    (match) => `${match}agent: globalThis.__discordWsAgent, `,
+  );
+  writeFileSync(targetPath, patched, 'utf8');
+  return { status: 'patched', targetPath };
 }
 
 export function createDiscordClient({

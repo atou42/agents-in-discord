@@ -392,6 +392,18 @@ export function createSessionSettings({
     source: 'provider',
     error: null,
   }),
+  readClaudeDefaults = () => ({
+    model: null,
+    modelConfigured: false,
+    profile: null,
+    profileConfigured: false,
+    effort: null,
+    effortConfigured: false,
+    fastMode: false,
+    fastModeConfigured: false,
+    source: 'provider',
+    error: null,
+  }),
   readCodexProfileCatalog = () => ({ profiles: [], configPath: '' }),
   normalizeProvider = (provider) => String(provider || '').trim().toLowerCase() || 'codex',
   getSupportedCompactStrategies = () => ['hard', 'native', 'off'],
@@ -610,6 +622,19 @@ export function createSessionSettings({
         return { value, source: antigravityDefaults.source || 'settings.json' };
       }
       return { value: null, source: antigravityDefaults.source || 'provider' };
+    }
+
+    if (provider === 'claude') {
+      const claudeDefaults = readClaudeDefaults() || {};
+      const value = String(claudeDefaults.model ?? '').trim();
+      const configured = claudeDefaults.modelConfigured ?? Boolean(value);
+      if (configured && value) {
+        return { value, source: claudeDefaults.source || 'settings.json' };
+      }
+      if (defaultModelValue) {
+        return { value: defaultModelValue, source: 'env default' };
+      }
+      return { value: null, source: claudeDefaults.source || 'provider' };
     }
 
     if (defaultModelValue) {
@@ -872,6 +897,41 @@ export function createSessionSettings({
         source: antigravityDefaults.source || (antigravityDefaults.model ? 'settings.json' : 'provider'),
         settingsPath: antigravityDefaults.settingsPath || null,
         error: antigravityDefaults.error || null,
+      };
+    }
+
+    if (normalizedProvider === 'claude') {
+      const claudeDefaults = readClaudeDefaults() || {};
+      const value = String(claudeDefaults.model ?? '').trim();
+      const configured = claudeDefaults.modelConfigured ?? Boolean(value);
+      if (configured && value) {
+        return {
+          model: value,
+          modelConfigured: true,
+          profile: null,
+          profileConfigured: false,
+          effort: null,
+          effortConfigured: false,
+          fastMode: false,
+          fastModeConfigured: false,
+          source: claudeDefaults.source || 'settings.json',
+          settingsPath: claudeDefaults.settingsPath || null,
+          error: claudeDefaults.error || null,
+        };
+      }
+      const defaultModelValue = getDefaultModelValue();
+      return {
+        model: defaultModelValue || null,
+        modelConfigured: Boolean(defaultModelValue),
+        profile: null,
+        profileConfigured: false,
+        effort: null,
+        effortConfigured: false,
+        fastMode: false,
+        fastModeConfigured: false,
+        source: defaultModelValue ? 'env default' : (claudeDefaults.source || 'provider'),
+        settingsPath: claudeDefaults.settingsPath || null,
+        error: claudeDefaults.error || null,
       };
     }
 

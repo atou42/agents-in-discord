@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 
 import {
   createDiscordLifecycle,
   isIgnorableDiscordRuntimeError,
   isInvalidTokenError,
   isRecoverableGatewayCloseCode,
+  isTransientDiscordNetworkError,
 } from '../src/discord-lifecycle.js';
 
 function createLogger() {
@@ -27,6 +29,15 @@ test('discord lifecycle helpers classify gateway and interaction errors', () => 
   assert.equal(isIgnorableDiscordRuntimeError({ code: 10062 }), true);
   assert.equal(isIgnorableDiscordRuntimeError(new Error('Unknown interaction')), true);
   assert.equal(isIgnorableDiscordRuntimeError(new Error('fatal gateway error')), false);
+
+  assert.equal(isTransientDiscordNetworkError(new Error('Connect Timeout Error (attempted address: discord.com:443, timeout: 10000ms)')), true);
+  assert.equal(isTransientDiscordNetworkError(new Error('Client network socket disconnected before secure TLS connection was established')), true);
+  assert.equal(isTransientDiscordNetworkError(new Error('Opening handshake has timed out')), true);
+  assert.equal(isTransientDiscordNetworkError(new Error('WebSocket is not open: readyState 0 (CONNECTING)')), true);
+  assert.equal(isTransientDiscordNetworkError(new Error('WebSocket was closed before the connection was established')), true);
+  assert.equal(isTransientDiscordNetworkError(new Error('Proxy connection timed out')), true);
+  assert.equal(isTransientDiscordNetworkError(Object.assign(new Error('proxy refused'), { code: 'ECONNREFUSED' })), true);
+  assert.equal(isTransientDiscordNetworkError(new Error('Invalid token provided')), false);
 });
 
 test('createDiscordLifecycle bootClient retries transient login failures', async () => {
@@ -92,6 +103,35 @@ test('createDiscordLifecycle scheduleSelfHeal ignores invalid token errors', () 
   assert.equal(timerCount, 0);
 });
 
+test('createDiscordLifecycle process self-heal ignores transient network errors', () => {
+  const processRef = new EventEmitter();
+  let timerCount = 0;
+  const lifecycle = createDiscordLifecycle({
+    selfHealEnabled: true,
+    restartDelayMs: 1500,
+    maxLoginBackoffMs: 5000,
+    discordToken: 'token',
+    createClient: () => ({
+      async login() {},
+      removeAllListeners() {},
+      destroy() {},
+    }),
+    bindClientHandlers: () => {},
+    processRef,
+    setTimeoutFn: () => {
+      timerCount += 1;
+      return { unref() {} };
+    },
+    logger: createLogger(),
+  });
+
+  lifecycle.setupProcessSelfHeal();
+  processRef.emit('unhandledRejection', new Error('Client network socket disconnected before secure TLS connection was established'));
+  processRef.emit('uncaughtException', Object.assign(new Error('proxy refused'), { code: 'ECONNREFUSED' }));
+
+  assert.equal(timerCount, 0);
+});
+
 test('createDiscordLifecycle scheduleSelfHeal restarts the client without cancelling channel work', async () => {
   const clients = [];
   const binds = [];
@@ -149,4 +189,54 @@ test('createDiscordLifecycle scheduleSelfHeal restarts the client without cancel
   assert.equal(clients[0].destroyCalled, 1);
   assert.deepEqual(binds, [1, 2]);
   assert.equal(lifecycle.getClient(), clients[1]);
+});
+
+test('createDiscordLifecycle stops scheduling self-heal after the restart rate limit is exceeded', async () => {
+  const clients = [];
+  let scheduled = null;
+  let now = 0;
+
+  const lifecycle = createDiscordLifecycle({
+    selfHealEnabled: true,
+    restartDelayMs: 1000,
+    maxLoginBackoffMs: 5000,
+    maxSelfHealRestartsPerWindow: 2,
+    selfHealWindowMs: 60_000,
+    nowFn: () => now,
+    discordToken: 'token',
+    createClient: () => {
+      const client = {
+        async login() {},
+        removeAllListeners() {},
+        destroy() {},
+      };
+      clients.push(client);
+      return client;
+    },
+    bindClientHandlers: () => {},
+    setTimeoutFn: (fn, ms) => {
+      scheduled = { fn, ms };
+      return { unref() {} };
+    },
+    logger: createLogger(),
+  });
+
+  await lifecycle.bootClient('startup');
+
+  lifecycle.scheduleSelfHeal('first');
+  assert.equal(scheduled.ms, 1000);
+  scheduled.fn();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  now = 10_000;
+  lifecycle.scheduleSelfHeal('second');
+  scheduled.fn();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  now = 20_000;
+  scheduled = null;
+  lifecycle.scheduleSelfHeal('third');
+
+  assert.equal(scheduled, null);
+  assert.equal(clients.length, 3);
 });

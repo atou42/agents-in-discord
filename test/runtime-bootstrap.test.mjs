@@ -7,9 +7,11 @@ import path from 'node:path';
 import {
   configureRuntimeProxy,
   createDiscordClient,
+  ensureDiscordWsProxyPatch,
   normalizeSlashPrefix,
   readAntigravityDefaults,
   readAntigravityModelCatalog,
+  readClaudeDefaults,
   readCodexDefaults,
   readCodexModelCatalog,
   readCodexProfileCatalog,
@@ -289,6 +291,42 @@ test('readClaudeModelCatalog reads aliases and effort levels from Claude CLI hel
   });
 });
 
+test('readClaudeDefaults reads ~/.claude/settings.json and reports malformed settings', () => {
+  const rootDir = makeTempRoot();
+  const homeDir = path.join(rootDir, 'home');
+  const settingsDir = path.join(homeDir, '.claude');
+  fs.mkdirSync(settingsDir, { recursive: true });
+  const settingsPath = path.join(settingsDir, 'settings.json');
+  fs.writeFileSync(settingsPath, JSON.stringify({
+    env: {
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet-4-6',
+    },
+    model: 'fable',
+  }));
+
+  assert.deepEqual(readClaudeDefaults({ env: { HOME: homeDir } }), {
+    model: 'fable',
+    modelConfigured: true,
+    profile: null,
+    profileConfigured: false,
+    effort: null,
+    effortConfigured: false,
+    fastMode: false,
+    fastModeConfigured: false,
+    source: 'settings.json',
+    settingsPath,
+    error: null,
+  });
+
+  fs.writeFileSync(settingsPath, '{not json');
+  const malformed = readClaudeDefaults({ env: { HOME: homeDir } });
+  assert.equal(malformed.model, null);
+  assert.equal(malformed.modelConfigured, false);
+  assert.equal(malformed.source, 'settings.json');
+  assert.equal(malformed.settingsPath, settingsPath);
+  assert.match(String(malformed.error || ''), /json|property name|position/i);
+});
+
 test('readAntigravityDefaults reads settings.json and reports malformed settings', () => {
   const rootDir = makeTempRoot();
   const homeDir = path.join(rootDir, 'home');
@@ -521,6 +559,7 @@ test('configureRuntimeProxy wires repaired proxy settings into agents and logs',
       return { logs: ['proxy repaired'] };
     },
     createHttpProxyAgent: (uri) => ({ kind: 'http', uri }),
+    createHttpsProxyAgent: (uri) => ({ kind: 'https', uri }),
     createSocksProxyAgent: (uri) => ({ kind: 'socks', uri }),
     setGlobalDispatcherFn: (agent) => dispatcherCalls.push(agent),
     globalTarget,
@@ -537,6 +576,49 @@ test('configureRuntimeProxy wires repaired proxy settings into agents and logs',
     'proxy repaired',
     '🌐 Proxy: REST=http://127.0.0.1:7890 | WS=socks5h://127.0.0.1:7891 | INSECURE_TLS=true',
   ]);
+});
+
+test('configureRuntimeProxy can force Discord WebSocket through HTTP proxy', () => {
+  const env = {
+    HTTP_PROXY: 'http://127.0.0.1:7890',
+    DISCORD_WS_PROXY: 'http://127.0.0.1:7890',
+  };
+  const globalTarget = {};
+
+  const result = configureRuntimeProxy({
+    env,
+    autoRepairProxyEnvFn: () => ({ logs: [] }),
+    createHttpProxyAgent: (uri) => ({ kind: 'http', uri }),
+    createHttpsProxyAgent: (uri) => ({ kind: 'https', uri }),
+    createSocksProxyAgent: (uri) => ({ kind: 'socks', uri }),
+    setGlobalDispatcherFn: () => {},
+    globalTarget,
+  });
+
+  assert.deepEqual(result.restProxyAgent, { kind: 'http', uri: 'http://127.0.0.1:7890' });
+  assert.deepEqual(result.wsProxyAgent, { kind: 'https', uri: 'http://127.0.0.1:7890' });
+  assert.equal(globalTarget.__discordWsAgent, result.wsProxyAgent);
+  assert.deepEqual(result.logs, [
+    '🌐 Proxy: REST=http://127.0.0.1:7890 | WS=http://127.0.0.1:7890 | INSECURE_TLS=false',
+  ]);
+});
+
+test('ensureDiscordWsProxyPatch injects the Discord WebSocket proxy agent once', () => {
+  const rootDir = makeTempRoot();
+  const targetPath = path.join(rootDir, 'node_modules', '@discordjs', 'ws', 'dist', 'index.js');
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+  fs.writeFileSync(
+    targetPath,
+    'const connection = new WebSocketConstructor(url, [], { handshakeTimeout: 30_000 });\n',
+  );
+
+  const first = ensureDiscordWsProxyPatch({ rootDir });
+  const second = ensureDiscordWsProxyPatch({ rootDir });
+  const patched = fs.readFileSync(targetPath, 'utf8');
+
+  assert.equal(first.status, 'patched');
+  assert.equal(second.status, 'already_patched');
+  assert.match(patched, /agent: globalThis\.__discordWsAgent, handshakeTimeout: 30_000/);
 });
 
 test('createDiscordClient applies Discord intents and optional REST proxy agent', () => {

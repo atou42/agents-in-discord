@@ -18,10 +18,39 @@ export function isIgnorableDiscordRuntimeError(err) {
   return msg.includes('unknown interaction') || msg.includes('interaction has already been acknowledged');
 }
 
+export function isTransientDiscordNetworkError(err) {
+  const code = String(err?.code || err?.cause?.code || '').trim().toUpperCase();
+  if ([
+    'ECONNREFUSED',
+    'ECONNRESET',
+    'ETIMEDOUT',
+    'UND_ERR_CONNECT_TIMEOUT',
+    'UND_ERR_SOCKET',
+  ].includes(code)) {
+    return true;
+  }
+
+  const msg = String(err?.message || err || '').toLowerCase();
+  return msg.includes('connect timeout error')
+    || msg.includes('client network socket disconnected before secure tls connection was established')
+    || msg.includes('opening handshake has timed out')
+    || msg.includes('websocket is not open: readystate 0 (connecting)')
+    || msg.includes('websocket was closed before the connection was established')
+    || msg.includes('socket hang up')
+    || msg.includes('econnrefused')
+    || msg.includes('econnreset')
+    || msg.includes('etimedout')
+    || msg.includes('proxy connection timed out')
+    || msg.includes('proxy refused')
+    || msg.includes('not enough sessions remaining to spawn');
+}
+
 export function createDiscordLifecycle({
   selfHealEnabled = true,
   restartDelayMs = 5000,
   maxLoginBackoffMs = 60000,
+  maxSelfHealRestartsPerWindow = 10,
+  selfHealWindowMs = 15 * 60_000,
   discordToken,
   createClient,
   bindClientHandlers,
@@ -31,10 +60,24 @@ export function createDiscordLifecycle({
   processRef = process,
   sleep = defaultSleep,
   setTimeoutFn = setTimeout,
+  nowFn = Date.now,
 } = {}) {
   let client = null;
   let selfHealTimer = null;
   let selfHealInFlight = false;
+  const selfHealRestartTimestamps = [];
+
+  function pruneSelfHealRestartTimestamps(now = nowFn()) {
+    const cutoff = now - Math.max(1000, selfHealWindowMs);
+    while (selfHealRestartTimestamps.length && selfHealRestartTimestamps[0] < cutoff) {
+      selfHealRestartTimestamps.shift();
+    }
+  }
+
+  function hasSelfHealCapacity(now = nowFn()) {
+    pruneSelfHealRestartTimestamps(now);
+    return selfHealRestartTimestamps.length < Math.max(1, maxSelfHealRestartsPerWindow);
+  }
 
   async function loginClientWithRetry(bot, reason) {
     if (!selfHealEnabled) {
@@ -81,7 +124,15 @@ export function createDiscordLifecycle({
       logger.error('❌ Discord token invalid. Self-heal skipped; please fix DISCORD_TOKEN.');
       return;
     }
+    if (err && isTransientDiscordNetworkError(err)) {
+      logger.warn(`🌐 Transient Discord network error (${reason}). Self-heal skipped: ${safeError(err)}`);
+      return;
+    }
     if (selfHealInFlight || selfHealTimer) return;
+    if (!hasSelfHealCapacity()) {
+      logger.error(`🛑 Self-heal paused after ${selfHealRestartTimestamps.length} restarts within ${Math.round(selfHealWindowMs / 60000)} minutes. Fix network/proxy first, then restart manually.`);
+      return;
+    }
 
     if (err) {
       logger.error(`♻️ Self-heal triggered by ${reason}:`, safeError(err));
@@ -105,6 +156,8 @@ export function createDiscordLifecycle({
     if (selfHealInFlight) return;
 
     selfHealInFlight = true;
+    pruneSelfHealRestartTimestamps();
+    selfHealRestartTimestamps.push(nowFn());
 
     try {
       if (client) {
@@ -135,6 +188,10 @@ export function createDiscordLifecycle({
         logger.warn(`Ignoring non-fatal unhandled rejection: ${safeError(err)}`);
         return;
       }
+      if (isTransientDiscordNetworkError(err)) {
+        logger.warn(`Ignoring transient Discord network rejection: ${safeError(err)}`);
+        return;
+      }
       logger.error('Unhandled rejection:', err);
       if (isInvalidTokenError(err)) return;
       scheduleSelfHeal('unhandled_rejection', err);
@@ -143,6 +200,10 @@ export function createDiscordLifecycle({
     processRef.on('uncaughtException', (err) => {
       if (isIgnorableDiscordRuntimeError(err)) {
         logger.warn(`Ignoring non-fatal uncaught exception: ${safeError(err)}`);
+        return;
+      }
+      if (isTransientDiscordNetworkError(err)) {
+        logger.warn(`Ignoring transient Discord network exception: ${safeError(err)}`);
         return;
       }
       logger.error('Uncaught exception:', err);

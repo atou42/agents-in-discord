@@ -72,7 +72,13 @@ export function isTransientDiscordNetworkError(err) {
     String(err?.cause?.message || ''),
   ].join(' ').toLowerCase();
   return text.includes('client network socket disconnected before secure tls connection was established')
+    || text.includes('connect timeout error')
+    || text.includes('opening handshake has timed out')
+    || text.includes('websocket is not open: readystate 0 (connecting)')
+    || text.includes('websocket was closed before the connection was established')
     || text.includes('socket hang up')
+    || text.includes('proxy connection timed out')
+    || text.includes('proxy refused')
     || text.includes('fetch failed');
 }
 

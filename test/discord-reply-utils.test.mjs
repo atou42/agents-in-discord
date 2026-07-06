@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { safeReply } from '../src/discord-reply-utils.js';
+import { isTransientDiscordNetworkError, safeReply } from '../src/discord-reply-utils.js';
 
 function createLogger() {
   return {
@@ -139,4 +139,10 @@ test('safeReply falls back to channel send after reply network retries are exhau
   assert.equal(replyAttempts, 3);
   assert.deepEqual(sent, ['network recovered by fallback']);
   assert.deepEqual(result, { id: 'fallback-1' });
+});
+
+test('discord reply utils classify gateway reconnect websocket errors as transient', () => {
+  assert.equal(isTransientDiscordNetworkError(new Error('WebSocket is not open: readyState 0 (CONNECTING)')), true);
+  assert.equal(isTransientDiscordNetworkError(new Error('Opening handshake has timed out')), true);
+  assert.equal(isTransientDiscordNetworkError(new Error('Proxy connection timed out')), true);
 });

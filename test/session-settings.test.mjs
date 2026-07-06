@@ -310,6 +310,44 @@ test('session-settings resolves codex profile from session global default and pr
   });
 });
 
+test('session-settings resolves Claude model from ~/.claude/settings.json', () => {
+  const settings = createSessionSettings({
+    readClaudeDefaults: () => ({
+      model: 'fable',
+      modelConfigured: true,
+      profile: null,
+      profileConfigured: false,
+      effort: null,
+      effortConfigured: false,
+      fastMode: false,
+      fastModeConfigured: false,
+      source: 'settings.json',
+      settingsPath: '/tmp/.claude/settings.json',
+      error: null,
+    }),
+    normalizeProvider: testNormalizeProvider,
+  });
+
+  assert.deepEqual(settings.resolveModelSetting({ provider: 'claude', model: null }), {
+    value: 'fable',
+    source: 'settings.json',
+  });
+
+  assert.deepEqual(settings.getProviderDefaults('claude'), {
+    model: 'fable',
+    modelConfigured: true,
+    profile: null,
+    profileConfigured: false,
+    effort: null,
+    effortConfigured: false,
+    fastMode: false,
+    fastModeConfigured: false,
+    source: 'settings.json',
+    settingsPath: '/tmp/.claude/settings.json',
+    error: null,
+  });
+});
+
 test('session-settings resolves Claude runtime mode from session, parent, and env default', () => {
   const parentSession = {
     provider: 'claude',
