@@ -428,6 +428,35 @@ async function writeJson(filePath, value) {
   await fs.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+function extensionFromContentType(contentType) {
+  const normalized = String(contentType || "").toLowerCase();
+  if (normalized.includes("image/webp")) return ".webp";
+  if (normalized.includes("image/png")) return ".png";
+  if (normalized.includes("image/jpeg")) return ".jpg";
+  if (normalized.includes("image/gif")) return ".gif";
+  return "";
+}
+
+function extensionFromUrl(url) {
+  const pathname = new URL(url).pathname.toLowerCase();
+  for (const ext of [".webp", ".png", ".jpg", ".jpeg", ".gif"]) {
+    if (pathname.endsWith(ext)) return ext === ".jpeg" ? ".jpg" : ext;
+  }
+  return "";
+}
+
+async function downloadImage(url, fileStem, outDir) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to download image: ${response.status} ${response.statusText}`);
+  }
+  const ext = extensionFromContentType(response.headers.get("content-type")) || extensionFromUrl(url) || ".bin";
+  const filePath = path.join(outDir, `${fileStem}${ext}`);
+  const buffer = Buffer.from(await response.arrayBuffer());
+  await fs.writeFile(filePath, buffer);
+  return { filePath, bytes: buffer.length };
+}
+
 async function executeRow(baseUrl, guestViewer, row, options, outDir) {
   const rowDir = path.join(outDir, row.runId);
   await ensureDir(rowDir);
@@ -440,6 +469,26 @@ async function executeRow(baseUrl, guestViewer, row, options, outDir) {
   await writeJson(path.join(rowDir, "job_created.json"), created);
   const final = await pollJob(baseUrl, guestViewer, created.id, options);
   await writeJson(path.join(rowDir, "job_final.json"), final);
+  const imageUrls = Array.isArray(final.result?.images)
+    ? final.result.images.map((image) => ({
+        outputId: image.outputId || image.filename || null,
+        imageUrl: image.imageUrl || image.fullUrl || null,
+        thumbnailUrl: image.thumbnailUrl || image.thumbUrl || null,
+        origUrl: image.origUrl || null,
+      }))
+    : [];
+  const downloadedImages = [];
+  for (let index = 0; index < imageUrls.length; index += 1) {
+    const image = imageUrls[index];
+    const sourceUrl = image.imageUrl || image.origUrl || image.thumbnailUrl;
+    if (!sourceUrl) continue;
+    const downloaded = await downloadImage(sourceUrl, `image_${String(index + 1).padStart(2, "0")}`, rowDir);
+    downloadedImages.push({
+      ...image,
+      localPath: downloaded.filePath,
+      bytes: downloaded.bytes,
+    });
+  }
   const summary = {
     runId: row.runId,
     ipId: row.ipId,
@@ -450,15 +499,9 @@ async function executeRow(baseUrl, guestViewer, row, options, outDir) {
     status: final.status,
     createdAt: final.createdAt || created.createdAt || null,
     seed: final.params?.seed ?? payload.seed,
-    imageCount: Array.isArray(final.result?.images) ? final.result.images.length : 0,
-    imageUrls: Array.isArray(final.result?.images)
-      ? final.result.images.map((image) => ({
-          outputId: image.outputId || image.filename || null,
-          imageUrl: image.imageUrl || image.fullUrl || null,
-          thumbnailUrl: image.thumbnailUrl || image.thumbUrl || null,
-          origUrl: image.origUrl || null,
-        }))
-      : [],
+    imageCount: imageUrls.length,
+    imageUrls,
+    downloadedImages,
   };
   await writeJson(path.join(rowDir, "summary.json"), summary);
   return summary;

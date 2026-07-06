@@ -29,8 +29,8 @@
   },
   "styleUsageCheck": "pass",
   "runTemplateRowsPerIp": 8,
-  "pilotPromptPacks": [
-    "batman",
+  "promptPackCount": 100,
+  "manualPromptPackOverrides": [
     "dune",
     "mobile_suit_gundam",
     "pokemon",

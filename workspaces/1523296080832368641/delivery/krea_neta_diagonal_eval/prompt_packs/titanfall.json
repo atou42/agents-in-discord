@@ -1,0 +1,10 @@
+{
+  "primaryCharacterAnchor": "A pilot, soldier, commander, or operator from Titanfall, with disciplined gear, role signals, and human-to-machine scale contrast reading clearly.",
+  "primaryWorldAnchor": "Titanfall as carriers, bases, cockpits, fronts, factories, colonies, or war-scarred terrain where vehicles and command structure stay readable.",
+  "iconicStaticMoment": "A launch, deployment, briefing, or maintenance-ready pause where command chain, machine presence, and theater identity all read in one frame.",
+  "dynamicEventMoment": "A mechanized clash, sortie, bombardment, or tactical retreat with clear vehicle silhouettes, debris logic, and battlefield geography.",
+  "closeFramingDescription": "Close framing that holds onto human stress, insignia, cockpit ritual, or tactical equipment detail.",
+  "wideFramingDescription": "Wide framing that preserves machine readability, formation logic, and command-space scale.",
+  "brightReadableLightDescription": "Harsh daylight, orbital white, or hangar light that reveals markings, panel lines, terrain, and mechanical structure.",
+  "darkDramaticLightDescription": "Combat-night, emergency, or hangar low light with disciplined contrast and strong silhouette separation."
+}

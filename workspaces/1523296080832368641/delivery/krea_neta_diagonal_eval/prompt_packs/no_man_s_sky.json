@@ -1,0 +1,10 @@
+{
+  "primaryCharacterAnchor": "A signature explorer, officer, drifter, hunter, or cosmic protagonist from No Man's Sky, with technology, costume, and attitude specific enough to read at a glance.",
+  "primaryWorldAnchor": "No Man's Sky as ships, stations, alien horizons, strange skies, engineered interiors, and speculative systems rather than generic sci-fi glow.",
+  "iconicStaticMoment": "A bridge, docking, arrival, or discovery pause where scale, tech language, and character role all read immediately.",
+  "dynamicEventMoment": "A launch, chase, breach, encounter, or zero-gravity conflict where movement, machinery, and cosmic scale stay legible.",
+  "closeFramingDescription": "Close framing that keeps face, gear, interface-adjacent objects, and species or faction markers clear without UI clutter.",
+  "wideFramingDescription": "Wide framing that makes ships, stations, terrain, or sky phenomena do real worldbuilding work.",
+  "brightReadableLightDescription": "Clean daylight, ship interior white, or high-visibility cosmic light that clarifies structure and materials.",
+  "darkDramaticLightDescription": "Nebula, starlight, reactor, or corridor low light with clear silhouette separation and readable tech forms."
+}
