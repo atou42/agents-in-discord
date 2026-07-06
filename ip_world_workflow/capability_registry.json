@@ -1,6 +1,6 @@
 {
-  "registryVersion": 1,
-  "updatedAt": "2026-07-03",
+  "registryVersion": 2,
+  "updatedAt": "2026-07-06",
   "purpose": "Single source of truth for external capabilities every world run must use. init-run snapshots this file into the run dir as capabilities.json. Gates cross-check decisions against these entries so runs cannot quietly fall back to ad hoc tools.",
   "englishExpressionSpace": {
     "spaceId": "9cb2a38e-2a84-4b1a-bcf4-cb4dff1cd0b4",
@@ -42,5 +42,20 @@
       "run long batches in the background, poll state instead of foreground-waiting",
       "record skipped items in a repair list and close them before the stage gate, or document them as known gaps"
     ]
+  },
+  "proposalSpace": {
+    "spaceId": "de8afcff-aad4-4e57-b012-8bff28000a48",
+    "spaceName": "IP World Proposal",
+    "use": "Phase-one research and ip_proposal.md drafting: cast scoping, cross-verified references, fan red lines, delight plan, style candidate shortlist. Output goes to the run dir; the user approves. Method sources: domain KB1/KB2."
+  },
+  "acceptanceSpace": {
+    "spaceId": "30a03006-10a7-447b-8625-3669e6f5ea87",
+    "spaceName": "IP World Acceptance",
+    "use": "Clean-context adversarial verification: style_audit, factuality_audit, final_acceptance_audit and delivery reports. verifierSessionId in audit files should be a session of THIS space. Hard verdicts remain with the git gate script; this space audits, it does not adjudicate."
+  },
+  "domainKnowledgeSpace": {
+    "spaceId": "59ffcfe1-b355-419d-892b-68d8208efca4",
+    "spaceName": "domain knowledge",
+    "use": "World-domain knowledge base (KB v2): KB1 canon extraction, KB2 review counter-example library (CE-XXX), KB3 style audition protocol, KB4 from-scratch worldbuilding. Proposal and acceptance spaces consume these; new failure modes found in acceptance feed back into KB2."
   }
 }

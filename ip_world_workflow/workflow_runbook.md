@@ -137,7 +137,7 @@ Stage gate: diagnosis changes at least coverage priority, card-writing emphasis,
 
 Present the IP proposal and stop for human review.
 
-This is the phase-one exit door, and it is human-shaped. Using the research from Phases 0-1.5, write `ip_proposal.md` (shape and guidance in `ip_proposal_template.md`) covering: why this IP and what its fandom cares about; the proposed main cast with counts against the observed surface; cross-source-verified reference images for protagonists and key locations; the fan red lines that must not be gotten wrong; a delight plan that proves we know the IP; and 3-5 style candidates from the library, each with its exemplar image (style space `style_index/thumbs/<ID>.png`), an IP-grounded reason, and a risk.
+This is the phase-one exit door, and it is human-shaped. The research and drafting belong in the dedicated proposal space (`IP World Proposal`, see `capabilities.json` proposalSpace) with the domain KB (KB1/KB2) as method source; the finished proposal lands back in the run directory. Using the research from Phases 0-1.5, write `ip_proposal.md` (shape and guidance in `ip_proposal_template.md`) covering: why this IP and what its fandom cares about; the proposed main cast with counts against the observed surface; cross-source-verified reference images for protagonists and key locations; the fan red lines that must not be gotten wrong; a delight plan that proves we know the IP; and 3-5 style candidates from the library, each with its exemplar image (style space `style_index/thumbs/<ID>.png`), an IP-grounded reason, and a risk.
 
 Present it to the user and wait. Record the user's actual decisions in `checks/ip_proposal_approval.json`. The `ip_proposal` gate (enforced from `world_diagnosis` onward) fails without an approved, un-tampered proposal — and every execution stage inherits it, so there is no path into import, generation or board work around the user.
 
@@ -339,7 +339,7 @@ Stage gate: placements read back, zones match the diagnosis and delivery contrac
 
 Run acceptance.
 
-Default execution profile: split. Live state checks may happen in the bound space, while owner-facing Studio checks and final artifact review may happen from the local orchestrator or a clean-context verifier.
+Default execution profile: split. Live state checks may happen in the bound space, while owner-facing Studio checks and final artifact review may happen from the local orchestrator or a clean-context verifier. Audits (style, factuality, final acceptance) belong in the dedicated acceptance space (`IP World Acceptance`, see `capabilities.json` acceptanceSpace): builder and verifier in separate spaces makes clean-context adversarial review structural rather than disciplinary, and the audit files' `verifierSessionId` should come from that space's sessions.
 
 Check chain health, coverage gate, content quality, visible-card cleanliness, visual consistency, ready covers, ready media, board placements, public URLs, artifact archive completeness and lock cleanliness.
 
