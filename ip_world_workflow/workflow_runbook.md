@@ -211,7 +211,13 @@ World creation is the only step that requires the local browser session, and it 
 
 Wait until the world has a real `world_...` ID and a bound Cohub `spaceId`. Do not continue until the world is actually provisioned.
 
-Default execution profile: claim from `world_pool.json`; fall back to local orchestrator with shared Chrome owner session when the pool is empty.
+Default execution profile: claim from `world_pool.json`; fall back to `cdp_studio.py create-world <name>` when the pool is empty (shared Chrome must be running with a logged-in neta.art tab — no human interaction needed beyond that). After claiming or creating, run the token refresh immediately:
+
+```bash
+python3 /Users/atou/agents-in-discord/ip_world_workflow/scripts/cdp_studio.py refresh-token <worldId>
+```
+
+This injects a fresh `NETA_TOKEN` into the bound Cohub space (writes `NETA_WORLD_ID` + `NETA_TOKEN` to the space env). No human needs to open Studio.
 
 The hard rule is not that everything must happen in one machine context. The hard rule is that a provisional `worldId` is not enough. The stage passes only when the execution path actually produces the real bound `spaceId`.
 
@@ -336,6 +342,12 @@ python3 /Users/atou/agents-in-discord/ip_world_workflow/scripts/local_world_work
 ```
 
 Stage gate: placements read back, zones match the diagnosis and delivery contract, the board is not an unreadable pile, and the final board screenshot is archived.
+
+Take the screenshot without opening a browser manually:
+
+```bash
+python3 /Users/atou/agents-in-discord/ip_world_workflow/scripts/cdp_studio.py screenshot <worldId> deliverables/<slug>/screenshots/board_final.png
+```
 
 ## Phase 9
 
