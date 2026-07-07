@@ -74,7 +74,9 @@ It prints every world with its `worldId`, `spaceId`, and status, plus `refillNee
 python3 scripts/local_world_workflow.py claim-world --run-dir runs/<slug>
 ```
 
-This picks the oldest `available` entry, writes `worldId` / `spaceId` / `studioUrl` / `cohubUrl` into the run manifest, flips the pool entry to `assigned`, and refuses if the run is already bound (so a re-run can't grab a second world). The bound `spaceId` it returns is the world's own Cohub space — that is where Phase 5-8 (import, cover, placements) run. Report the claim to the user (they sync `world_pool.json` back to git).
+This picks the oldest `available` entry, writes `worldId` / `spaceId` / `studioUrl` / `cohubUrl` into the run manifest, flips the pool entry to `assigned`, and **pushes the updated pool back to this space automatically** (the space's `world_pool.json` is the live source of truth — no manual sync needed). It refuses if the run is already bound, so a re-run can't grab a second world. The bound `spaceId` it returns is the world's own Cohub space — that is where Phase 5-8 (import, cover, placements) run.
+
+The claim's `poolSync` field reports whether the space push succeeded; if it says `sync failed`, surface that to the user. The local `world_pool.json` on disk also changes — git is the periodic archive, committed at the next convenient point, but the workflow does not block on it.
 
 If `claim-world` reports POOL EMPTY, STOP and ask the user to refill locally (`cdp_studio.py create-world` needs the local shared Chrome).
 

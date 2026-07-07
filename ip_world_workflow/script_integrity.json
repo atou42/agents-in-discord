@@ -1,6 +1,6 @@
 {
-  "localWorldWorkflowSha256": "15f6fb601836aa5e54a1f2eef02605b46074192f0553562c6927ed221e220c79",
-  "acceptedAt": "2026-07-07T10:15:29Z",
+  "localWorldWorkflowSha256": "c4fb1016088a9fa117871393c400bb70e8cdba00e4fbbadf8e7e99d9a7635cc3",
+  "acceptedAt": "2026-07-07T12:31:34Z",
   "approvedBy": "user",
-  "note": "Add list-pool and claim-world subcommands: atomic FIFO pool claim writing worldId/spaceId into run manifest + flipping pool entry to assigned, with double-claim guard. Requested by user to make world binding a scripted command instead of a hand-edited file."
+  "note": "Add sync-pool command and auto-sync in claim-world: pool mutations push world_pool.json to the orchestrator space (live source of truth), best-effort with visible status. User-approved: make the space self-contained so pool state does not depend on manual git sync."
 }

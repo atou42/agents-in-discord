@@ -64,6 +64,51 @@
       "cohubUrl": "https://cohub.run/spaces/44566f87-478a-4ba0-af89-b4fbf8397ce9",
       "createdAt": "2026-07-07",
       "status": "available"
+    },
+    {
+      "name": "pool-slot-06",
+      "worldId": "world_01KWY7A204XSWZMFX1MKSK7PBY",
+      "spaceId": "1bac8856-da71-45cd-b4dd-692e6f933814",
+      "studioUrl": "https://neta.art/world/world_01KWY7A204XSWZMFX1MKSK7PBY/studio",
+      "cohubUrl": "https://cohub.run/spaces/1bac8856-da71-45cd-b4dd-692e6f933814",
+      "createdAt": "2026-07-07",
+      "status": "available"
+    },
+    {
+      "name": "pool-slot-07",
+      "worldId": "world_01KWY7A8453DY10PMX2APVY4JD",
+      "spaceId": "d5ca4722-63e3-4077-b0c4-8b9dd4bcecdb",
+      "studioUrl": "https://neta.art/world/world_01KWY7A8453DY10PMX2APVY4JD/studio",
+      "cohubUrl": "https://cohub.run/spaces/d5ca4722-63e3-4077-b0c4-8b9dd4bcecdb",
+      "createdAt": "2026-07-07",
+      "status": "available"
+    },
+    {
+      "name": "pool-slot-08",
+      "worldId": "world_01KWY7AE49083RK80XGP26BEYD",
+      "spaceId": "76e4b2c8-2ed3-4c63-ab01-c4dae5313959",
+      "studioUrl": "https://neta.art/world/world_01KWY7AE49083RK80XGP26BEYD/studio",
+      "cohubUrl": "https://cohub.run/spaces/76e4b2c8-2ed3-4c63-ab01-c4dae5313959",
+      "createdAt": "2026-07-07",
+      "status": "available"
+    },
+    {
+      "name": "pool-slot-09",
+      "worldId": "world_01KWY7AM43MV5PEQXEACSTGFYT",
+      "spaceId": "ae0ebbfc-3fe8-46a6-892d-57d6f5647e84",
+      "studioUrl": "https://neta.art/world/world_01KWY7AM43MV5PEQXEACSTGFYT/studio",
+      "cohubUrl": "https://cohub.run/spaces/ae0ebbfc-3fe8-46a6-892d-57d6f5647e84",
+      "createdAt": "2026-07-07",
+      "status": "available"
+    },
+    {
+      "name": "pool-slot-10",
+      "worldId": "world_01KWY7AT51T8FYPDP2N8YJ6NT2",
+      "spaceId": "996ba5b3-a607-49af-9305-debf186c2ef0",
+      "studioUrl": "https://neta.art/world/world_01KWY7AT51T8FYPDP2N8YJ6NT2/studio",
+      "cohubUrl": "https://cohub.run/spaces/996ba5b3-a607-49af-9305-debf186c2ef0",
+      "createdAt": "2026-07-07",
+      "status": "available"
     }
   ],
   "provisionNote": "Created 2026-07-07 via POST /api/worlds (config.name + visibility) from the logged-in Studio page context (scripts/cdp_studio.py over shared Chrome CDP). Space provisioning is lazy: it triggers on first Studio page open of the world; poll GET /api/worlds/<id> until spaceId is non-null. All five bound spaces verified reachable via cohub CLI."

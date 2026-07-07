@@ -188,6 +188,12 @@ DELIVERY_SCALES = {"full_world", "core_sample"}
 IMPORT_SMOKE_MAX_SAMPLE = 10
 STYLE_AUDIT_ASSET_DIRS = ["assets/key_characters", "assets/key_locations", "assets/key_visuals"]
 
+# The orchestrator space is the live source of truth for world_pool.json; git is
+# the periodic archive. Pool mutations push the file back to this space so any
+# environment (local or another sandbox) sees claims immediately.
+ORCHESTRATOR_SPACE_ID = "7d8f6814-b123-410f-861f-67c07717ac68"
+POOL_REMOTE_DIR = "workflow/workflow_space_seed"
+
 
 SCRIPT_MANIFEST_PATH = WORKFLOW_HUB / "script_integrity.json"
 
@@ -2760,6 +2766,33 @@ def _load_world_pool() -> dict:
     return read_json(WORLD_POOL_PATH)
 
 
+def _sync_pool_to_space() -> str:
+    """Push world_pool.json to the orchestrator space (live source of truth).
+
+    Best-effort: if the cohub CLI is missing or the upload fails, return a
+    status string instead of raising — the local file is already written, and
+    the caller surfaces the status so a failed sync is visible, not silent."""
+    import shutil
+    if shutil.which("cohub") is None:
+        return "skipped: cohub CLI not on PATH (local file updated; sync manually)"
+    try:
+        result = subprocess.run(
+            ["cohub", "-s", ORCHESTRATOR_SPACE_ID, "spaces", "files", "upload",
+             str(WORLD_POOL_PATH), "--dir", POOL_REMOTE_DIR],
+            capture_output=True, text=True, timeout=60,
+        )
+        if result.returncode == 0:
+            return "synced to orchestrator space"
+        return f"sync failed: {(result.stderr or result.stdout).strip()[:200]}"
+    except (subprocess.SubprocessError, OSError) as exc:
+        return f"sync failed: {exc}"
+
+
+def sync_pool(args: argparse.Namespace) -> None:
+    status = _sync_pool_to_space()
+    print(json.dumps({"status": status}, ensure_ascii=False, indent=2))
+
+
 def list_pool(args: argparse.Namespace) -> None:
     pool = _load_world_pool()
     worlds = pool.get("worlds", [])
@@ -2779,9 +2812,10 @@ def claim_world(args: argparse.Namespace) -> None:
     """Atomically claim the oldest available pool world into a run.
 
     Writes worldId/spaceId/studioUrl/cohubUrl into the run manifest AND flips
-    the pool entry to assigned. Refuses if the run already has a worldId, so a
-    re-run cannot silently grab a second world. The pool file change must be
-    synced back to git by the user (the orchestrator reports it)."""
+    the pool entry to assigned, then pushes the pool file back to the
+    orchestrator space so the claim is visible everywhere immediately. Refuses
+    if the run already has a worldId, so a re-run cannot silently grab a second
+    world."""
     base, manifest, stage_log = load_run(args.run_dir)
     world = manifest["world"]
     if world.get("worldId"):
@@ -2807,6 +2841,7 @@ def claim_world(args: argparse.Namespace) -> None:
             w["assignedRun"] = str(args.run_dir)
             w["assignedAt"] = now
     WORLD_POOL_PATH.write_text(json.dumps(pool, ensure_ascii=False, indent=2) + "\n")
+    sync_status = _sync_pool_to_space()
 
     world["worldId"] = chosen["worldId"]
     world["spaceId"] = chosen["spaceId"]
@@ -2825,7 +2860,8 @@ def claim_world(args: argparse.Namespace) -> None:
         },
         "poolRemaining": remaining,
         "refillNeeded": remaining <= 1,
-        "syncReminder": "world_pool.json changed — sync it back to git.",
+        "poolSync": sync_status,
+        "gitNote": "world_pool.json also changed on disk — commit it to git at the next archive point.",
     }, ensure_ascii=False, indent=2))
 #
 # Each gate: name -> (runner, report_path_or_None).
@@ -3548,6 +3584,9 @@ def main() -> None:
 
     p_pool = sub.add_parser("list-pool")
     p_pool.set_defaults(func=list_pool)
+
+    p_sync = sub.add_parser("sync-pool")
+    p_sync.set_defaults(func=sync_pool)
 
     p_claim = sub.add_parser("claim-world")
     p_claim.add_argument("--run-dir", required=True)
