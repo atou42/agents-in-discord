@@ -51,7 +51,7 @@ test('provider-metadata exposes provider labels, bins, and slash prefixes', () =
 
 test('provider-metadata exposes workspace, compact, and reasoning capabilities', () => {
   assert.equal(providerBindsSessionsToWorkspace('codex'), true);
-  assert.equal(providerBindsSessionsToWorkspace('claude'), false);
+  assert.equal(providerBindsSessionsToWorkspace('claude'), true);
   assert.equal(providerBindsSessionsToWorkspace('antigravity'), true);
   assert.deepEqual(getSupportedCompactStrategies('codex'), ['hard', 'native', 'off']);
   assert.deepEqual(getSupportedCompactStrategies('claude'), ['hard', 'native', 'off']);
@@ -68,5 +68,5 @@ test('provider-metadata formats provider-aware help', () => {
   assert.match(formatReasoningEffortUnsupported('antigravity', 'en'), /Antigravity CLI/);
   assert.match(formatReasoningEffortUnsupported('claude', 'zh'), /`low`、`medium`、`high`/);
   assert.match(formatCompactConfigUnsupported('antigravity', { type: 'set_native_limit' }, 'en'), /native_limit/);
-  assert.match(formatWorkspaceSessionPolicy('claude', 'en'), /portable/);
+  assert.match(formatWorkspaceSessionPolicy('claude', 'en'), /workspace-scoped/);
 });

@@ -1,6 +1,0 @@
-{
-  "localWorldWorkflowSha256": "c4fb1016088a9fa117871393c400bb70e8cdba00e4fbbadf8e7e99d9a7635cc3",
-  "acceptedAt": "2026-07-07T12:31:34Z",
-  "approvedBy": "user",
-  "note": "Add sync-pool command and auto-sync in claim-world: pool mutations push world_pool.json to the orchestrator space (live source of truth), best-effort with visible status. User-approved: make the space self-contained so pool state does not depend on manual git sync."
-}

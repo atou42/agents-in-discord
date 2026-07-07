@@ -7,5 +7,14 @@ test-results/
 workspaces/
 worktrees/
 data/
+.claude/
+.codex/
+.github/skills/
+output/
+ip_world_workflow/
+docs/prototypes/
+docs/superpowers/
+docs/album-site-replica-ledger.md
+cohub-page-screenshot.png
 .DS_Store
 .bot.log
