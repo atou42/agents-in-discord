@@ -1,5 +1,21 @@
 # Workflow Runbook
 
+## Architecture: two-phase model
+
+A run has two distinct phases with a clean handoff between them.
+
+**Phase A — Cohub closed loop (Phases 0 through 8)**
+
+All asset development happens inside Cohub. The binding between a Studio world and its Cohub space is automatic: `POST /api/worlds` creates the world, and opening its Studio page triggers lazy space provisioning; polling `GET /api/worlds/<id>` until `spaceId` is non-null gives you the binding. From that point on, atom/work/manifest IO is local CohubFS (no token required); placements and cover scheduling need a fresh `NETA_TOKEN` injected via `cdp_studio.py refresh-token <worldId>` (one scripted call, no human action). The five module spaces (proposal, style-selection, character-craft, world-geography, acceptance) exchange work only through run-directory artifacts. Screenshots are taken with `cdp_studio.py screenshot`. Nothing in this phase requires a human to open a browser.
+
+**Phase B — Studio end-to-end acceptance (Phase 9+)**
+
+After all assets pass Cohub-side gates, a human verifies the world in Neta Studio: visual board check, cover check, and any interactive play. This is a deliberate human gate — it is not a workflow failure that it requires a person. It is the final product sign-off.
+
+The boundary between the two phases is crisp: Cohub delivers a verified artifact set; Studio confirms the product experience.
+
+---
+
 The authoritative gate table lives in the control script, not in this file. To see every stage, the gates it introduces, and the full cumulative set enforced on PASS, run:
 
 ```bash
@@ -25,7 +41,7 @@ Before choosing any external tool, read the run's `capabilities.json`. `init-run
 
 This phase begins world understanding, not production. The builder should collect enough source evidence to understand what kind of world this is before deciding what the delivery should contain.
 
-Default execution profile: local orchestrator. Cohub-closed-loop is a deliberate experiment branch, not the default production path.
+Default execution profile: proposal space for research, local gate script for verification.
 
 Run:
 
@@ -68,7 +84,7 @@ Create a source inventory from Fandom or the chosen source set.
 
 Discover categories first through Fandom CLI and the richest available local wiki source. Build candidate lists for characters, locations, organizations, objects, systems, events, secrets and perspectives. Deduplicate them. Classify them into Tier 1, Tier 2 and Tier 3. Record exclusions and deferrals explicitly.
 
-Default execution profile: local orchestrator plus delegated source discovery or verification workers when they can safely split the category tree, evidence recovery or audit work. Cohub-closed-loop is allowed only when the run explicitly intends to test or use that branch.
+Default execution profile: local orchestrator plus delegated source discovery or verification workers when they can safely split the category tree, evidence recovery or audit work.
 
 Do not trust top-level Fandom category counts as coverage truth. Large IPs often hide the real character pool inside many subcategories. The builder must inspect the category tree and close the ledger at the candidate level.
 
