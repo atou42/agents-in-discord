@@ -6,7 +6,13 @@ A run has two distinct phases with a clean handoff between them.
 
 **Phase A — Cohub closed loop (Phases 0 through 8)**
 
-All asset development happens inside Cohub. The binding between a Studio world and its Cohub space is automatic: `POST /api/worlds` creates the world, and opening its Studio page triggers lazy space provisioning; polling `GET /api/worlds/<id>` until `spaceId` is non-null gives you the binding. From that point on, atom/work/manifest IO is local CohubFS (no token required); placements and cover scheduling need a fresh `NETA_TOKEN` injected via `cdp_studio.py refresh-token <worldId>` (one scripted call, no human action). The five module spaces (proposal, style-selection, character-craft, world-geography, acceptance) exchange work only through run-directory artifacts. Screenshots are taken with `cdp_studio.py screenshot`. Nothing in this phase requires a human to open a browser.
+All asset development happens inside Cohub. The binding between a Studio world and its Cohub space is automatic: `POST /api/worlds` creates the world, and opening its Studio page triggers lazy space provisioning; polling `GET /api/worlds/<id>` until `spaceId` is non-null gives you the binding. From that point on, everything runs inside Cohub with zero local dependency:
+
+- atom/work/manifest IO is local CohubFS — no token required
+- placements, cover scheduling, and narrating import all use `COHUB_EXECUTION_TOKEN`, which is auto-injected by the Cohub runtime when an agent session starts — no NETA_TOKEN or env refresh needed
+- screenshots use `cdp_studio.py screenshot` (shared Chrome utility, only needed for visual verification)
+
+The five module spaces (proposal, style-selection, character-craft, world-geography, acceptance) exchange work only through run-directory artifacts. Nothing in Phase A requires a human to open a browser or run a local command.
 
 **Phase B — Studio end-to-end acceptance (Phase 9+)**
 
@@ -227,13 +233,9 @@ World creation is the only step that requires the local browser session, and it 
 
 Wait until the world has a real `world_...` ID and a bound Cohub `spaceId`. Do not continue until the world is actually provisioned.
 
-Default execution profile: claim from `world_pool.json`; fall back to `cdp_studio.py create-world <name>` when the pool is empty (shared Chrome must be running with a logged-in neta.art tab — no human interaction needed beyond that). After claiming or creating, run the token refresh immediately:
+Default execution profile: claim from `world_pool.json`; fall back to `cdp_studio.py create-world <name>` when the pool is empty (shared Chrome must be running with a logged-in neta.art tab — no human interaction needed beyond that).
 
-```bash
-python3 /Users/atou/agents-in-discord/ip_world_workflow/scripts/cdp_studio.py refresh-token <worldId>
-```
-
-This injects a fresh `NETA_TOKEN` into the bound Cohub space (writes `NETA_WORLD_ID` + `NETA_TOKEN` to the space env). No human needs to open Studio.
+No token refresh step is needed. Placements, cover scheduling, and import all use `COHUB_EXECUTION_TOKEN` which the Cohub runtime injects automatically. `NETA_TOKEN` is not used by any workflow operation.
 
 The hard rule is not that everything must happen in one machine context. The hard rule is that a provisional `worldId` is not enough. The stage passes only when the execution path actually produces the real bound `spaceId`.
 
