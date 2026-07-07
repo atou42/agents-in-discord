@@ -62,16 +62,21 @@ Style asset library (read-only upstream, reference by ID only): Studio_ArtStyle 
 
 ## Claiming a world (Phase 4)
 
-Take the OLDEST `available` entry in `world_pool.json`, set `status: assigned`, `assignedRun`, `assignedAt`, then:
+First see what's in the pool:
 
 ```bash
-python3 scripts/local_world_workflow.py set-ids --run-dir runs/<slug> \
-  --world-id <worldId> --space-id <spaceId> \
-  --studio-url https://neta.art/world/<worldId>/studio \
-  --cohub-url https://cohub.run/spaces/<spaceId>
+python3 scripts/local_world_workflow.py list-pool
 ```
 
-Report the pool change to the user (they sync it to git). If the pool is empty, STOP and ask the user to refill locally (`cdp_studio.py create-world` needs the local shared Chrome).
+It prints every world with its `worldId`, `spaceId`, and status, plus `refillNeeded`. To bind the oldest available world to your run, use the atomic claim — never hand-edit `world_pool.json`:
+
+```bash
+python3 scripts/local_world_workflow.py claim-world --run-dir runs/<slug>
+```
+
+This picks the oldest `available` entry, writes `worldId` / `spaceId` / `studioUrl` / `cohubUrl` into the run manifest, flips the pool entry to `assigned`, and refuses if the run is already bound (so a re-run can't grab a second world). The bound `spaceId` it returns is the world's own Cohub space — that is where Phase 5-8 (import, cover, placements) run. Report the claim to the user (they sync `world_pool.json` back to git).
+
+If `claim-world` reports POOL EMPTY, STOP and ask the user to refill locally (`cdp_studio.py create-world` needs the local shared Chrome).
 
 No token work is needed: import, placements, and cover scheduling in the bound space all use `COHUB_EXECUTION_TOKEN`, auto-injected when an agent session starts there.
 

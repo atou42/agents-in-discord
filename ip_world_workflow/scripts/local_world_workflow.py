@@ -179,6 +179,7 @@ WORKFLOW_HUB = Path(__file__).resolve().parent.parent
 CAPABILITY_REGISTRY_PATH = WORKFLOW_HUB / "capability_registry.json"
 DELEGATION_MAP_PATH = WORKFLOW_HUB / "delegation_map.json"
 TARGET_LOCKS_DIR = WORKFLOW_HUB / "target_locks"
+WORLD_POOL_PATH = WORKFLOW_HUB / "world_pool.json"
 LOCKED_TARGET_KEYS = ["tier1Characters", "totalAtoms", "keyCharacterAssets", "nonCharacterAtoms"]
 REQUIRED_TARGET_KEYS = ["tier1Characters", "totalAtoms", "keyCharacterAssets"]
 FULL_WORLD_TIER1_FLOOR_RATIO = 0.15
@@ -2753,7 +2754,79 @@ def set_ids(args: argparse.Namespace) -> None:
     print(json.dumps({"status": "PASS", "world": world}, ensure_ascii=False, indent=2))
 
 
-# --- Declarative gate registry -------------------------------------------------
+def _load_world_pool() -> dict:
+    if not WORLD_POOL_PATH.exists():
+        raise SystemExit(f"world_pool.json not found at {WORLD_POOL_PATH}")
+    return read_json(WORLD_POOL_PATH)
+
+
+def list_pool(args: argparse.Namespace) -> None:
+    pool = _load_world_pool()
+    worlds = pool.get("worlds", [])
+    summary = {
+        "available": [w for w in worlds if w.get("status") == "available"],
+        "assigned": [w for w in worlds if w.get("status") == "assigned"],
+        "retired": [w for w in worlds if w.get("status") == "retired"],
+    }
+    print(json.dumps({
+        "counts": {k: len(v) for k, v in summary.items()},
+        "worlds": worlds,
+        "refillNeeded": len(summary["available"]) <= 1,
+    }, ensure_ascii=False, indent=2))
+
+
+def claim_world(args: argparse.Namespace) -> None:
+    """Atomically claim the oldest available pool world into a run.
+
+    Writes worldId/spaceId/studioUrl/cohubUrl into the run manifest AND flips
+    the pool entry to assigned. Refuses if the run already has a worldId, so a
+    re-run cannot silently grab a second world. The pool file change must be
+    synced back to git by the user (the orchestrator reports it)."""
+    base, manifest, stage_log = load_run(args.run_dir)
+    world = manifest["world"]
+    if world.get("worldId"):
+        raise SystemExit(
+            f"run already bound to {world['worldId']}; refusing to claim another. "
+            "Use set-ids to correct a binding."
+        )
+    pool = _load_world_pool()
+    worlds = pool.get("worlds", [])
+    available = [w for w in worlds if w.get("status") == "available"]
+    if not available:
+        raise SystemExit(
+            "POOL EMPTY: no available world to claim. Refill locally with "
+            "`cdp_studio.py create-world <name>` (needs shared Chrome), then re-run."
+        )
+    available.sort(key=lambda w: (w.get("createdAt", ""), w.get("name", "")))
+    chosen = available[0]
+    run_id = manifest.get("world", {}).get("slug") or str(Path(args.run_dir).name)
+    now = utc_now()
+    for w in worlds:
+        if w.get("worldId") == chosen["worldId"]:
+            w["status"] = "assigned"
+            w["assignedRun"] = str(args.run_dir)
+            w["assignedAt"] = now
+    WORLD_POOL_PATH.write_text(json.dumps(pool, ensure_ascii=False, indent=2) + "\n")
+
+    world["worldId"] = chosen["worldId"]
+    world["spaceId"] = chosen["spaceId"]
+    world["studioUrl"] = chosen.get("studioUrl") or f"https://neta.art/world/{chosen['worldId']}/studio"
+    world["cohubUrl"] = chosen.get("cohubUrl") or f"https://cohub.run/spaces/{chosen['spaceId']}"
+    save_run(base, manifest, stage_log)
+
+    remaining = len([w for w in worlds if w.get("status") == "available"])
+    print(json.dumps({
+        "status": "PASS",
+        "claimed": {
+            "worldId": chosen["worldId"],
+            "spaceId": chosen["spaceId"],
+            "studioUrl": world["studioUrl"],
+            "cohubUrl": world["cohubUrl"],
+        },
+        "poolRemaining": remaining,
+        "refillNeeded": remaining <= 1,
+        "syncReminder": "world_pool.json changed — sync it back to git.",
+    }, ensure_ascii=False, indent=2))
 #
 # Each gate: name -> (runner, report_path_or_None).
 # A runner takes (base, manifest) and returns (failures, warnings, report_or_None).
@@ -3472,6 +3545,13 @@ def main() -> None:
     p_ids.add_argument("--primary-family")
     p_ids.add_argument("--secondary-lens")
     p_ids.set_defaults(func=set_ids)
+
+    p_pool = sub.add_parser("list-pool")
+    p_pool.set_defaults(func=list_pool)
+
+    p_claim = sub.add_parser("claim-world")
+    p_claim.add_argument("--run-dir", required=True)
+    p_claim.set_defaults(func=claim_world)
 
     p_stage = sub.add_parser("stage")
     p_stage.add_argument("--run-dir", required=True)

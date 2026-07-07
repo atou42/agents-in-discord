@@ -1,6 +1,6 @@
 {
-  "localWorldWorkflowSha256": "38c60d0015ad171abc7446e9be868bc8828e89a9a613da47a39cddc5eacb13ef",
-  "acceptedAt": "2026-07-05T03:10:58Z",
+  "localWorldWorkflowSha256": "15f6fb601836aa5e54a1f2eef02605b46074192f0553562c6927ed221e220c79",
+  "acceptedAt": "2026-07-07T10:15:29Z",
   "approvedBy": "user",
-  "note": "ip_proposal human-review gate, per user direction 2026-07-04"
+  "note": "Add list-pool and claim-world subcommands: atomic FIFO pool claim writing worldId/spaceId into run manifest + flipping pool entry to assigned, with double-claim guard. Requested by user to make world binding a scripted command instead of a hand-edited file."
 }
