@@ -36,7 +36,7 @@ const PROVIDER_METADATA = Object.freeze({
         supportsNativeStrategy: true,
         supportsNativeLimit: false,
       }),
-      workspaceSessionPolicy: 'portable',
+      workspaceSessionPolicy: 'strict',
     }),
   }),
   antigravity: Object.freeze({

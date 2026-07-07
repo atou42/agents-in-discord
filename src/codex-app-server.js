@@ -4,6 +4,7 @@ import { buildCodexAppServerArgs } from './codex-app-server-args.js';
 
 const DEFAULT_APP_SERVER_TIMEOUT_MS = 10_000;
 const DEFAULT_FORK_TIMEOUT_MS = 30_000;
+const DEFAULT_GOAL_TIMEOUT_MS = 30_000;
 
 function normalizeText(value) {
   const text = String(value || '').trim();
@@ -375,8 +376,12 @@ export async function forkCodexThread(options = {}) {
 function createGoalClient(options = {}) {
   const enabledFeatures = new Set(options.enabledFeatures || []);
   enabledFeatures.add('goals');
+  const timeoutMs = options.timeoutMs === undefined || options.timeoutMs === null
+    ? DEFAULT_GOAL_TIMEOUT_MS
+    : options.timeoutMs;
   return createCodexAppServerClient({
     ...options,
+    timeoutMs,
     enabledFeatures: [...enabledFeatures],
   });
 }

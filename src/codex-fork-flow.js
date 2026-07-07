@@ -380,6 +380,7 @@ export async function createProviderForkThread({
     parentChannelId: key,
     provider: normalizedProvider,
     pendingForkFromSessionId: normalizedProvider === 'claude' ? normalizedParentSessionId : null,
+    workspaceDir: forkWorkspaceDir,
   });
   const notice = await sendForkOriginNotice(childThread, {
     source,

@@ -187,6 +187,7 @@ test('createProviderForkThread prepares Claude fork without mutating the parent 
   const threadCreates = [];
   const setNameCalls = [];
   const threadMessages = [];
+  let observedBinding = null;
   const result = await createProviderForkThread({
     key: 'parent-channel',
     session: parentSession,
@@ -218,6 +219,7 @@ test('createProviderForkThread prepares Claude fork without mutating the parent 
     getSession: () => childSession,
     commandActions: {
       bindForkedSession(currentSession, binding) {
+        observedBinding = binding;
         currentSession.runnerSessionId = binding.sessionId;
         currentSession.forkedFromProvider = binding.provider;
         currentSession.forkedFromSessionId = binding.parentSessionId;
@@ -238,6 +240,7 @@ test('createProviderForkThread prepares Claude fork without mutating the parent 
   assert.equal(parentSession.runnerSessionId, 'parent-session');
   assert.equal(childSession.runnerSessionId, 'child-session');
   assert.equal(childSession.workspaceDir, '/repo/parent-workspace');
+  assert.equal(observedBinding.workspaceDir, '/repo/parent-workspace');
   assert.equal(childSession.forkedFromProvider, 'claude');
   assert.equal(childSession.forkedFromSessionId, 'parent-session');
   assert.equal(childSession.pendingForkFromSessionId, 'parent-session');

@@ -574,6 +574,22 @@ export function createPromptOrchestrator({
           : `已获取 workspace 锁：${workspaceDir}`,
       );
 
+      const currentWorkspaceDir = ensureWorkspace(session, key);
+      if (String(currentWorkspaceDir || '') !== String(workspaceDir || '')) {
+        releaseWorkspaceLock();
+        const error = language === 'en'
+          ? `workspace changed while waiting: ${currentWorkspaceDir}`
+          : `等待期间 workspace 已切换：${currentWorkspaceDir}`;
+        progressOutcome = { ok: false, cancelled: false, timedOut: false, error };
+        await safeReply(
+          message,
+          applyCurrentTerminalMention(message, session, language === 'en'
+            ? 'Workspace changed while this run was waiting. Please send the message again so it starts in the new workspace.'
+            : '这轮任务等待锁的时候 workspace 已经切换了。请再发一次，让它从新的 workspace 开始。'),
+        );
+        return { ok: false, error };
+      }
+
       const extraInfoSetting = resolveExtraInfoSetting(session);
       const extraInfoPromptLine = buildExtraInfoPromptLine({
         setting: extraInfoSetting,

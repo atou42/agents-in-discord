@@ -79,6 +79,7 @@ export function createSessionCommandActions({
   getWorkspaceBinding = () => ({ workspaceDir: null, source: 'legacy fallback' }),
   listStoredSessions = () => [],
   readCodexSessionMetaBySessionId = () => null,
+  readClaudeSessionMetaBySessionId = () => null,
   resolveAntigravityProjectRootBySessionId = () => null,
   resolveProviderDefaultWorkspace = () => ({ workspaceDir: null, source: 'unset', envKey: null }),
   setProviderDefaultWorkspace = () => ({ workspaceDir: null, source: 'unset', envKey: null }),
@@ -134,6 +135,9 @@ export function createSessionCommandActions({
     if (!normalizedSessionId) return null;
     if (provider === 'codex') {
       return normalizeWorkspacePath(readCodexSessionMetaBySessionId(normalizedSessionId)?.cwd);
+    }
+    if (provider === 'claude') {
+      return normalizeWorkspacePath(readClaudeSessionMetaBySessionId(normalizedSessionId)?.cwd);
     }
     if (provider === 'antigravity') {
       return normalizeWorkspacePath(resolveAntigravityProjectRootBySessionId(normalizedSessionId));
@@ -372,6 +376,7 @@ export function createSessionCommandActions({
     parentChannelId,
     provider = null,
     pendingForkFromSessionId = null,
+    workspaceDir = null,
   } = {}) {
     const normalizedProvider = normalizeProvider(provider || getSessionProvider(session));
     const currentProvider = getSessionProvider(session);
@@ -384,6 +389,8 @@ export function createSessionCommandActions({
     session.forkedFromChannelId = normalizeSessionKey(parentChannelId);
     session.forkedAt = new Date().toISOString();
     session.pendingForkFromSessionId = normalizeSessionKey(pendingForkFromSessionId);
+    const normalizedWorkspaceDir = normalizeWorkspacePath(workspaceDir);
+    if (normalizedWorkspaceDir) session.workspaceDir = normalizedWorkspaceDir;
     saveDb();
     return {
       provider: normalizedProvider,
@@ -393,6 +400,7 @@ export function createSessionCommandActions({
       parentChannelId: session.forkedFromChannelId,
       forkedAt: session.forkedAt,
       pendingForkFromSessionId: session.pendingForkFromSessionId,
+      workspaceDir: session.workspaceDir || null,
     };
   }
 

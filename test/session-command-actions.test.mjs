@@ -211,7 +211,7 @@ test('createSessionCommandActions.setWorkspaceDir resets codex session when work
   assert.equal(saveCount, 1);
 });
 
-test('createSessionCommandActions.setWorkspaceDir keeps claude session when workspace changes', () => {
+test('createSessionCommandActions.setWorkspaceDir resets Claude session when workspace changes', () => {
   let saveCount = 0;
   const defaultState = { value: '/shared' };
   const actions = createSessionCommandActions({
@@ -237,8 +237,8 @@ test('createSessionCommandActions.setWorkspaceDir keeps claude session when work
   const result = actions.setWorkspaceDir(session, 'thread-1', '/new/project');
 
   assert.equal(result.workspaceDir, '/new/project');
-  assert.equal(result.sessionReset, false);
-  assert.equal(session.runnerSessionId, 'sess-1');
+  assert.equal(result.sessionReset, true);
+  assert.equal(session.runnerSessionId, null);
   assert.equal(saveCount, 1);
 });
 
@@ -519,6 +519,47 @@ test('createSessionCommandActions.bindSession adopts strict-provider workspace a
   assert.equal(saveCount, 1);
 });
 
+test('createSessionCommandActions.bindSession adopts Claude project session workspace', () => {
+  let saveCount = 0;
+  const adoptedWorkspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agents-in-discord-bind-claude-session-'));
+  const session = { provider: 'claude', workspaceDir: '/wrong/thread', runnerSessionId: null, codexThreadId: null };
+  const actions = createSessionCommandActions({
+    saveDb: () => {
+      saveCount += 1;
+    },
+    ensureWorkspace: () => '/wrong/thread',
+    listStoredSessions: () => [
+      { key: 'thread-a', session },
+    ],
+    readClaudeSessionMetaBySessionId: (sessionId) => (
+      sessionId === 'claude-sess-1'
+        ? { cwd: adoptedWorkspaceDir }
+        : null
+    ),
+    clearSessionId: (currentSession) => {
+      currentSession.runnerSessionId = null;
+      currentSession.codexThreadId = null;
+    },
+    getSessionId: (currentSession) => currentSession.runnerSessionId,
+    setSessionId: (currentSession, value) => {
+      currentSession.runnerSessionId = value;
+      currentSession.codexThreadId = value;
+    },
+    getSessionProvider: (currentSession) => currentSession.provider || 'codex',
+    getProviderShortName: () => 'Claude',
+    resolveTimeoutSetting: () => ({ timeoutMs: 60000, source: 'session override' }),
+    listRecentSessions: () => [],
+    humanAge: () => '0s',
+  });
+
+  const result = actions.bindSession(session, 'thread-a', 'claude-sess-1');
+
+  assert.equal(result.sessionId, 'claude-sess-1');
+  assert.equal(result.adoptedWorkspaceDir, adoptedWorkspaceDir);
+  assert.equal(session.workspaceDir, adoptedWorkspaceDir);
+  assert.equal(saveCount, 1);
+});
+
 test('createSessionCommandActions.bindSession rejects strict-provider sessions whose workspace no longer exists', () => {
   let saveCount = 0;
   const currentSession = { provider: 'codex', workspaceDir: null, runnerSessionId: null, codexThreadId: null };
@@ -593,6 +634,7 @@ test('createSessionCommandActions.bindForkedSession records fork metadata withou
     parentSessionId: 'parent-1',
     parentChannelId: 'parent-channel',
     provider: 'codex',
+    workspaceDir: '/repo',
   });
 
   assert.equal(result.sessionId, 'fork-1');
@@ -603,6 +645,8 @@ test('createSessionCommandActions.bindForkedSession records fork metadata withou
   assert.equal(childSession.forkedFromProvider, 'codex');
   assert.equal(childSession.forkedFromSessionId, 'parent-1');
   assert.equal(childSession.forkedFromChannelId, 'parent-channel');
+  assert.equal(childSession.workspaceDir, '/repo');
+  assert.equal(result.workspaceDir, '/repo');
   assert.match(childSession.forkedAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.equal(saveCount, 1);
 });

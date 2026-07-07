@@ -7,6 +7,7 @@ import {
   projectSessionProviderState,
   switchSessionProviderState,
 } from './session-provider-state.js';
+import { providerRequiresWorkspaceBoundSession } from './provider-metadata.js';
 
 const SESSION_PROVIDER_STATE_READY = Symbol('sessionProviderStateReady');
 
@@ -28,6 +29,16 @@ function normalizeWorkspaceDir(value) {
   const raw = String(value || '').trim();
   if (!raw) return null;
   return path.resolve(raw);
+}
+
+function isExistingDirectory(value) {
+  const dir = normalizeWorkspaceDir(value);
+  if (!dir) return false;
+  try {
+    return fs.statSync(dir).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 export function normalizeChildThreadWorkspaceMode(value) {
@@ -121,6 +132,7 @@ export function createSessionStore({
   },
   normalizeReplyDeliveryMode = () => null,
   resolveDefaultWorkspace = () => ({ workspaceDir: null, source: 'unset', envKey: null }),
+  resolveSessionWorkspace = () => null,
 } = {}) {
   let db = loadDb(dataFile);
   const getChildThreadWorkspaceMode = (provider) => {
@@ -402,6 +414,22 @@ export function createSessionStore({
     if (session.workspaceDir && legacyWorkspaceDir && session.workspaceDir === legacyWorkspaceDir) {
       session.workspaceDir = null;
       migrated = true;
+    }
+
+    const workspaceBoundSessionId = getSessionId(session);
+    if (
+      providerRequiresWorkspaceBoundSession(normalizedProvider)
+      && workspaceBoundSessionId
+      && !session.workspaceDir
+    ) {
+      const resolvedSessionWorkspaceDir = normalizeWorkspaceDir(resolveSessionWorkspace(normalizedProvider, workspaceBoundSessionId, {
+        session,
+        key,
+      }));
+      if (resolvedSessionWorkspaceDir && isExistingDirectory(resolvedSessionWorkspaceDir)) {
+        session.workspaceDir = resolvedSessionWorkspaceDir;
+        migrated = true;
+      }
     }
 
     const normalizedLanguage = normalizeUiLanguage(session.language);

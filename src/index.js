@@ -560,6 +560,12 @@ const appContext = createAppContext({
     normalizeExtraInfoText: normalizeExtraInfoTemplate,
     normalizeReplyDeliveryMode,
     resolveDefaultWorkspace: resolveProviderDefaultWorkspace,
+    resolveSessionWorkspace: (provider, sessionId) => {
+      if (provider === 'codex') return readCodexSessionMetaBySessionId(sessionId)?.cwd || null;
+      if (provider === 'claude') return readClaudeSessionMetaBySessionId(sessionId)?.cwd || null;
+      if (provider === 'antigravity') return resolveAntigravityProjectRootBySessionId(sessionId) || null;
+      return null;
+    },
   },
   commandActionsOptions: {
     normalizeProvider,
@@ -567,6 +573,7 @@ const appContext = createAppContext({
     readCodexDefaults,
     writeCodexDefaults,
     readCodexSessionMetaBySessionId,
+    readClaudeSessionMetaBySessionId,
     resolveAntigravityProjectRootBySessionId,
     formatProviderSessionLabel,
     formatRecentSessionsTitle,

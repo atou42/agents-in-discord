@@ -62,8 +62,8 @@ const PROVIDER_RUNTIME_SURFACES = Object.freeze({
       zh: 'project session 文件（`~/.claude/projects/<workspace>`）',
     }),
     resumeSurface: Object.freeze({
-      en: 'project-session resume; workspace changes usually keep the bound session',
-      zh: '按 project session 恢复；切换 workspace 时通常保留已绑定 session',
+      en: 'project-session resume; workspace changes reset the bound session',
+      zh: '按 project session 恢复；切换 workspace 时会重置已绑定 session',
     }),
     nativeCompactSurface: Object.freeze({
       en: 'provider-native compaction; no exposed native limit override',

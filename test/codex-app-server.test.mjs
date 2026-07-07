@@ -127,6 +127,41 @@ test('createCodexAppServerClient can disable MCP servers for one app-server proc
   ]);
 });
 
+test('createCodexAppServerClient leaves MCP overrides out when none are configured', async () => {
+  const fake = createFakeSpawn({
+    onRequest(request) {
+      if (request.method === 'initialize') {
+        return { id: request.id, result: { codexHome: '/tmp/codex' } };
+      }
+      if (request.method === 'thread/fork') {
+        return {
+          id: request.id,
+          result: {
+            thread: {
+              id: 'fork-1',
+              forkedFromId: 'parent-1',
+            },
+          },
+        };
+      }
+      throw new Error(`unexpected method ${request.method}`);
+    },
+  });
+
+  const client = createCodexAppServerClient({
+    codexBin: 'codex-test',
+    spawnFn: fake.spawnFn,
+    disabledMcpServers: [],
+  });
+  await client.forkThread({ threadId: 'parent-1' });
+
+  assert.deepEqual(fake.calls[0].args, [
+    'app-server',
+    '--listen',
+    'stdio://',
+  ]);
+});
+
 test('forkCodexThread rejects missing parent thread id before spawning', async () => {
   let spawned = false;
   await assert.rejects(
@@ -236,6 +271,45 @@ test('Codex goal helpers enable goals and send thread goal requests', async () =
     ['codex-test', ['app-server', '--listen', 'stdio://', '--enable', 'goals']],
   ]);
   assert.deepEqual(fake.writes.map((line) => JSON.parse(line).method), ['initialize', 'thread/goal/set']);
+});
+
+test('Codex goal helpers use the longer app-server timeout by default', async () => {
+  const fake = createFakeSpawn({
+    onRequest(request) {
+      if (request.method === 'initialize') {
+        return { id: request.id, result: { codexHome: '/tmp/codex' } };
+      }
+      if (request.method === 'thread/goal/set') {
+        return { id: request.id, result: { goal: { threadId: 'thread-1', status: 'active' } } };
+      }
+      throw new Error(`unexpected method ${request.method}`);
+    },
+  });
+
+  const realSetTimeout = globalThis.setTimeout;
+  const handles = [];
+  const delays = [];
+  globalThis.setTimeout = (fn, delay, ...args) => {
+    delays.push(delay);
+    const handle = realSetTimeout(() => {}, 60_000);
+    handles.push(handle);
+    return handle;
+  };
+
+  try {
+    await setCodexThreadGoal({
+      codexBin: 'codex-test',
+      spawnFn: fake.spawnFn,
+      threadId: 'thread-1',
+      objective: 'ship the feature',
+      status: 'active',
+    });
+  } finally {
+    globalThis.setTimeout = realSetTimeout;
+    for (const handle of handles) clearTimeout(handle);
+  }
+
+  assert.deepEqual(delays, [30_000]);
 });
 
 test('Codex goal helpers support get and clear requests', async () => {

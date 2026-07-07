@@ -903,6 +903,54 @@ test('createPromptOrchestrator.handlePrompt sends workspace busy payload while w
   });
 });
 
+test('createPromptOrchestrator.handlePrompt aborts when workspace changes while waiting', async () => {
+  let ensureCalls = 0;
+  let released = false;
+  let ranTask = false;
+  const harness = createOrchestrator({
+    ensureWorkspace: () => {
+      ensureCalls += 1;
+      return ensureCalls === 1 ? '/repo/shared' : '/repo/isolated';
+    },
+    acquireWorkspace: async () => ({ acquired: true, aborted: false, release() { released = true; } }),
+    runTask: async () => {
+      ranTask = true;
+      return { ok: true, threadId: 'sess-1', usage: null, messages: [], logs: [], notes: [], reasonings: [] };
+    },
+  });
+  const { replyLog, progressCalls, orchestrator } = harness;
+  const message = {
+    id: 'msg-workspace-switched',
+    author: { id: 'user-workspace' },
+    channel: {
+      async sendTyping() {},
+      async send(payload) {
+        replyLog.push(payload);
+      },
+    },
+    async reply(payload) {
+      replyLog.push(payload);
+    },
+  };
+  const channelState = { queue: [], cancelRequested: false, activeRun: null };
+
+  const outcome = await orchestrator.handlePrompt(message, 'thread-1', 'do work', channelState);
+
+  assert.equal(outcome.ok, false);
+  assert.equal(ranTask, false);
+  assert.equal(released, true);
+  assert.match(replyLog[0], /workspace 已经切换/);
+  assert.deepEqual(progressCalls.at(-1), {
+    type: 'finish',
+    outcome: {
+      ok: false,
+      cancelled: false,
+      timedOut: false,
+      error: '等待期间 workspace 已切换：/repo/isolated',
+    },
+  });
+});
+
 test('createPromptOrchestrator.handlePrompt preserves the current session across auto retries', async () => {
   let runCount = 0;
   const harness = createOrchestrator({

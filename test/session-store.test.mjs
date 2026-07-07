@@ -405,6 +405,57 @@ test('createSessionStore migrates persisted legacy thread workspace to null so d
   assert.equal('processLines' in session, false);
 });
 
+test('createSessionStore adopts the real workspace for existing workspace-bound sessions', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-cli-discord-session-store-'));
+  const dataFile = path.join(root, 'sessions.json');
+  const workspaceRoot = path.join(root, 'workspaces');
+  const realWorkspaceDir = path.join(workspaceRoot, 'parent-thread');
+  fs.mkdirSync(realWorkspaceDir, { recursive: true });
+  fs.writeFileSync(dataFile, JSON.stringify({
+    threads: {
+      'child-thread': {
+        provider: 'claude',
+        workspaceDir: null,
+        runnerSessionId: 'claude-session-1',
+        codexThreadId: 'claude-session-1',
+        mode: 'safe',
+        language: 'zh',
+        onboardingEnabled: true,
+      },
+    },
+  }, null, 2));
+
+  const store = createSessionStore({
+    dataFile,
+    workspaceRoot,
+    defaults: {
+      provider: 'claude',
+      mode: 'safe',
+      language: 'zh',
+      onboardingEnabled: true,
+    },
+    getSessionId: (session) => String(session?.runnerSessionId || session?.codexThreadId || '').trim() || null,
+    normalizeProvider,
+    normalizeUiLanguage,
+    normalizeSessionSecurityProfile,
+    normalizeSessionTimeoutMs,
+    normalizeSessionCompactStrategy,
+    normalizeSessionCompactEnabled,
+    normalizeSessionCompactTokenLimit,
+    resolveSessionWorkspace: (provider, sessionId) => (
+      provider === 'claude' && sessionId === 'claude-session-1' ? realWorkspaceDir : null
+    ),
+  });
+
+  const session = store.getSession('child-thread');
+  const workspaceDir = store.ensureWorkspace(session, 'child-thread');
+  const persisted = JSON.parse(fs.readFileSync(dataFile, 'utf8'));
+
+  assert.equal(session.workspaceDir, realWorkspaceDir);
+  assert.equal(workspaceDir, realWorkspaceDir);
+  assert.equal(persisted.threads['child-thread'].workspaceDir, realWorkspaceDir);
+});
+
 test('createSessionStore backfills missing mode from defaults', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-cli-discord-session-store-'));
   const dataFile = path.join(root, 'sessions.json');
