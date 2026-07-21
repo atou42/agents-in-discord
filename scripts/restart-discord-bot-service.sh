@@ -18,6 +18,9 @@ resolve_label() {
     antigravity|agy|"${PROJECT_LABEL_PREFIX}.antigravity")
       printf '%s\n' "${PROJECT_LABEL_PREFIX}.antigravity"
       ;;
+    zcode|"${PROJECT_LABEL_PREFIX}.zcode")
+      printf '%s\n' "${PROJECT_LABEL_PREFIX}.zcode"
+      ;;
     *)
       return 1
       ;;
@@ -47,7 +50,7 @@ restart_label() {
 main() {
   local raw="${1:-}"
   if [[ -z "${raw}" ]]; then
-    printf 'usage: %s <codex|claude|antigravity|all|label>\n' "$0" >&2
+    printf 'usage: %s <codex|claude|antigravity|zcode|all|label>\n' "$0" >&2
     exit 64
   fi
 
@@ -55,6 +58,9 @@ main() {
     restart_label "${PROJECT_LABEL_PREFIX}"
     restart_label "${PROJECT_LABEL_PREFIX}.claude"
     restart_label "${PROJECT_LABEL_PREFIX}.antigravity"
+    if [[ -f "${USER_AGENTS_DIR}/${PROJECT_LABEL_PREFIX}.zcode.plist" ]]; then
+      restart_label "${PROJECT_LABEL_PREFIX}.zcode"
+    fi
     exit 0
   fi
 

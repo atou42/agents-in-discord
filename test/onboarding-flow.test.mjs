@@ -74,6 +74,7 @@ function createFlow({
       codex: 'Codex CLI',
       claude: 'Claude Code',
       antigravity: 'Antigravity CLI',
+      zcode: 'ZCode CLI',
     }[provider] || provider),
     getCliHealth: (provider) => ({ ok: true, version: '1.2.3', bin: provider }),
     resolveSecurityContext: () => ({ mentionOnly: false }),
@@ -148,7 +149,7 @@ test('createOnboardingFlow builds provider buttons in shared mode', () => {
   assert.equal(rows.length, 2);
   assert.deepEqual(
     rows[1].components.map((component) => component.data.label),
-    ['codex', 'claude', 'antigravity'],
+    ['codex', 'claude', 'antigravity', 'zcode'],
   );
   assert.equal(rows[1].components[1].data.style, ButtonStyle.Primary);
 });

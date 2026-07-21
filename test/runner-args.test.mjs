@@ -499,3 +499,48 @@ test('createRunnerArgsBuilder falls back to prompt context for Antigravity', () 
   assert.equal(args.at(-2), '--prompt');
   assert.equal(args.at(-1), '[Via agents-in-discord; discord_thread=thread-1]\n\nhello');
 });
+
+test('createRunnerArgsBuilder builds new and resumed ZCode prompts', () => {
+  const { buildSessionRunnerArgs } = createRunnerArgsBuilder({
+    defaultModel: null,
+    normalizeProvider: (value) => value,
+    getSessionId: (session) => session.runnerSessionId,
+    resolveModelSetting: () => ({ value: null, source: 'provider' }),
+    resolveFastModeSetting: () => ({ enabled: false, source: 'provider unsupported' }),
+    resolveCompactStrategySetting: () => ({ strategy: 'hard' }),
+    resolveCompactEnabledSetting: () => ({ enabled: false }),
+    resolveNativeCompactTokenLimitSetting: () => ({ tokens: 0 }),
+  });
+
+  const fresh = buildSessionRunnerArgs({
+    provider: 'zcode',
+    session: { provider: 'zcode', mode: 'safe', runnerSessionId: null },
+    workspaceDir: '/tmp/workspace',
+    prompt: 'hello',
+    systemPrompt: '[Via agents-in-discord; discord_thread=thread-1]',
+    inputImages: ['/tmp/input.png'],
+  });
+  assert.deepEqual(fresh, [
+    '--prompt', '[Via agents-in-discord; discord_thread=thread-1]\n\nhello',
+    '--attach', '/tmp/input.png',
+    '--cwd', '/tmp/workspace',
+    '--mode', 'edit',
+    '--json',
+    '--no-color',
+  ]);
+
+  const resumed = buildSessionRunnerArgs({
+    provider: 'zcode',
+    session: { provider: 'zcode', mode: 'dangerous', runnerSessionId: 'sess_zcode_1' },
+    workspaceDir: '/tmp/workspace',
+    prompt: 'continue',
+  });
+  assert.deepEqual(resumed, [
+    '--prompt', 'continue',
+    '--cwd', '/tmp/workspace',
+    '--resume', 'sess_zcode_1',
+    '--mode', 'yolo',
+    '--json',
+    '--no-color',
+  ]);
+});

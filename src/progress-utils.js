@@ -130,6 +130,183 @@ function extractCommandPreview(raw, options = {}) {
   return '';
 }
 
+function extractCommandText(raw) {
+  if (!raw || typeof raw !== 'object') return '';
+  const candidates = [
+    raw.command,
+    raw.cmd,
+    raw.parsed_cmd,
+    raw.parsedCmd,
+    raw.invocation?.command,
+    raw.input?.command,
+    raw.output?.command,
+  ];
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      const joined = normalizeWhitespace(candidate.join(' '));
+      if (joined) return joined;
+      continue;
+    }
+    const text = normalizeWhitespace(candidate);
+    if (text) return text;
+  }
+  return '';
+}
+
+function unwrapShellCommand(rawCommand) {
+  let command = normalizeWhitespace(rawCommand);
+  if (!command) return '';
+  command = command.replace(/^(?:\/[A-Za-z0-9._-]+)*\/(?:zsh|bash|sh)\s+-lc\s+/, '');
+  if ((command.startsWith('"') && command.endsWith('"')) || (command.startsWith("'") && command.endsWith("'"))) {
+    command = command.slice(1, -1).trim();
+  }
+  return command;
+}
+
+function extractCommandExecutable(command) {
+  const segments = String(command || '').split(/\s*(?:&&|;)\s*/);
+  for (const rawSegment of segments) {
+    let segment = rawSegment.trim().replace(/^env\s+/, '');
+    while (/^[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S+)\s+/.test(segment)) {
+      segment = segment.replace(/^[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S+)\s+/, '');
+    }
+    const token = String(segment.match(/^\S+/)?.[0] || '').replace(/^['"]|['"]$/g, '');
+    const executable = token.split('/').filter(Boolean).pop() || token;
+    if (!executable || ['cd', 'pwd', 'printf', 'echo', 'true'].includes(executable)) continue;
+    return executable;
+  }
+  return '';
+}
+
+function summarizeCommandActivity(raw, options = {}) {
+  const previewChars = Math.max(60, Number(options.previewChars || DEFAULT_PREVIEW_CHARS));
+  const command = unwrapShellCommand(extractCommandText(raw));
+  if (!command) return { text: '', stream: false };
+
+  if (/\bcohub\b/.test(command)) {
+    if (/\bsearch\b/.test(command)) return { text: 'search Cohub context', stream: true };
+    if (/\bspaces\s+files\s+cat\b/.test(command)) return { text: 'read Cohub context', stream: true };
+    return { text: 'use Cohub', stream: true };
+  }
+  if (/\blark-cli\s+docs\s+\+?fetch\b/.test(command)) return { text: 'read Lark document', stream: true };
+  if (/\blark-cli\s+auth\s+status\b/.test(command)) return { text: 'check Lark connection', stream: true };
+  if (/\blark-cli\s+(?:base|bitable)\b/.test(command)) return { text: 'query Lark Base', stream: true };
+  if (/\blark-cli\b/.test(command)) return { text: 'use Lark', stream: true };
+  if (/\b(?:npm|pnpm|yarn)\s+(?:test|lint|build|typecheck|check)\b/.test(command)) {
+    return { text: 'run project checks', stream: true };
+  }
+  if (/\bgit\s+(?:status|diff|log|show)\b/.test(command)) return { text: 'check repository state', stream: false };
+  if (/\b(?:rg|ripgrep|grep)\b/.test(command)) return { text: 'search project files', stream: false };
+  if (/\b(?:cat|sed|head|tail|awk)\b/.test(command)) return { text: 'read project files', stream: false };
+  if (/\b(?:pwd|ls|find)\b/.test(command)) return { text: 'inspect project files', stream: false };
+  if (/\b(?:ps|pgrep|launchctl)\b/.test(command)) return { text: 'check running services', stream: false };
+  if (/\b(?:apply_patch|patch)\b/.test(command)) return { text: 'update project files', stream: true };
+  if (/\b(?:curl|wget)\b/.test(command)) return { text: 'fetch external data', stream: true };
+  if (/\b(?:python|python3|node)\b/.test(command)) return { text: 'run analysis script', stream: true };
+
+  const executable = extractCommandExecutable(command);
+  return {
+    text: executable ? `run ${truncate(executable, Math.min(60, previewChars))}` : 'run command',
+    stream: true,
+  };
+}
+
+function getCommandExitCode(raw) {
+  const value = raw?.exit_code ?? raw?.exitCode ?? raw?.code;
+  if (value === null || value === undefined || value === '') return null;
+  const exitCode = Number(value);
+  return Number.isFinite(exitCode) ? Math.trunc(exitCode) : null;
+}
+
+function isFailedCommandExecution(raw) {
+  const status = normalizeEventType(raw?.status || raw?.state || '');
+  const exitCode = getCommandExitCode(raw);
+  return ['failed', 'failure', 'error'].includes(status)
+    || (exitCode !== null && exitCode !== 0);
+}
+
+function extractCommandFailurePreview(raw, options = {}) {
+  const previewChars = Math.max(60, Number(options.previewChars || DEFAULT_PREVIEW_CHARS));
+  const candidates = [raw?.stderr, raw?.aggregated_output, raw?.output, raw?.message, raw?.error];
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string') continue;
+    const lines = candidate
+      .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '')
+      .split(/\r?\n/)
+      .map((line) => normalizeWhitespace(line))
+      .filter(Boolean);
+    const detail = lines.at(-1) || '';
+    if (detail) return truncate(detail, previewChars);
+  }
+  return '';
+}
+
+function formatCommandSummary(raw, options = {}) {
+  const activity = summarizeCommandActivity(raw, options);
+  if (!isFailedCommandExecution(raw)) return activity.text;
+  const exitCode = getCommandExitCode(raw);
+  return `${activity.text || 'run command'}${exitCode === null ? '' : ` (exit ${exitCode})`}`;
+}
+
+function classifyNonFatalCodexWarning(detail) {
+  const text = normalizeWhitespace(detail).toLowerCase();
+  if (text.includes('skill descriptions were shortened to fit the 2% skills context budget')) {
+    return 'skills_budget';
+  }
+  if (text.includes('[features].collab is deprecated')
+    || text.includes('under-development features enabled')) {
+    return 'configuration';
+  }
+  return '';
+}
+
+function summarizeNonFatalCodexWarning(detail) {
+  const warningType = classifyNonFatalCodexWarning(detail);
+  if (warningType === 'skills_budget') return 'Codex skill catalog compressed';
+  if (warningType === 'configuration') return 'Codex configuration warning';
+  return '';
+}
+
+function isCommandExecutionType(value) {
+  const type = normalizeEventType(value);
+  return type === 'local_shell_call' || type === 'command_execution';
+}
+
+function extractErrorPreview(raw, options = {}) {
+  const previewChars = Math.max(60, Number(options.previewChars || DEFAULT_PREVIEW_CHARS));
+  if (!raw || typeof raw !== 'object') return '';
+  const candidates = [
+    raw.message,
+    raw.error?.message,
+    raw.error,
+    raw.detail,
+    raw.reason,
+    raw.aggregated_output,
+    raw.output,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string') continue;
+    const text = normalizeWhitespace(candidate);
+    if (text) return truncate(text, previewChars);
+  }
+  return '';
+}
+
+function summarizeFileChanges(raw, options = {}) {
+  const previewChars = Math.max(60, Number(options.previewChars || DEFAULT_PREVIEW_CHARS));
+  if (!raw || typeof raw !== 'object') return '';
+  const changes = Array.isArray(raw.changes) ? raw.changes : [];
+  const paths = changes
+    .map((change) => normalizeWhitespace(change?.path || change?.file_path || change?.file || ''))
+    .filter(Boolean);
+  if (paths.length) {
+    const suffix = paths.length > 1 ? ` +${paths.length - 1} more` : '';
+    return `${truncate(paths[0], Math.max(28, previewChars - suffix.length))}${suffix}`;
+  }
+  return truncate(normalizeWhitespace(raw.path || raw.file_path || raw.file || ''), previewChars);
+}
+
 function extractItemToolName(item) {
   if (!item || typeof item !== 'object') return null;
   const raw = item.tool_name || item.name || item.call?.name || item.tool?.name || null;
@@ -485,10 +662,18 @@ function summarizeResponseItem(payload, options = {}) {
     return detail ? `web search ${phase}: ${detail}` : `web search ${phase}`;
   }
 
-  if (payloadType === 'local_shell_call') {
-    const command = extractCommandPreview(payload, options);
-    const phase = status || 'updated';
+  if (isCommandExecutionType(payloadType)) {
+    const failed = isFailedCommandExecution(payload);
+    const command = formatCommandSummary(payload, options);
+    const phase = failed ? 'failed' : (status || 'updated');
     return command ? `command ${phase}: ${command}` : `command ${phase}`;
+  }
+
+  if (payloadType === 'error') {
+    const detail = extractErrorPreview(payload, options);
+    const warning = summarizeNonFatalCodexWarning(detail);
+    if (warning) return warning;
+    return detail ? `error: ${detail}` : 'error';
   }
 
   if (payloadType === 'message') {
@@ -663,14 +848,28 @@ export function summarizeCodexEvent(ev, options = {}) {
         return preview ? `reasoning ${action}: ${preview}` : `reasoning ${action}`;
       }
 
-      if (itemType === 'web_search_call') {
+      if (itemType === 'web_search_call' || itemType === 'web_search') {
         const detail = extractWebSearchActionSummary(item.action || item, opts);
         return detail ? `web search ${action}: ${detail}` : `web search ${action}`;
       }
 
-      if (itemType === 'local_shell_call') {
-        const command = extractCommandPreview(item, opts);
-        return command ? `command ${action}: ${command}` : `command ${action}`;
+      if (isCommandExecutionType(itemType)) {
+        const failed = isFailedCommandExecution(item);
+        const command = formatCommandSummary(item, opts);
+        const commandAction = failed ? 'failed' : action;
+        return command ? `command ${commandAction}: ${command}` : `command ${commandAction}`;
+      }
+
+      if (itemType === 'error') {
+        const detail = extractErrorPreview(item, opts);
+        const warning = summarizeNonFatalCodexWarning(detail);
+        if (warning) return warning;
+        return detail ? `error: ${detail}` : 'error';
+      }
+
+      if (itemType === 'file_change') {
+        const detail = summarizeFileChanges(item, opts);
+        return detail ? `file change ${action}: ${detail}` : `file change ${action}`;
       }
 
       const toolName = extractItemToolName(item);
@@ -933,9 +1132,41 @@ export function extractRawProgressTextFromEvent(ev, options = {}) {
 
   if (type === 'item_completed' || type === 'item_started') {
     const itemType = normalizeEventType(item?.type || '');
-    if (itemType === 'agent_message') return '';
+    if (itemType === 'agent_message') {
+      const phase = normalizeEventType(item?.phase || '');
+      if (phase !== 'commentary') return '';
+      const text = extractEventTextPreview(item, options);
+      return !text || isLowSignalProcessText(text) ? '' : text;
+    }
     if (itemType === 'reasoning') return '';
     if (itemType === 'message') return '';
+    if (isCommandExecutionType(itemType)) {
+      const command = summarizeCommandActivity(item, options);
+      if (isFailedCommandExecution(item)) {
+        const summary = formatCommandSummary(item, options);
+        const detail = extractCommandFailurePreview(item, options);
+        return detail ? `command failed: ${summary} - ${detail}` : `command failed: ${summary}`;
+      }
+      return command.stream ? command.text : '';
+    }
+    if (itemType === 'error') {
+      const detail = extractErrorPreview(item, options);
+      if (classifyNonFatalCodexWarning(detail)) return '';
+      return detail ? `error: ${detail}` : '';
+    }
+    if (itemType === 'file_change') {
+      const detail = summarizeFileChanges(item, options);
+      return detail ? `file change: ${detail}` : '';
+    }
+    if (itemType === 'web_search') {
+      const detail = extractWebSearchActionSummary(item, options);
+      return detail ? `web search: ${detail}` : '';
+    }
+    if (itemType === 'mcp_tool_call' || itemType === 'collab_tool_call') {
+      const toolName = extractItemToolName(item) || itemType.replace(/_call$/, '');
+      const detail = summarizeKnownArgObject(extractToolCallArguments(item) || item, options);
+      return detail ? `tool ${toolName}: ${detail}` : `tool ${toolName}`;
+    }
     return '';
   }
 
@@ -1180,9 +1411,17 @@ function summarizeCompletedPayload(payload, options = {}) {
     return detail ? `web search: ${detail}` : 'web search';
   }
 
-  if (payloadType === 'local_shell_call') {
-    const command = extractCommandPreview(payload, options);
+  if (isCommandExecutionType(payloadType)) {
+    if (isFailedCommandExecution(payload)) return '';
+    const command = summarizeCommandActivity(payload, options).text;
     return command ? `command: ${command}` : 'command completed';
+  }
+
+  if (payloadType === 'error') return '';
+
+  if (payloadType === 'file_change') {
+    const detail = summarizeFileChanges(payload, options);
+    return detail ? `file change: ${detail}` : 'file change';
   }
 
   if (payloadType === 'function_call' || payloadType === 'custom_tool_call') {
@@ -1227,7 +1466,7 @@ export function extractCompletedStepFromEvent(ev, options = {}) {
     const status = normalizeStatus(payload.status || '');
     if (status === 'completed') return summarizeCompletedPayload(payload, opts);
 
-    if (!status && ['function_call', 'custom_tool_call', 'local_shell_call', 'web_search_call'].includes(payloadType)) {
+    if (!status && ['function_call', 'custom_tool_call', 'local_shell_call', 'command_execution', 'web_search_call'].includes(payloadType)) {
       const toolName = extractItemToolName(payload) || normalizeWhitespace(payload.name || payload.tool_name || '');
       if (isSubagentToolName(toolName)) return '';
       return summarizeCompletedPayload(payload, opts);
@@ -1258,16 +1497,22 @@ export function extractCompletedStepFromEvent(ev, options = {}) {
 
   const item = ev.item || {};
   const itemType = normalizeEventType(item.type || '');
-  if (!itemType || itemType === 'agent_message' || itemType === 'reasoning') return '';
+  if (!itemType || itemType === 'agent_message' || itemType === 'reasoning' || itemType === 'error') return '';
 
-  if (itemType === 'web_search_call') {
+  if (itemType === 'web_search_call' || itemType === 'web_search') {
     const detail = extractWebSearchActionSummary(item.action || item, opts);
     return detail ? `web search: ${detail}` : 'web search';
   }
 
-  if (itemType === 'local_shell_call') {
-    const command = extractCommandPreview(item, opts);
+  if (isCommandExecutionType(itemType)) {
+    if (isFailedCommandExecution(item)) return '';
+    const command = summarizeCommandActivity(item, opts).text;
     return command ? `command: ${command}` : 'command completed';
+  }
+
+  if (itemType === 'file_change') {
+    const detail = summarizeFileChanges(item, opts);
+    return detail ? `file change: ${detail}` : 'file change';
   }
 
   const toolName = extractItemToolName(item);

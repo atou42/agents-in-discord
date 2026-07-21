@@ -244,6 +244,34 @@ test('createPromptProgressReporterFactory can stream deduped process messages wh
   assert.match(harness.edits.at(-1).content, /process: 我先检查一下这个仓库的入口文件。/);
 });
 
+test('createPromptProgressReporterFactory streams current Codex CLI command executions', async () => {
+  const harness = createHarness({
+    factoryOptions: {
+      presentation: createRealPresentation(),
+    },
+  });
+
+  await harness.reporter.start();
+  harness.channelState.activeRun.phase = 'exec';
+  harness.reporter.onEvent({
+    type: 'item.completed',
+    item: {
+      id: 'item_42',
+      type: 'command_execution',
+      command: '/bin/zsh -lc "cohub search \'progress visibility\'"',
+      aggregated_output: 'search results',
+      exit_code: 0,
+      status: 'completed',
+    },
+  });
+
+  assert.deepEqual(harness.streamed, ['search Cohub context']);
+  assert.deepEqual(harness.channelState.activeRun.recentActivities, ['search Cohub context']);
+  assert.match(harness.edits.at(-1).content, /process content:/);
+  assert.match(harness.edits.at(-1).content, /search Cohub context/);
+  assert.doesNotMatch(harness.edits.at(-1).content, /command_execution completed/);
+});
+
 test('createPromptProgressReporterFactory streams during the run without dumping backlog on finish', async () => {
   const harness = createHarness();
 
@@ -266,8 +294,10 @@ test('createPromptProgressReporterFactory streams during the run without dumping
   assert.deepEqual(harness.streamed, ['过程消息 1']);
   assert.deepEqual(harness.channelState.activeRun.recentActivities, ['过程消息 1', '过程消息 2', '过程消息 3']);
 
+  await new Promise((resolve) => setImmediate(resolve));
   harness.advance(1200);
   harness.intervals.find((handle) => handle.ms === 1000)?.fn();
+  await new Promise((resolve) => setImmediate(resolve));
 
   assert.deepEqual(harness.streamed, ['过程消息 1', '过程消息 2']);
 
@@ -275,6 +305,70 @@ test('createPromptProgressReporterFactory streams during the run without dumping
 
   assert.deepEqual(harness.streamed, ['过程消息 1', '过程消息 2']);
   assert.match(harness.edits.at(-1).content, /process: 过程消息 3/);
+});
+
+test('createPromptProgressReporterFactory retries a process message after a transient send failure', async () => {
+  const delivered = [];
+  let attempts = 0;
+  const harness = createHarness({
+    factoryOptions: {
+      onStreamProcessMessage: async (text) => {
+        attempts += 1;
+        if (attempts === 1) throw new Error('temporary Discord send failure');
+        delivered.push(text);
+      },
+    },
+  });
+
+  await harness.reporter.start();
+  harness.channelState.activeRun.phase = 'exec';
+  harness.reporter.onEvent({
+    summaryStep: 'Inspecting repo',
+    rawActivity: '过程消息需要重试',
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  harness.advance(1200);
+  harness.intervals.find((handle) => handle.ms === 1000)?.fn();
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(attempts, 2);
+  assert.deepEqual(delivered, ['过程消息需要重试']);
+});
+
+test('createPromptProgressReporterFactory settles and retries an in-flight process message before finish', async () => {
+  let attempts = 0;
+  let rejectFirstAttempt = null;
+  const delivered = [];
+  const harness = createHarness({
+    factoryOptions: {
+      onStreamProcessMessage: async (text) => {
+        attempts += 1;
+        if (attempts === 1) {
+          await new Promise((_resolve, reject) => {
+            rejectFirstAttempt = reject;
+          });
+          return;
+        }
+        delivered.push(text);
+      },
+    },
+  });
+
+  await harness.reporter.start();
+  harness.channelState.activeRun.phase = 'exec';
+  harness.reporter.onEvent({
+    summaryStep: 'Inspecting repo',
+    rawActivity: '结束前仍在发送的过程消息',
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  const finishPromise = harness.reporter.finish({ ok: true });
+  rejectFirstAttempt(new Error('temporary Discord send failure'));
+  await finishPromise;
+
+  assert.equal(attempts, 2);
+  assert.deepEqual(delivered, ['结束前仍在发送的过程消息']);
 });
 
 test('createPromptProgressReporterFactory ignores stderr when disabled and keeps stdout progress', async () => {

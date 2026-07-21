@@ -4,6 +4,7 @@ import { buildCodexOpenAICuratedMarketplaceArgs } from './codex-marketplaces.js'
 import { createClaudeProviderAdapter } from './providers/claude.js';
 import { createCodexProviderAdapter } from './providers/codex.js';
 import { createAntigravityProviderAdapter } from './providers/antigravity.js';
+import { createZCodeProviderAdapter } from './providers/zcode.js';
 import { createProviderAdapterRegistry } from './providers/index.js';
 
 export function uniqueDirs(dirs = []) {
@@ -65,6 +66,15 @@ export function createRunnerArgsBuilder({
     }),
     createAntigravityProviderAdapter({
       buildArgs: ({ session, prompt, systemPrompt = '' }) => buildAntigravityArgs({ session, prompt, systemPrompt }),
+    }),
+    createZCodeProviderAdapter({
+      buildArgs: ({ session, workspaceDir, prompt, inputImages = [], systemPrompt = '' }) => buildZCodeArgs({
+        session,
+        workspaceDir,
+        prompt,
+        inputImages,
+        systemPrompt,
+      }),
     }),
   ]);
 
@@ -188,10 +198,25 @@ export function createRunnerArgsBuilder({
     return args;
   }
 
+  function buildZCodeArgs({ session, workspaceDir, prompt, inputImages = [], systemPrompt = '' }) {
+    const args = ['--prompt', composePromptWithSystemFallback(prompt, systemPrompt)];
+    for (const imagePath of inputImages) {
+      const value = String(imagePath || '').trim();
+      if (value) args.push('--attach', value);
+    }
+    args.push('--cwd', workspaceDir);
+    const sessionId = getSessionId(session);
+    if (sessionId) args.push('--resume', sessionId);
+    args.push('--mode', session.mode === 'dangerous' ? 'yolo' : 'edit');
+    args.push('--json', '--no-color');
+    return args;
+  }
+
   return {
     buildSessionRunnerArgs,
     buildCodexArgs,
     buildClaudeArgs,
     buildAntigravityArgs,
+    buildZCodeArgs,
   };
 }

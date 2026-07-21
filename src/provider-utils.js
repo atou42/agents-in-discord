@@ -56,6 +56,14 @@ export function buildRunnerArgs({
       model,
     });
   }
+  if (normalizedProvider === 'zcode') {
+    return buildZCodeArgs({
+      sessionId,
+      workspaceDir,
+      prompt,
+      mode,
+    });
+  }
 
   return buildCodexArgs({
     sessionId,
@@ -147,5 +155,17 @@ function buildAntigravityArgs({
 
   if (sessionId) args.push('--conversation', sessionId);
   args.push('--prompt', prompt);
+  return args;
+}
+
+function buildZCodeArgs({
+  sessionId,
+  workspaceDir,
+  prompt,
+  mode,
+}) {
+  const args = ['--prompt', prompt, '--cwd', workspaceDir];
+  if (sessionId) args.push('--resume', sessionId);
+  args.push('--mode', mode === 'dangerous' ? 'yolo' : 'edit', '--json', '--no-color');
   return args;
 }

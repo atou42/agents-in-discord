@@ -20,6 +20,7 @@ test('normalizeCommandName maps text and slash aliases to canonical names', () =
   assert.equal(normalizeCommandName('conversation_sessions'), 'sessions');
   assert.equal(normalizeCommandName('conversation_resume'), 'resume');
   assert.equal(normalizeCommandName('chat_resume'), 'resume');
+  assert.equal(normalizeCommandName('zcode_resume'), 'resume');
 });
 
 test('getActionButtonCommandNames exposes canonical button-safe commands', () => {
@@ -44,8 +45,8 @@ test('buildSlashCommandEntries includes aliases and provider toggle only in shar
   assert.equal(Array.isArray(newEntry.aliases), false);
   assert.ok(settingsEntry);
   assert.deepEqual(cancelEntry.aliases, ['abort']);
-  assert.deepEqual(sessionsEntry.aliases, ['rollout_sessions', 'project_sessions', 'conversation_sessions', 'chat_sessions']);
-  assert.deepEqual(resumeEntry.aliases, ['rollout_resume', 'project_resume', 'conversation_resume', 'chat_resume']);
+  assert.deepEqual(sessionsEntry.aliases, ['rollout_sessions', 'project_sessions', 'conversation_sessions', 'chat_sessions', 'zcode_sessions']);
+  assert.deepEqual(resumeEntry.aliases, ['rollout_resume', 'project_resume', 'conversation_resume', 'chat_resume', 'zcode_resume']);
   assert.ok(fastEntry);
   assert.ok(runtimeEntry);
   assert.ok(forkEntry);
@@ -72,6 +73,9 @@ test('buildSlashCommandEntries includes aliases and provider toggle only in shar
   assert.deepEqual(lockedResume.aliases, ['conversation_resume', 'chat_resume']);
   assert.equal(lockedResume.description, '继承一个已有的 conversation');
   assert.equal(lockedEffort, undefined);
+  const zcodeEntries = buildSlashCommandEntries({ botProvider: 'zcode' });
+  assert.deepEqual(zcodeEntries.find((entry) => entry.name === 'sessions').aliases, ['zcode_sessions']);
+  assert.deepEqual(zcodeEntries.find((entry) => entry.name === 'resume').aliases, ['zcode_resume']);
   assert.deepEqual(
     lockedCompact.configure({
       addStringOption(configure) {

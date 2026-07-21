@@ -37,6 +37,16 @@ test('parseSendChannelMessageArgs rejects invalid input combinations', () => {
   );
 });
 
+test('parseSendChannelMessageArgs accepts the ZCode provider', () => {
+  const parsed = parseSendChannelMessageArgs([
+    '--channel', '123456789012345678',
+    '--content', 'zcode online',
+    '--provider', 'zcode',
+  ]);
+
+  assert.equal(parsed.provider, 'zcode');
+});
+
 test('resolveSendChannelMessageContent supports inline, file, and stdin input', async () => {
   assert.equal(
     await resolveSendChannelMessageContent({ channelId: '1', content: 'hello', contentFile: '', stdin: false }),

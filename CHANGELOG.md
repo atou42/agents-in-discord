@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project follows Semantic Versioning.
 
+## [0.13.0] - 2026-07-21
+
+### Added
+- Added ZCode CLI as a shared or dedicated provider, with headless JSON execution, file attachments, workspace-bound session resume, recent-session discovery, provider-scoped configuration, and service restart support.
+- Added ZCode provider choices, status text, onboarding, slash aliases, and focused regression coverage across runtime, settings, sessions, and runner behavior.
+
+### Changed
+- Reworked model selection into catalog-backed Discord controls that reject unsupported model and reasoning-effort combinations and expire stale panels.
+- Improved live progress so current Codex command, file, search, tool, warning, and failure events are readable without repeating streamed process text in the final reply.
+
+### Fixed
+- Stopped malformed or empty successful ZCode output from being reported as a successful run.
+- Stopped retries when a bound Claude session no longer exists, preserving the original failure instead of repeating it.
+
 ## [0.12.23] - 2026-06-08
 
 ### Added

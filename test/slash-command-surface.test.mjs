@@ -142,7 +142,7 @@ test('buildSlashCommands exposes browse keyword in workspace option descriptions
   assert.match(setdefaultdir.options[0].description, /browse/);
 });
 
-test('buildSlashCommands exposes antigravity as provider choice', () => {
+test('buildSlashCommands exposes Antigravity and ZCode as provider choices', () => {
   const commands = buildSlashCommands({
     SlashCommandBuilder: MockSlashCommandBuilder,
     slashPrefix: 'cx',
@@ -152,10 +152,10 @@ test('buildSlashCommands exposes antigravity as provider choice', () => {
   const provider = commands.find((command) => command.name === 'cx_provider');
   const choices = provider.options[0].choices.map((choice) => choice.value);
 
-  assert.deepEqual(choices, ['codex', 'claude', 'antigravity', 'status']);
+  assert.deepEqual(choices, ['codex', 'claude', 'antigravity', 'zcode', 'status']);
 });
 
-test('buildSlashCommands lets model open panel or set effort', () => {
+test('buildSlashCommands registers model as a picker-only command', () => {
   const commands = buildSlashCommands({
     SlashCommandBuilder: MockSlashCommandBuilder,
     slashPrefix: 'cx',
@@ -163,11 +163,7 @@ test('buildSlashCommands lets model open panel or set effort', () => {
   }).map((command) => command.toJSON());
 
   const model = commands.find((command) => command.name === 'cx_model');
-  assert.equal(model.options[0].name, 'name');
-  assert.equal(model.options[0].required, false);
-  assert.equal(model.options[1].name, 'effort');
-  assert.equal(model.options[1].required, false);
-  assert.deepEqual(model.options[1].choices.map((choice) => choice.value), ['xhigh', 'high', 'medium', 'low', 'default']);
+  assert.deepEqual(model.options, []);
 });
 
 test('buildSlashCommands gives provider-native alias descriptions to session aliases', () => {

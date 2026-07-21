@@ -36,6 +36,20 @@ test('createChannelRuntimeStore tracks active run and cancellation', () => {
   assert.equal(afterCancel.queued, 0);
 });
 
+test('createChannelRuntimeStore preserves streamed process messages when the run phase changes', () => {
+  const store = createChannelRuntimeStore({
+    cloneProgressPlan: (plan) => (plan ? JSON.parse(JSON.stringify(plan)) : null),
+    truncate: (text, max) => (text.length <= max ? text : `${text.slice(0, max - 3)}...`),
+  });
+  const state = store.getChannelState('thread-process-stream');
+
+  store.setActiveRun(state, { id: 'message-1' }, 'hello world', null, 'workspace');
+  state.activeRun.streamedProcessActivityKeys = ['command: npm test'];
+  store.setActiveRun(state, { id: 'message-1' }, 'hello world', { pid: 12345 }, 'exec');
+
+  assert.deepEqual(state.activeRun.streamedProcessActivityKeys, ['command: npm test']);
+});
+
 test('stopChildProcess escalates when SIGTERM does not close the process', async () => {
   const signals = [];
   const child = new EventEmitter();

@@ -111,6 +111,9 @@ export function createSlashCommandRouter({
   resolveFastModeSetting = () => ({ enabled: false, supported: false, source: 'provider unsupported' }),
   resolveRuntimeModeSetting = () => ({ mode: 'normal', supported: false, source: 'provider unsupported' }),
   resolveTimeoutSetting,
+  resolveModelSetting = (session) => ({ value: session?.model || null }),
+  resolveReasoningEffortSetting = (session) => ({ value: session?.effort || null }),
+  getModelCatalog = () => ({ models: [], error: null }),
   isReasoningEffortSupported,
   commandActions = {},
   isOnboardingEnabled,
@@ -503,19 +506,48 @@ export function createSlashCommandRouter({
       return;
     }
 
+    const prospectiveSession = { ...session };
+    if (name) prospectiveSession.model = String(name).trim().toLowerCase() === 'default' ? null : name;
+    if (effort) prospectiveSession.effort = effort === 'default' ? null : effort;
+    const requestedModel = resolveModelSetting(prospectiveSession)?.value;
+    const effectiveEffort = String(resolveReasoningEffortSetting(prospectiveSession)?.value || '').trim().toLowerCase();
+    const requestedEffort = effectiveEffort
+      && !effectiveEffort.includes('default')
+      && !effectiveEffort.startsWith('(')
+      && !effectiveEffort.startsWith('（')
+      ? effectiveEffort
+      : null;
+    const catalog = getModelCatalog(provider) || {};
+    const catalogModel = Array.isArray(catalog.models)
+      ? catalog.models.find((model) => String(model?.slug || '').trim() === String(requestedModel || '').trim())
+      : null;
+    const rawLevels = catalogModel?.supportedReasoningLevels || catalogModel?.supported_reasoning_levels;
+    const catalogLevels = Array.isArray(rawLevels)
+      ? rawLevels.map((level) => String(level?.effort || level || '').trim().toLowerCase()).filter(Boolean)
+      : [];
+    if (requestedEffort && catalogModel && catalogLevels.length && !catalogLevels.includes(String(requestedEffort).toLowerCase())) {
+      await respond({
+        content: language === 'en'
+          ? `❌ Model \`${requestedModel}\` does not support effort \`${requestedEffort}\`.`
+          : `❌ 模型 \`${requestedModel}\` 不支持 effort \`${requestedEffort}\`。`,
+        flags: 64,
+      });
+      return;
+    }
+    if (effort && effort !== 'default' && !catalogLevels.includes(String(effort).toLowerCase()) && !isReasoningEffortSupported(provider, effort)) {
+        await respond({
+          content: formatReasoningEffortUnsupported(provider, language),
+          flags: 64,
+        });
+        return;
+    }
+
     const updates = [];
     if (name) {
       const { model } = commandActions.setModel(session, name);
       updates.push(`model = ${model || '(provider default)'}`);
     }
     if (effort) {
-      if (effort !== 'default' && !isReasoningEffortSupported(provider, effort)) {
-        await respond({
-          content: formatReasoningEffortUnsupported(provider, language),
-          flags: 64,
-        });
-        return;
-      }
       const { effort: updatedEffort } = commandActions.setReasoningEffort(session, effort);
       updates.push(`effort = ${updatedEffort || '(provider default)'}`);
     }

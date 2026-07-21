@@ -749,6 +749,8 @@ export function createPromptProgressReporterFactory({
       : [];
     const pendingStreamActivities = [];
     let lastActivityPushAt = 0;
+    let activityPushPromise = null;
+    let failedStreamActivity = null;
     let isEmitting = false;
     let rerunEmit = false;
     const isDuplicateProgressEvent = createProgressEventDeduper({
@@ -869,22 +871,35 @@ export function createPromptProgressReporterFactory({
     };
 
     const pushOneStreamActivity = ({ force = false } = {}) => {
-      if (!pendingStreamActivities.length) return false;
+      if (!pendingStreamActivities.length) return Promise.resolve(false);
+      if (activityPushPromise) return Promise.resolve(false);
       const currentTime = now();
-      if (!force && currentTime - lastActivityPushAt < progressProcessPushIntervalMs) return false;
-      const next = pendingStreamActivities.shift();
-      if (!next) return false;
-      if (typeof onStreamProcessMessageForRun === 'function') {
-        try {
-          Promise.resolve(
-            onStreamProcessMessageForRun(next, { message, session, channelState, language: lang }),
-          ).catch(() => {});
-        } catch {
-          // ignore stream failures
-        }
+      if (!force && currentTime - lastActivityPushAt < progressProcessPushIntervalMs) {
+        return Promise.resolve(false);
       }
-      lastActivityPushAt = currentTime;
-      return true;
+      const next = pendingStreamActivities[0];
+      if (!next) return Promise.resolve(false);
+
+      const currentPushPromise = (async () => {
+        if (typeof onStreamProcessMessageForRun === 'function') {
+          try {
+            await onStreamProcessMessageForRun(next, { message, session, channelState, language: lang });
+          } catch {
+            failedStreamActivity = next;
+            return false;
+          }
+        }
+        if (pendingStreamActivities[0] === next) pendingStreamActivities.shift();
+        if (failedStreamActivity === next) failedStreamActivity = null;
+        lastActivityPushAt = now();
+        return true;
+      })();
+      activityPushPromise = currentPushPromise;
+      const clearCurrentPush = () => {
+        if (activityPushPromise === currentPushPromise) activityPushPromise = null;
+      };
+      void currentPushPromise.then(clearCurrentPush, clearCurrentPush);
+      return currentPushPromise;
     };
 
     const setLatestStep = (value, { forceEmit = true } = {}) => {
@@ -918,9 +933,11 @@ export function createPromptProgressReporterFactory({
         timer?.unref?.();
         activityTimer = setIntervalFn(() => {
           if (stopped) return;
-          if (!pushOneStreamActivity()) return;
-          syncActiveRun();
-          void emit(false);
+          void pushOneStreamActivity().then((pushed) => {
+            if (!pushed || stopped) return;
+            syncActiveRun();
+            void emit(false);
+          });
         }, progressProcessPushIntervalMs);
         activityTimer?.unref?.();
       } catch {
@@ -979,9 +996,9 @@ export function createPromptProgressReporterFactory({
         const appended = appendActivity(rawActivity);
         if (appended) {
           if (lastActivityPushAt === 0) {
-            pushOneStreamActivity({ force: true });
+            void pushOneStreamActivity({ force: true });
           } else {
-            pushOneStreamActivity();
+            void pushOneStreamActivity();
           }
         }
       }
@@ -1018,9 +1035,17 @@ export function createPromptProgressReporterFactory({
 
     const finish = async ({ ok = false, cancelled = false, timedOut = false, error = '' } = {}) => {
       if (stopped) return;
-      stopped = true;
       if (timer) clearIntervalFn(timer);
       if (activityTimer) clearIntervalFn(activityTimer);
+      const inFlightPush = activityPushPromise;
+      if (inFlightPush) {
+        await inFlightPush;
+        if (activityPushPromise === inFlightPush) activityPushPromise = null;
+      }
+      if (failedStreamActivity && pendingStreamActivities[0] === failedStreamActivity) {
+        await pushOneStreamActivity({ force: true });
+      }
+      stopped = true;
       pendingStreamActivities.length = 0;
       latestStep = getFinalLatestStep({
         ok,

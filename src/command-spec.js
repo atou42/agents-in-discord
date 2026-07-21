@@ -31,11 +31,19 @@ const PROVIDER_NATIVE_SESSION_COMMANDS = Object.freeze({
       plural: 'conversations',
     }),
   }),
+  zcode: Object.freeze({
+    resume: 'zcode_resume',
+    sessions: 'zcode_sessions',
+    sessionTerm: Object.freeze({
+      singular: 'ZCode session',
+      plural: 'ZCode sessions',
+    }),
+  }),
 });
 
 const ALL_SESSION_COMMAND_ALIASES = Object.freeze({
-  sessions: Object.freeze(['rollout_sessions', 'project_sessions', 'conversation_sessions', 'chat_sessions']),
-  resume: Object.freeze(['rollout_resume', 'project_resume', 'conversation_resume', 'chat_resume']),
+  sessions: Object.freeze(['rollout_sessions', 'project_sessions', 'conversation_sessions', 'chat_sessions', 'zcode_sessions']),
+  resume: Object.freeze(['rollout_resume', 'project_resume', 'conversation_resume', 'chat_resume', 'zcode_resume']),
 });
 
 const REASONING_LEVEL_DISPLAY_ORDER = Object.freeze(['xhigh', 'high', 'medium', 'low']);
@@ -59,10 +67,12 @@ const COMMAND_ALIASES = Object.freeze({
   project_sessions: 'sessions',
   conversation_sessions: 'sessions',
   chat_sessions: 'sessions',
+  zcode_sessions: 'sessions',
   rollout_resume: 'resume',
   project_resume: 'resume',
   conversation_resume: 'resume',
   chat_resume: 'resume',
+  zcode_resume: 'resume',
 });
 
 export function normalizeCommandName(value, { allowBangPrefix = false } = {}) {
@@ -106,10 +116,12 @@ function getSessionAliasDescriptions(aliases = []) {
     if (alias === 'project_sessions') return [alias, '列出最近的 project sessions（同 sessions）'];
     if (alias === 'conversation_sessions') return [alias, '列出最近的 conversations（同 sessions）'];
     if (alias === 'chat_sessions') return [alias, '列出最近的 legacy chat sessions（同 sessions）'];
+    if (alias === 'zcode_sessions') return [alias, '列出最近的 ZCode sessions（同 sessions）'];
     if (alias === 'rollout_resume') return [alias, '继承一个已有的 rollout session（同 resume）'];
     if (alias === 'project_resume') return [alias, '继承一个已有的 project session（同 resume）'];
     if (alias === 'conversation_resume') return [alias, '继承一个已有的 conversation（同 resume）'];
     if (alias === 'chat_resume') return [alias, '继承一个已有的 legacy chat session（同 resume）'];
+    if (alias === 'zcode_resume') return [alias, '继承一个已有的 ZCode session（同 resume）'];
     return [alias, alias];
   })));
 }
@@ -205,21 +217,14 @@ export function buildSlashCommandEntries({ botProvider = null } = {}) {
             { name: 'codex', value: 'codex' },
             { name: 'claude', value: 'claude' },
             { name: 'antigravity', value: 'antigravity' },
+            { name: 'zcode', value: 'zcode' },
             { name: 'status', value: 'status' },
           ));
       },
     },
     {
       name: 'model',
-      description: '切换模型，或打开模型与推理力度设置',
-      configure(builder) {
-        let next = builder.addStringOption(o => o.setName('name').setDescription('模型名（如 o3, gpt-5.3-codex）或 default；留空打开面板').setRequired(false));
-        if (effortChoices.length) {
-          next = next.addStringOption(o => o.setName('effort').setDescription('推理力度').setRequired(false)
-            .addChoices(...effortChoices));
-        }
-        return next;
-      },
+      description: '打开模型与推理力度选择面板',
     },
     (!lockedProvider || lockedProvider === 'codex') && {
       name: 'fast',

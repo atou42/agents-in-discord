@@ -5,6 +5,7 @@ import {
   handleClaudeRunnerEvent,
   handleCodexRunnerEvent,
   handleAntigravityRunnerEvent,
+  handleZCodeRunnerEvent,
 } from '../src/runner-event-handlers.js';
 import {
   extractAgentMessageText,
@@ -428,4 +429,28 @@ test('handleClaudeRunnerEvent captures visible tool_result text from Claude sess
   assert.deepEqual(state.meta.claudeToolResultMessages, ['## 角色卡 #1\n\n完整正文']);
   assert.deepEqual(state.messages, []);
   assert.deepEqual(state.finalAnswerMessages, []);
+});
+
+test('handleZCodeRunnerEvent captures the aggregate headless response', () => {
+  const state = {
+    messages: [],
+    finalAnswerMessages: [],
+    reasonings: [],
+    logs: [],
+    usage: null,
+    threadId: null,
+    meta: {},
+  };
+
+  handleZCodeRunnerEvent({
+    sessionId: 'sess_zcode_1',
+    response: 'ZCODE_DONE',
+    usage: { inputTokens: 42, outputTokens: 3, totalTokens: 45 },
+    projection: { status: 'idle', contextUsed: 45, contextWindow: 1000000 },
+  }, state);
+
+  assert.equal(state.threadId, 'sess_zcode_1');
+  assert.deepEqual(state.finalAnswerMessages, ['ZCODE_DONE']);
+  assert.deepEqual(state.usage, { inputTokens: 42, outputTokens: 3, totalTokens: 45 });
+  assert.deepEqual(state.meta.zcodeProjection, { status: 'idle', contextUsed: 45, contextWindow: 1000000 });
 });

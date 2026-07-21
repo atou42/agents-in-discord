@@ -197,7 +197,7 @@ function createPanel({
     getProviderCompactCapabilities: () => ({ strategies: ['hard', 'native', 'off'] }),
     normalizeUiLanguage: (value) => String(value || '').trim().toLowerCase() === 'en' ? 'en' : 'zh',
     resolveModelSetting: (currentSession) => ({
-      value: currentSession?.model || currentSession?.inheritedModel || 'gpt-5.4',
+      value: currentSession?.model || currentSession?.inheritedModel || currentSession?.globalDefaultModel || 'gpt-5.4',
       source: currentSession?.modelSource || (currentSession?.model ? 'session override' : 'config.toml'),
     }),
     resolveCodexProfileSetting: (currentSession) => ({
@@ -323,13 +323,89 @@ test('createSettingsPanel defaults to the global codex defaults section', () => 
   assert.match(payload.content, /Codex 默认设置/);
   assert.match(payload.content, /作用域：`~\/.codex\/config\.toml`/);
   assert.match(payload.content, /当前项：Codex 默认/);
-  assert.match(payload.content, /effort 和 fast 直接在这里改/);
+  assert.match(payload.content, /model、effort 和 fast 直接在这里改/);
   assert.match(payload.content, /compact context 长度：272000（环境默认）/);
   assert.equal(payload.components.length, 5);
-  assert.equal(payload.components[1].components[0].data.customId, 'stg:act:default_profile:custom:12345');
-  assert.equal(payload.components[1].components[1].data.customId, 'stg:act:default_model:custom:12345');
-  assert.equal(payload.components[2].components.length, 5);
-  assert.equal(payload.components[3].components[0].data.customId, 'stg:set:default_fast:default:12345');
+  assert.match(payload.components[1].components[0].data.customId, /^stg:set:default_model:preset:12345:[a-z0-9_-]+$/);
+  assert.match(payload.components[2].components[0].data.customId, /^stg:set:default_effort:preset:12345:[a-z0-9_-]+$/);
+  assert.equal(payload.components[3].components[0].data.customId, 'stg:act:default_profile:custom:12345');
+  assert.match(payload.components[3].components[1].data.customId, /^stg:act:default_model:custom:12345:[a-z0-9_-]+$/);
+  assert.equal(payload.components[3].components[2].data.customId, 'stg:set:default_fast:default:12345');
+  assert.equal(payload.components[3].components[3].data.customId, 'stg:set:default_fast:on:12345');
+  assert.equal(payload.components[3].components[4].data.customId, 'stg:set:default_fast:off:12345');
+});
+
+test('createSettingsPanel uses the Codex catalog for global model and effort defaults', () => {
+  const session = {
+    provider: 'codex',
+    language: 'zh',
+    mode: 'safe',
+    globalDefaultModel: 'gpt-5.6-sol',
+    globalDefaultModelConfigured: true,
+    globalDefaultEffort: 'ultra',
+    globalDefaultEffortConfigured: true,
+  };
+  const panel = createPanel({
+    session,
+    modelCatalog: {
+      models: [
+        {
+          slug: 'gpt-5.6-sol',
+          displayName: 'GPT-5.6 Sol',
+          supportedReasoningLevels: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+          visibility: 'list',
+        },
+        {
+          slug: 'gpt-5.6-terra',
+          displayName: 'GPT-5.6 Terra',
+          supportedReasoningLevels: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+          visibility: 'list',
+        },
+        {
+          slug: 'gpt-5.6-luna',
+          displayName: 'GPT-5.6 Luna',
+          supportedReasoningLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
+          visibility: 'list',
+        },
+        {
+          slug: 'codex-auto-review',
+          displayName: 'Codex Auto Review',
+          supportedReasoningLevels: ['low', 'medium', 'high'],
+          visibility: 'hide',
+        },
+        {
+          slug: 'codex-internal-review',
+          displayName: 'Codex Internal Review',
+          supportedReasoningLevels: ['low', 'medium', 'high'],
+          visibility: 'hidden',
+        },
+      ],
+      error: null,
+    },
+  });
+
+  const payload = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+
+  assert.equal(payload.components.length, 5);
+  const modelSelect = payload.components[1].components[0];
+  assert.deepEqual(modelSelect.data.options.map((option) => option.value), [
+    'default',
+    'gpt-5.6-sol',
+    'gpt-5.6-terra',
+    'gpt-5.6-luna',
+  ]);
+  assert.equal(modelSelect.data.options.find((option) => option.value === 'gpt-5.6-sol').default, true);
+  const effortSelect = payload.components[2].components[0];
+  assert.deepEqual(effortSelect.data.options.map((option) => option.value), [
+    'low',
+    'medium',
+    'high',
+    'xhigh',
+    'max',
+    'ultra',
+    'default',
+  ]);
+  assert.equal(effortSelect.data.options.find((option) => option.value === 'ultra').default, true);
 });
 
 test('createSettingsPanel switches active section through the section picker', async () => {
@@ -758,12 +834,12 @@ test('createSettingsPanel model section offers CLI catalog choices and effort co
   assert.match(payload.content, /当前项：模型/);
   assert.match(payload.content, /推理力度也放在这里一起调/);
   const modelSelect = payload.components[1].components[0];
-  assert.equal(modelSelect.data.customId, 'stg:set:model:preset:12345');
+  assert.match(modelSelect.data.customId, /^stg:set:model:preset:12345:[a-z0-9_-]+$/);
   assert.deepEqual(modelSelect.data.options.map((option) => option.value), ['default', 'gpt-5.4', 'o3']);
   assert.equal(modelSelect.data.options.find((option) => option.value === 'o3').default, true);
   const labels = payload.components.flatMap((row) => row.components.map((component) => component.data.label));
   assert.ok(labels.includes('手写模型名'));
-  assert.ok(labels.includes('xhigh'));
+  assert.ok(!labels.includes('xhigh'));
   assert.ok(labels.includes('default'));
 });
 
@@ -788,11 +864,454 @@ test('createSettingsPanel exposes a compact model-only panel', () => {
   assert.match(payload.content, /^\*\*模型\*\*/);
   assert.doesNotMatch(payload.content, /provider：/);
   assert.doesNotMatch(payload.content, /当前项：/);
-  assert.equal(payload.components[0].components[0].data.customId, 'stg:set:quick_model:preset:12345');
+  assert.match(payload.components[0].components[0].data.customId, /^stg:set:quick_model:preset:12345:[a-z0-9_-]+$/);
   const labels = payload.components.flatMap((row) => row.components.map((component) => component.data.label));
   assert.ok(labels.includes('手写模型名'));
-  assert.ok(labels.includes('xhigh'));
+  assert.ok(!labels.includes('xhigh'));
   assert.ok(labels.includes('关闭'));
+});
+
+test('createSettingsPanel uses the selected catalog model effort levels and hides hidden models', () => {
+  const session = {
+    provider: 'codex',
+    language: 'zh',
+    mode: 'safe',
+    model: 'gpt-5.6-sol',
+    effort: 'ultra',
+  };
+  const panel = createPanel({
+    session,
+    modelCatalog: {
+      models: [
+        {
+          slug: 'gpt-5.6-sol',
+          displayName: 'GPT-5.6 Sol',
+          supportedReasoningLevels: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+          visibility: 'list',
+        },
+        {
+          slug: 'codex-auto-review',
+          displayName: 'Codex Auto Review',
+          supportedReasoningLevels: ['low', 'medium', 'high', 'xhigh'],
+          visibility: 'hide',
+        },
+        {
+          slug: 'codex-internal-review',
+          displayName: 'Codex Internal Review',
+          supportedReasoningLevels: ['low', 'medium', 'high'],
+          visibility: 'hidden',
+        },
+      ],
+      error: null,
+    },
+  });
+
+  const payload = panel.openModelSettingsPanel({
+    key: 'thread-1',
+    session,
+    userId: '12345',
+  });
+
+  const modelSelect = payload.components[0].components[0];
+  assert.deepEqual(modelSelect.data.options.map((option) => option.value), ['default', 'gpt-5.6-sol']);
+  const effortButtons = payload.components
+    .flatMap((row) => row.components)
+    .filter((component) => component.data.customId?.includes('quick_model_effort'));
+  assert.deepEqual(effortButtons.map((button) => button.data.label), [
+    'low',
+    'medium',
+    'high',
+    'xhigh',
+    'max',
+    'ultra',
+    'default',
+  ]);
+  assert.equal(effortButtons.find((button) => button.data.label === 'ultra').data.style, 'primary');
+  assert.ok(payload.components.length <= 5);
+});
+
+test('createSettingsPanel refreshes effort choices after selecting another model', async () => {
+  const session = {
+    provider: 'codex',
+    language: 'en',
+    mode: 'safe',
+    model: 'gpt-5.4',
+    effort: 'high',
+  };
+  const updates = [];
+  const panel = createPanel({
+    session,
+    modelCatalog: {
+      models: [
+        {
+          slug: 'gpt-5.4',
+          displayName: 'GPT-5.4',
+          supportedReasoningLevels: ['low', 'medium', 'high', 'xhigh'],
+          visibility: 'list',
+        },
+        {
+          slug: 'gpt-5.6-sol',
+          displayName: 'GPT-5.6 Sol',
+          supportedReasoningLevels: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+          visibility: 'list',
+        },
+      ],
+      error: null,
+    },
+    commandActions: {
+      setModel(currentSession, value) {
+        currentSession.model = value;
+        return { model: value };
+      },
+    },
+  });
+
+  const opened = panel.openModelSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  await panel.handleSettingsPanelInteraction({
+    customId: opened.components[0].components[0].data.customId,
+    channelId: 'thread-1',
+    user: { id: '12345' },
+    values: ['gpt-5.6-sol'],
+    async update(payload) {
+      updates.push(payload);
+    },
+    async reply() {
+      throw new Error('should not reply');
+    },
+  });
+
+  assert.equal(session.model, 'gpt-5.6-sol');
+  assert.equal(updates.length, 1);
+  const modelSelect = updates[0].components[0].components[0];
+  assert.equal(modelSelect.data.options.find((option) => option.value === 'gpt-5.6-sol').default, true);
+  const effortLabels = updates[0].components
+    .flatMap((row) => row.components)
+    .filter((component) => component.data.customId?.includes('quick_model_effort'))
+    .map((component) => component.data.label);
+  assert.deepEqual(effortLabels, ['low', 'medium', 'high', 'xhigh', 'max', 'ultra', 'default']);
+  assert.ok(updates[0].components.length <= 5);
+});
+
+test('createSettingsPanel rejects a stale unsupported effort selection', async () => {
+  const session = {
+    provider: 'codex',
+    language: 'en',
+    mode: 'safe',
+    model: 'o3',
+    effort: 'high',
+  };
+  const replies = [];
+  const panel = createPanel({
+    session,
+    commandActions: {
+      setReasoningEffort(currentSession, value) {
+        currentSession.effort = value;
+        return { effort: value };
+      },
+    },
+  });
+  const opened = panel.openModelSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  const generation = opened.components[0].components[0].data.customId.split(':').at(-1);
+
+  await panel.handleSettingsPanelInteraction({
+    customId: `stg:set:quick_model_effort:xhigh:12345:${generation}`,
+    channelId: 'thread-1',
+    user: { id: '12345' },
+    async update() {
+      throw new Error('should not update');
+    },
+    async reply(payload) {
+      replies.push(payload);
+    },
+  });
+
+  assert.equal(session.effort, 'high');
+  assert.equal(replies.length, 1);
+  assert.match(replies[0].content, /does not support `xhigh`/);
+  assert.equal(replies[0].flags, 64);
+});
+
+test('createSettingsPanel rejects default effort when the inherited effort is unsupported', async () => {
+  const session = {
+    provider: 'codex',
+    language: 'en',
+    mode: 'safe',
+    model: 'o3',
+    effort: 'high',
+    inheritedEffort: 'xhigh',
+  };
+  const replies = [];
+  const panel = createPanel({
+    session,
+    commandActions: {
+      setReasoningEffort(currentSession, value) {
+        currentSession.effort = value === 'default' ? null : value;
+        return { effort: currentSession.effort };
+      },
+    },
+  });
+  const opened = panel.openModelSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  const defaultEffort = opened.components
+    .flatMap((row) => row.components)
+    .find((component) => component.data.customId?.includes('quick_model_effort') && component.data.label === 'default');
+
+  await panel.handleSettingsPanelInteraction({
+    customId: defaultEffort.data.customId,
+    channelId: 'thread-1',
+    user: { id: '12345' },
+    async update() {
+      throw new Error('should not update');
+    },
+    async reply(payload) {
+      replies.push(payload);
+    },
+  });
+
+  assert.equal(session.effort, 'high');
+  assert.equal(replies.length, 1);
+  assert.match(replies[0].content, /does not support `xhigh`/);
+});
+
+test('createSettingsPanel rejects switching to a model incompatible with the current effort', async () => {
+  const session = {
+    provider: 'codex',
+    language: 'en',
+    mode: 'safe',
+    model: 'gpt-5.4',
+    effort: 'xhigh',
+  };
+  const replies = [];
+  const panel = createPanel({ session });
+  const opened = panel.openModelSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+
+  await panel.handleSettingsPanelInteraction({
+    customId: opened.components[0].components[0].data.customId,
+    channelId: 'thread-1',
+    user: { id: '12345' },
+    values: ['o3'],
+    async update() {
+      throw new Error('should not update');
+    },
+    async reply(payload) {
+      replies.push(payload);
+    },
+  });
+
+  assert.equal(session.model, 'gpt-5.4');
+  assert.equal(replies.length, 1);
+  assert.match(replies[0].content, /does not support the current effort `xhigh`/);
+  assert.equal(replies[0].flags, 64);
+});
+
+test('createSettingsPanel validates model switches against inherited effective effort', async () => {
+  const session = {
+    provider: 'codex',
+    language: 'en',
+    mode: 'safe',
+    model: 'gpt-5.4',
+    inheritedEffort: 'xhigh',
+  };
+  const replies = [];
+  const panel = createPanel({ session });
+  const payload = panel.openModelSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+
+  await panel.handleSettingsPanelInteraction({
+    customId: payload.components[0].components[0].data.customId,
+    channelId: 'thread-1',
+    user: { id: '12345' },
+    values: ['o3'],
+    async update() {
+      throw new Error('should not update');
+    },
+    async reply(reply) {
+      replies.push(reply);
+    },
+  });
+
+  assert.equal(session.model, 'gpt-5.4');
+  assert.equal(replies.length, 1);
+  assert.match(replies[0].content, /current effort `xhigh`/);
+});
+
+test('createSettingsPanel expires an older model panel opened by the same user in the same channel', async () => {
+  const session = {
+    provider: 'codex',
+    language: 'en',
+    mode: 'safe',
+    model: 'gpt-5.4',
+    effort: 'high',
+  };
+  const replies = [];
+  const panel = createPanel({ session });
+  const older = panel.openModelSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  panel.openModelSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+
+  await panel.handleSettingsPanelInteraction({
+    customId: older.components[0].components[0].data.customId,
+    channelId: 'thread-1',
+    user: { id: '12345' },
+    values: ['o3'],
+    async update() {
+      throw new Error('should not update');
+    },
+    async reply(reply) {
+      replies.push(reply);
+    },
+  });
+
+  assert.equal(session.model, 'gpt-5.4');
+  assert.equal(replies.length, 1);
+  assert.match(replies[0].content, /expired/);
+  assert.equal(replies[0].flags, 64);
+});
+
+test('createSettingsPanel expires model controls after a successful update', async () => {
+  const session = {
+    provider: 'codex',
+    language: 'en',
+    mode: 'safe',
+    model: 'gpt-5.4',
+    effort: 'high',
+  };
+  const updates = [];
+  const replies = [];
+  const panel = createPanel({
+    session,
+    commandActions: {
+      setModel(currentSession, value) {
+        currentSession.model = value;
+        return { model: value };
+      },
+    },
+  });
+  const payload = panel.openModelSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  const customId = payload.components[0].components[0].data.customId;
+  const interaction = {
+    customId,
+    channelId: 'thread-1',
+    user: { id: '12345' },
+    values: ['o3'],
+    async update(next) {
+      updates.push(next);
+    },
+    async reply(reply) {
+      replies.push(reply);
+    },
+  };
+
+  await panel.handleSettingsPanelInteraction(interaction);
+  interaction.values = ['gpt-5.4'];
+  await panel.handleSettingsPanelInteraction(interaction);
+
+  assert.equal(session.model, 'o3');
+  assert.equal(updates.length, 1);
+  assert.equal(replies.length, 1);
+  assert.match(replies[0].content, /expired/);
+});
+
+test('createSettingsPanel keeps model panel generations scoped by channel and owner', async () => {
+  const session = {
+    provider: 'codex',
+    language: 'en',
+    mode: 'safe',
+    model: 'gpt-5.4',
+    effort: 'high',
+  };
+  const updates = [];
+  const replies = [];
+  const panel = createPanel({
+    session,
+    commandActions: {
+      setModel(currentSession, value) {
+        currentSession.model = value;
+        return { model: value };
+      },
+    },
+  });
+  const channelOne = panel.openModelSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  panel.openModelSettingsPanel({ key: 'thread-2', session, userId: '12345' });
+
+  await panel.handleSettingsPanelInteraction({
+    customId: channelOne.components[0].components[0].data.customId,
+    channelId: 'thread-1',
+    user: { id: '12345' },
+    values: ['o3'],
+    async update(payload) {
+      updates.push(payload);
+    },
+    async reply(payload) {
+      replies.push(payload);
+    },
+  });
+
+  assert.equal(session.model, 'o3');
+  assert.equal(updates.length, 1);
+  assert.equal(replies.length, 0);
+  assert.ok(channelOne.components.flatMap((row) => row.components)
+    .every((component) => !component.data.customId || component.data.customId.length <= 100));
+});
+
+test('createSettingsPanel rejects selecting provider default when its model conflicts with effective effort', async () => {
+  const session = {
+    provider: 'codex',
+    language: 'en',
+    mode: 'safe',
+    model: 'gpt-5.4',
+    effort: 'xhigh',
+    globalDefaultModel: 'o3',
+  };
+  const replies = [];
+  const panel = createPanel({ session });
+  const payload = panel.openModelSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+
+  await panel.handleSettingsPanelInteraction({
+    customId: payload.components[0].components[0].data.customId,
+    channelId: 'thread-1',
+    user: { id: '12345' },
+    values: ['default'],
+    async update() {
+      throw new Error('should not update');
+    },
+    async reply(reply) {
+      replies.push(reply);
+    },
+  });
+
+  assert.equal(session.model, 'gpt-5.4');
+  assert.equal(replies.length, 1);
+  assert.match(replies[0].content, /Model `o3` does not support the current effort `xhigh`/);
+});
+
+test('createSettingsPanel rejects a custom catalog model that conflicts with effective effort', async () => {
+  const session = {
+    provider: 'codex',
+    language: 'en',
+    mode: 'safe',
+    model: 'gpt-5.4',
+    inheritedEffort: 'xhigh',
+  };
+  const replies = [];
+  const panel = createPanel({ session });
+  const payload = panel.openModelSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  const generation = payload.components[0].components[0].data.customId.split(':').at(-1);
+
+  await panel.handleSettingsPanelModalSubmit({
+    customId: `stgm:quick_model:12345:${generation}`,
+    channelId: 'thread-1',
+    user: { id: '12345' },
+    fields: {
+      getTextInputValue() {
+        return 'o3';
+      },
+    },
+    async reply(reply) {
+      replies.push(reply);
+    },
+  });
+
+  assert.equal(session.model, 'gpt-5.4');
+  assert.equal(replies.length, 1);
+  assert.match(replies[0].content, /Model `o3` does not support the current effort `xhigh`/);
 });
 
 test('createSettingsPanel reads Claude model catalog and keeps custom model control', () => {
@@ -854,9 +1373,10 @@ test('createSettingsPanel applies model catalog selection and stays in model sec
       },
     },
   });
+  const opened = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345', activeSection: 'model' });
 
   await panel.handleSettingsPanelInteraction({
-    customId: 'stg:set:model:preset:12345',
+    customId: opened.components[1].components[0].data.customId,
     channelId: 'thread-1',
     user: { id: '12345' },
     values: ['gpt-5.4'],
@@ -894,9 +1414,10 @@ test('createSettingsPanel applies compact model panel selection without expandin
       },
     },
   });
+  const opened = panel.openModelSettingsPanel({ key: 'thread-1', session, userId: '12345' });
 
   await panel.handleSettingsPanelInteraction({
-    customId: 'stg:set:quick_model:preset:12345',
+    customId: opened.components[0].components[0].data.customId,
     channelId: 'thread-1',
     user: { id: '12345' },
     values: ['gpt-5.4'],
@@ -935,9 +1456,13 @@ test('createSettingsPanel applies effort from the model section without leaving 
       },
     },
   });
+  const opened = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345', activeSection: 'model' });
+  const effortButton = opened.components
+    .flatMap((row) => row.components)
+    .find((component) => component.data.customId?.includes(':model_effort:xhigh:'));
 
   await panel.handleSettingsPanelInteraction({
-    customId: 'stg:set:model_effort:xhigh:12345',
+    customId: effortButton.data.customId,
     channelId: 'thread-1',
     user: { id: '12345' },
     async update(payload) {
@@ -966,9 +1491,13 @@ test('createSettingsPanel opens a model modal from the model section', async () 
   };
   const modals = [];
   const panel = createPanel({ session });
+  const opened = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345', activeSection: 'model' });
+  const customButton = opened.components
+    .flatMap((row) => row.components)
+    .find((component) => component.data.customId?.includes(':act:model:custom:'));
 
   await panel.handleSettingsPanelInteraction({
-    customId: 'stg:act:model:custom:12345',
+    customId: customButton.data.customId,
     channelId: 'thread-1',
     user: { id: '12345' },
     async update() {
@@ -983,7 +1512,7 @@ test('createSettingsPanel opens a model modal from the model section', async () 
   });
 
   assert.equal(modals.length, 1);
-  assert.equal(modals[0].data.customId, 'stgm:model:12345');
+  assert.match(modals[0].data.customId, /^stgm:model:12345:[a-z0-9_-]+$/);
   assert.equal(modals[0].data.components[0].components[0].data.customId, 'model_name');
   assert.equal(modals[0].data.components[0].components[0].data.value, 'gpt-5.4');
 });
@@ -996,9 +1525,13 @@ test('createSettingsPanel uses Claude examples in Claude model modal', async () 
   };
   const modals = [];
   const panel = createPanel({ session });
+  const opened = panel.openModelSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  const customButton = opened.components
+    .flatMap((row) => row.components)
+    .find((component) => component.data.customId?.includes(':act:quick_model:custom:'));
 
   await panel.handleSettingsPanelInteraction({
-    customId: 'stg:act:quick_model:custom:12345',
+    customId: customButton.data.customId,
     channelId: 'thread-1',
     user: { id: '12345' },
     async update() {
@@ -1027,9 +1560,11 @@ test('createSettingsPanel opens a global default model modal from the defaults s
   };
   const modals = [];
   const panel = createPanel({ session });
+  const opened = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  const customModelButton = opened.components[3].components[1];
 
   await panel.handleSettingsPanelInteraction({
-    customId: 'stg:act:default_model:custom:12345',
+    customId: customModelButton.data.customId,
     channelId: 'thread-1',
     user: { id: '12345' },
     async update() {
@@ -1044,8 +1579,302 @@ test('createSettingsPanel opens a global default model modal from the defaults s
   });
 
   assert.equal(modals.length, 1);
-  assert.equal(modals[0].data.customId, 'stgm:default_model:12345');
+  assert.match(modals[0].data.customId, /^stgm:default_model:12345:[a-z0-9_-]+$/);
   assert.equal(modals[0].data.components[0].components[0].data.value, 'gpt-5.4');
+});
+
+test('createSettingsPanel switches the global model default and refreshes its effort choices', async () => {
+  const session = {
+    provider: 'codex',
+    language: 'en',
+    mode: 'safe',
+    globalDefaultModel: 'gpt-5.6-sol',
+    globalDefaultModelConfigured: true,
+    globalDefaultEffort: 'max',
+    globalDefaultEffortConfigured: true,
+  };
+  const updates = [];
+  const writes = [];
+  const panel = createPanel({
+    session,
+    modelCatalog: {
+      models: [
+        {
+          slug: 'gpt-5.6-sol',
+          displayName: 'GPT-5.6 Sol',
+          supportedReasoningLevels: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+          visibility: 'list',
+        },
+        {
+          slug: 'gpt-5.6-luna',
+          displayName: 'GPT-5.6 Luna',
+          supportedReasoningLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
+          visibility: 'list',
+        },
+      ],
+      error: null,
+    },
+    commandActions: {
+      setGlobalModelDefault(_session, value) {
+        writes.push(value);
+        session.globalDefaultModel = value === 'default' ? null : value;
+        session.globalDefaultModelConfigured = value !== 'default';
+      },
+    },
+  });
+  const opened = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  const oldGeneration = opened.components[1].components[0].data.customId.split(':').at(-1);
+
+  await panel.handleSettingsPanelInteraction({
+    customId: opened.components[1].components[0].data.customId,
+    channelId: 'thread-1',
+    user: { id: '12345' },
+    values: ['gpt-5.6-luna'],
+    async update(payload) {
+      updates.push(payload);
+    },
+    async reply() {
+      throw new Error('should not reply');
+    },
+  });
+
+  assert.deepEqual(writes, ['gpt-5.6-luna']);
+  assert.equal(session.globalDefaultModel, 'gpt-5.6-luna');
+  assert.equal(updates.length, 1);
+  assert.deepEqual(updates[0].components[2].components[0].data.options.map((option) => option.value), [
+    'low',
+    'medium',
+    'high',
+    'xhigh',
+    'max',
+    'default',
+  ]);
+  assert.notEqual(updates[0].components[1].components[0].data.customId.split(':').at(-1), oldGeneration);
+});
+
+test('createSettingsPanel rejects an incompatible global model before writing config', async () => {
+  const session = {
+    provider: 'codex',
+    language: 'en',
+    mode: 'safe',
+    globalDefaultModel: 'gpt-5.6-sol',
+    globalDefaultModelConfigured: true,
+    globalDefaultEffort: 'ultra',
+    globalDefaultEffortConfigured: true,
+  };
+  const replies = [];
+  let writes = 0;
+  const panel = createPanel({
+    session,
+    modelCatalog: {
+      models: [{
+        slug: 'gpt-5.6-sol',
+        supportedReasoningLevels: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+        visibility: 'list',
+      }, {
+        slug: 'gpt-5.6-luna',
+        supportedReasoningLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
+        visibility: 'list',
+      }],
+      error: null,
+    },
+    commandActions: {
+      setGlobalModelDefault() {
+        writes += 1;
+      },
+    },
+  });
+  const opened = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+
+  await panel.handleSettingsPanelInteraction({
+    customId: opened.components[1].components[0].data.customId,
+    channelId: 'thread-1',
+    user: { id: '12345' },
+    values: ['gpt-5.6-luna'],
+    async update() {
+      throw new Error('should not update');
+    },
+    async reply(payload) {
+      replies.push(payload);
+    },
+  });
+
+  assert.equal(writes, 0);
+  assert.match(replies[0].content, /does not support the current effort `ultra`/);
+  assert.equal(replies[0].flags, 64);
+});
+
+test('createSettingsPanel rejects an incompatible global effort before writing config', async () => {
+  const session = {
+    provider: 'codex',
+    language: 'en',
+    mode: 'safe',
+    globalDefaultModel: 'gpt-5.6-luna',
+    globalDefaultModelConfigured: true,
+    globalDefaultEffort: 'high',
+    globalDefaultEffortConfigured: true,
+  };
+  const replies = [];
+  let writes = 0;
+  const panel = createPanel({
+    session,
+    modelCatalog: {
+      models: [{
+        slug: 'gpt-5.6-luna',
+        supportedReasoningLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
+        visibility: 'list',
+      }],
+      error: null,
+    },
+    commandActions: {
+      setGlobalReasoningEffortDefault() {
+        writes += 1;
+      },
+    },
+  });
+  const opened = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  const generation = opened.components[2].components[0].data.customId.split(':').at(-1);
+
+  await panel.handleSettingsPanelInteraction({
+    customId: `stg:set:default_effort:preset:12345:${generation}`,
+    channelId: 'thread-1',
+    user: { id: '12345' },
+    values: ['ultra'],
+    async update() {
+      throw new Error('should not update');
+    },
+    async reply(payload) {
+      replies.push(payload);
+    },
+  });
+
+  assert.equal(writes, 0);
+  assert.match(replies[0].content, /does not support `ultra`/);
+  assert.equal(replies[0].flags, 64);
+});
+
+test('createSettingsPanel expires older global model controls in the same channel', async () => {
+  const session = {
+    provider: 'codex',
+    language: 'en',
+    mode: 'safe',
+    globalDefaultModel: 'gpt-5.6-sol',
+    globalDefaultModelConfigured: true,
+    globalDefaultEffort: 'high',
+    globalDefaultEffortConfigured: true,
+  };
+  const replies = [];
+  let writes = 0;
+  const panel = createPanel({
+    session,
+    commandActions: {
+      setGlobalModelDefault() {
+        writes += 1;
+      },
+    },
+  });
+  const older = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+
+  await panel.handleSettingsPanelInteraction({
+    customId: older.components[1].components[0].data.customId,
+    channelId: 'thread-1',
+    user: { id: '12345' },
+    values: ['o3'],
+    async update() {
+      throw new Error('should not update');
+    },
+    async reply(payload) {
+      replies.push(payload);
+    },
+  });
+
+  assert.equal(writes, 0);
+  assert.match(replies[0].content, /expired/);
+});
+
+test('createSettingsPanel expires a global model modal and validates it before writing config', async () => {
+  const session = {
+    provider: 'codex',
+    language: 'en',
+    mode: 'safe',
+    globalDefaultModel: 'gpt-5.6-sol',
+    globalDefaultModelConfigured: true,
+    globalDefaultEffort: 'ultra',
+    globalDefaultEffortConfigured: true,
+  };
+  const replies = [];
+  const modals = [];
+  let writes = 0;
+  const panel = createPanel({
+    session,
+    modelCatalog: {
+      models: [{
+        slug: 'gpt-5.6-sol',
+        supportedReasoningLevels: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+        visibility: 'list',
+      }, {
+        slug: 'gpt-5.6-luna',
+        supportedReasoningLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
+        visibility: 'list',
+      }],
+      error: null,
+    },
+    commandActions: {
+      setGlobalModelDefault() {
+        writes += 1;
+      },
+    },
+  });
+  const opened = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  await panel.handleSettingsPanelInteraction({
+    customId: opened.components[3].components[1].data.customId,
+    channelId: 'thread-1',
+    user: { id: '12345' },
+    async showModal(modal) {
+      modals.push(modal);
+    },
+    async reply() {
+      throw new Error('should not reply');
+    },
+  });
+  panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+
+  await panel.handleSettingsPanelModalSubmit({
+    customId: modals[0].data.customId,
+    channelId: 'thread-1',
+    user: { id: '12345' },
+    fields: {
+      getTextInputValue() {
+        return 'gpt-5.6-luna';
+      },
+    },
+    async reply(payload) {
+      replies.push(payload);
+    },
+  });
+
+  assert.equal(writes, 0);
+  assert.match(replies[0].content, /expired/);
+
+  const current = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  const currentGeneration = current.components[1].components[0].data.customId.split(':').at(-1);
+  await panel.handleSettingsPanelModalSubmit({
+    customId: `stgm:default_model:12345:${currentGeneration}`,
+    channelId: 'thread-1',
+    user: { id: '12345' },
+    fields: {
+      getTextInputValue() {
+        return 'gpt-5.6-luna';
+      },
+    },
+    async reply(payload) {
+      replies.push(payload);
+    },
+  });
+
+  assert.equal(writes, 0);
+  assert.match(replies[1].content, /does not support the current effort `ultra`/);
 });
 
 test('createSettingsPanel opens codex profile modals from profile and defaults sections', async () => {
@@ -1156,9 +1985,11 @@ test('createSettingsPanel applies model modal submit and replies with a refreshe
       },
     },
   });
+  const opened = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345', activeSection: 'model' });
+  const generation = opened.components[1].components[0].data.customId.split(':').at(-1);
 
   await panel.handleSettingsPanelModalSubmit({
-    customId: 'stgm:model:12345',
+    customId: `stgm:model:12345:${generation}`,
     channelId: 'thread-1',
     user: { id: '12345' },
     fields: {
@@ -1316,11 +2147,13 @@ test('createSettingsPanel updates global effort defaults through button interact
       },
     },
   });
+  const opened = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345' });
 
   await panel.handleSettingsPanelInteraction({
-    customId: 'stg:set:default_effort:xhigh:12345',
+    customId: opened.components[2].components[0].data.customId,
     channelId: 'thread-1',
     user: { id: '12345' },
+    values: ['xhigh'],
     async update(payload) {
       updates.push(payload);
     },

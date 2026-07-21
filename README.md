@@ -1,6 +1,6 @@
 # Agents in Discord
 
-在 Discord 线程里运行 Codex CLI、Claude Code 和 Antigravity CLI 的 bot。
+在 Discord 线程里运行 Codex CLI、Claude Code、Antigravity CLI 和 ZCode CLI 的 bot。
 
 它是一个独立 bridge，不是 OpenClaw 插件，也不需要 OpenClaw。
 
@@ -8,11 +8,13 @@
 
 维护者：[ATou](https://github.com/atou42) 与 [Lark](https://github.com/Larkspur-Wang)
 
+ZCode CLI 支持从 [v0.13.0](https://github.com/atou42/agents-in-discord/releases/tag/v0.13.0) 开始提供。
+
 ## 核心模型
 
 一个 Discord 频道或线程，对应一条 provider 会话。
 
-你可以在同一个 Discord 服务器里使用共享 bot，也可以把 Codex、Claude、Antigravity 拆成三个独立 bot。每个 provider 有自己的 session、workspace、模型和运行配置，不会混在一起。Antigravity 的模型菜单会优先显示 `~/.gemini/antigravity-cli/settings.json` 当前模型，再补充 Antigravity 官方 reasoning model 列表和本机 CLI 日志里出现过的模型；面板里选中的模型会在下一次启动前写回 Antigravity 设置。
+你可以在同一个 Discord 服务器里使用共享 bot，也可以把 Codex、Claude、Antigravity、ZCode 拆成四个独立 bot。每个 provider 有自己的 session、workspace、模型和运行配置，不会混在一起。ZCode 使用 headless JSON runner，支持附件、按 session id 恢复和 workspace 绑定。Antigravity 的模型菜单会优先显示 `~/.gemini/antigravity-cli/settings.json` 当前模型，再补充 Antigravity 官方 reasoning model 列表和本机 CLI 日志里出现过的模型；面板里选中的模型会在下一次启动前写回 Antigravity 设置。
 
 长任务不会一直刷屏。bot 会更新进度卡，也可以按频道设置成持续发送过程消息。最终回复是否 @ 发起人，也可以在设置里选。
 
@@ -32,12 +34,13 @@ Codex 的安全模式现在使用 workspace-write 沙盒，并把需要审批的
 
 需要 Node.js 18+，一个 Discord Bot Token，以及你要使用的 CLI。
 
-本项目不管理 Codex、Claude、Antigravity 自己的登录状态。请先在本机 CLI 里完成登录，并确认命令能直接运行。
+本项目不管理 Codex、Claude、Antigravity、ZCode 自己的登录状态。请先在本机 CLI 里完成登录，并确认命令能直接运行。
 
 ```bash
 codex --version
 claude --version
 agy --version
+zcode --version
 ```
 
 如果 CLI 不在 bot 进程的 PATH 里，可以在 `.env` 里写绝对路径。
@@ -46,6 +49,7 @@ agy --version
 CODEX_BIN=/opt/homebrew/bin/codex
 CLAUDE_BIN=/opt/homebrew/bin/claude
 ANTIGRAVITY_BIN=/opt/homebrew/bin/agy
+ZCODE_BIN=/Users/you/.local/bin/zcode
 ```
 
 ## 安装
@@ -63,7 +67,7 @@ npm start
 
 ## Discord 里怎么用
 
-默认 shared bot 的 slash 前缀是 `cx_`。独立 Claude bot 默认是 `cc_`，独立 Antigravity bot 默认是 `ag_`。
+默认 shared bot 的 slash 前缀是 `cx_`。独立 Claude bot 默认是 `cc_`，独立 Antigravity bot 默认是 `ag_`，独立 ZCode bot 默认是 `zc_`。
 
 最常用的入口是这些。
 
@@ -110,15 +114,16 @@ workspace 是 CLI 真正执行任务的目录。
 npm start
 ```
 
-如果想把三家 provider 拆成独立 bot，可以在同一个 `.env` 里写分组配置，然后分别启动。
+如果想把四家 provider 拆成独立 bot，可以在同一个 `.env` 里写分组配置，然后分别启动。
 
 ```bash
 npm run start:codex
 npm run start:claude
 npm run start:antigravity
+npm run start:zcode
 ```
 
-分组配置使用 `CODEX__*`、`CLAUDE__*`、`ANTIGRAVITY__*`。通常只需要各自的 `DISCORD_TOKEN`，再按需填默认模型、默认 workspace 和 CLI 路径。Antigravity CLI 目前没有公开的 `--model` 参数，模型选择以 Antigravity 自己的 settings.json 为准；模型菜单会合并 settings 当前值、官方 documented reasoning models 和本机日志里观测到的模型。
+分组配置使用 `CODEX__*`、`CLAUDE__*`、`ANTIGRAVITY__*`、`ZCODE__*`。通常只需要各自的 `DISCORD_TOKEN`，再按需填默认模型、默认 workspace 和 CLI 路径。ZCode 的 safe mode 对应 `edit`，dangerous mode 对应 `yolo`。Antigravity CLI 目前没有公开的 `--model` 参数，模型选择以 Antigravity 自己的 settings.json 为准；模型菜单会合并 settings 当前值、官方 documented reasoning models 和本机日志里观测到的模型。
 
 ## 关键配置
 
@@ -148,6 +153,11 @@ CLAUDE__SLASH_PREFIX=cc
 ANTIGRAVITY__DISCORD_TOKEN=...
 ANTIGRAVITY__DEFAULT_WORKSPACE_DIR=/Users/you/antigravity-work
 ANTIGRAVITY__SLASH_PREFIX=ag
+
+ZCODE__DISCORD_TOKEN=...
+ZCODE__DEFAULT_WORKSPACE_DIR=/Users/you/zcode-work
+ZCODE__SLASH_PREFIX=zc
+ZCODE_BIN=/Users/you/.local/bin/zcode
 ```
 
 访问控制建议至少设置 `ALLOWED_CHANNEL_IDS` 或 `ALLOWED_USER_IDS`。多人服务器里不要默认使用 dangerous mode。
@@ -179,6 +189,7 @@ macOS 上推荐用仓库自带脚本重启 bot 服务。
 scripts/restart-discord-bot-service.sh codex
 scripts/restart-discord-bot-service.sh claude
 scripts/restart-discord-bot-service.sh antigravity
+scripts/restart-discord-bot-service.sh zcode
 scripts/restart-discord-bot-service.sh all
 ```
 
@@ -234,6 +245,8 @@ CODEX_UPGRADE_DRY_RUN=1 npm run run:auto-upgrade
 
 ## 发布
 
+[v0.13.0](https://github.com/atou42/agents-in-discord/releases/tag/v0.13.0) 是首个支持 ZCode CLI 的版本。
+
 常规改动先跑测试。
 
 ```bash
@@ -256,6 +269,7 @@ npm run release:major
 which codex
 which claude
 which agy
+which zcode
 ```
 
 然后把绝对路径写进 `.env`，重启 bot。

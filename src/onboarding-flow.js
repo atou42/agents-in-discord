@@ -1,4 +1,4 @@
-const PROVIDER_CHOICES = Object.freeze(['codex', 'claude', 'antigravity']);
+const PROVIDER_CHOICES = Object.freeze(['codex', 'claude', 'antigravity', 'zcode']);
 
 function formatWorkspaceSourceLabel(source, language) {
   const value = String(source || '').trim().toLowerCase();

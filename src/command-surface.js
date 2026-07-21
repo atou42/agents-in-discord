@@ -80,6 +80,7 @@ export function createCommandSurface({
     ModalBuilder: settingsPanelOptions.ModalBuilder,
     TextInputBuilder: settingsPanelOptions.TextInputBuilder,
     TextInputStyle: settingsPanelOptions.TextInputStyle,
+    getModelCatalog: settingsPanelOptions.getModelCatalog,
     ...slashRouterOptions,
     isOnboardingEnabled: onboarding.isOnboardingEnabled,
     buildOnboardingActionRows: onboarding.buildOnboardingActionRows,

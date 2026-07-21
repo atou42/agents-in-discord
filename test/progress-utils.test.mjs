@@ -179,6 +179,139 @@ test('extractCompletedStepFromEvent treats response_item function_call without s
   assert.equal(step, 'exec_command: run: git status --short');
 });
 
+test('Codex CLI command_execution events expose meaningful work as compact process activity', () => {
+  const ev = {
+    type: 'item.completed',
+    item: {
+      id: 'item_42',
+      type: 'command_execution',
+      command: '/bin/zsh -lc "npm test"',
+      aggregated_output: 'tests passed',
+      exit_code: 0,
+      status: 'completed',
+    },
+  };
+
+  assert.equal(
+    summarizeCodexEvent(ev, { previewChars: 180 }),
+    'command completed: run project checks',
+  );
+  assert.equal(
+    extractRawProgressTextFromEvent(ev, { previewChars: 180 }),
+    'run project checks',
+  );
+  assert.equal(
+    extractCompletedStepFromEvent(ev, { previewChars: 180 }),
+    'command: run project checks',
+  );
+});
+
+test('Codex CLI error items expose the error without treating it as a completed milestone', () => {
+  const ev = {
+    type: 'item.completed',
+    item: {
+      id: 'item_error',
+      type: 'error',
+      message: 'Browser command failed after 30 seconds',
+      status: 'failed',
+    },
+  };
+
+  assert.equal(
+    summarizeCodexEvent(ev, { previewChars: 180 }),
+    'error: Browser command failed after 30 seconds',
+  );
+  assert.equal(
+    extractRawProgressTextFromEvent(ev, { previewChars: 180 }),
+    'error: Browser command failed after 30 seconds',
+  );
+  assert.equal(extractCompletedStepFromEvent(ev, { previewChars: 180 }), '');
+});
+
+test('Codex CLI command activities keep meaningful work and hide shell inspection noise', () => {
+  const contextSearch = {
+    type: 'item.completed',
+    item: {
+      type: 'command_execution',
+      command: '/bin/zsh -lc "cohub search \'埋点 事件分析 数据分析 Neta Studio\'"',
+      status: 'completed',
+    },
+  };
+  const skillRead = {
+    type: 'item.completed',
+    item: {
+      type: 'command_execution',
+      command: '/bin/zsh -lc "sed -n \'1,320p\' /Users/atou/.agents/skills/lark-base/SKILL.md"',
+      status: 'completed',
+    },
+  };
+  const larkFetch = {
+    type: 'item.completed',
+    item: {
+      type: 'command_execution',
+      command: '/bin/zsh -lc "LARKSUITE_CLI_NO_UPDATE_NOTIFIER=1 lark-cli docs +fetch --as user --doc https://example.test/doc"',
+      status: 'completed',
+    },
+  };
+
+  assert.equal(summarizeCodexEvent(contextSearch), 'command completed: search Cohub context');
+  assert.equal(extractRawProgressTextFromEvent(contextSearch), 'search Cohub context');
+  assert.equal(summarizeCodexEvent(skillRead), 'command completed: read project files');
+  assert.equal(extractRawProgressTextFromEvent(skillRead), '');
+  assert.equal(summarizeCodexEvent(larkFetch), 'command completed: read Lark document');
+  assert.equal(extractRawProgressTextFromEvent(larkFetch), 'read Lark document');
+});
+
+test('Codex CLI startup warnings stay on the progress card without becoming process messages', () => {
+  const ev = {
+    type: 'item.completed',
+    item: {
+      type: 'error',
+      message: '[features].collab is deprecated. Use [features].multi_agent instead.',
+      status: 'failed',
+    },
+  };
+
+  assert.equal(summarizeCodexEvent(ev), 'Codex configuration warning');
+  assert.equal(extractRawProgressTextFromEvent(ev), '');
+  assert.equal(extractCompletedStepFromEvent(ev), '');
+});
+
+test('Codex CLI skills budget notices are not reported as execution errors', () => {
+  const ev = {
+    type: 'item.completed',
+    item: {
+      type: 'error',
+      message: 'Skill descriptions were shortened to fit the 2% skills context budget. Codex can still see every skill, but some descriptions are shorter.',
+      status: 'failed',
+    },
+  };
+
+  assert.equal(summarizeCodexEvent(ev), 'Codex skill catalog compressed');
+  assert.equal(extractRawProgressTextFromEvent(ev), '');
+  assert.equal(extractCompletedStepFromEvent(ev), '');
+});
+
+test('Codex CLI failed commands expose the failure and never become completed milestones', () => {
+  const ev = {
+    type: 'item.completed',
+    item: {
+      type: 'command_execution',
+      command: '/bin/zsh -lc "sed -n \'1,320p\' /missing/file"',
+      status: 'failed',
+      exit_code: 2,
+      aggregated_output: 'sed: /missing/file: No such file or directory',
+    },
+  };
+
+  assert.equal(summarizeCodexEvent(ev), 'command failed: read project files (exit 2)');
+  assert.equal(
+    extractRawProgressTextFromEvent(ev),
+    'command failed: read project files (exit 2) - sed: /missing/file: No such file or directory',
+  );
+  assert.equal(extractCompletedStepFromEvent(ev), '');
+});
+
 test('extractCompletedStepFromEvent does not treat spawn_agent launch as a completed milestone', () => {
   const ev = {
     type: 'response_item',

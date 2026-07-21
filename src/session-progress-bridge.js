@@ -102,7 +102,7 @@ export function createSessionProgressBridgeFactory({
     if (normalizedProvider === 'claude') {
       return startClaudeSessionProgressBridge({ threadId, workspaceDir, onEvent });
     }
-    if (normalizedProvider === 'antigravity') {
+    if (normalizedProvider === 'antigravity' || normalizedProvider === 'zcode') {
       return () => {};
     }
     return startCodexSessionProgressBridge({ threadId, onEvent });

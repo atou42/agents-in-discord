@@ -359,6 +359,94 @@ test('createSlashCommandRouter model command can update model and effort togethe
   assert.deepEqual(state.getCloseRuntimeCalls(), [{ key: 'channel-1', reason: 'runtime config changed' }]);
 });
 
+test('createSlashCommandRouter rejects a catalog model and effort combination the model does not support', async () => {
+  const state = createRouterState({
+    getModelCatalog: () => ({
+      models: [{
+        slug: 'o3',
+        supportedReasoningLevels: ['low', 'medium', 'high'],
+      }],
+      error: null,
+    }),
+  });
+
+  const handled = await state.router({
+    interaction: createInteraction('cx_model', { name: 'o3', effort: 'xhigh' }),
+    commandName: 'model',
+    respond: async (payload) => {
+      state.replies.push(payload);
+    },
+  });
+
+  assert.equal(handled, true);
+  assert.equal(state.session.model, undefined);
+  assert.equal(state.session.effort, undefined);
+  assert.deepEqual(state.replies, [{
+    content: '❌ 模型 `o3` 不支持 effort `xhigh`。',
+    flags: 64,
+  }]);
+  assert.deepEqual(state.getCloseRuntimeCalls(), []);
+});
+
+test('createSlashCommandRouter validates legacy model switches against inherited effective effort', async () => {
+  const state = createRouterState({
+    resolveReasoningEffortSetting: () => ({ value: 'xhigh', source: 'parent channel' }),
+    getModelCatalog: () => ({
+      models: [{
+        slug: 'o3',
+        supportedReasoningLevels: ['low', 'medium', 'high'],
+      }],
+      error: null,
+    }),
+  });
+
+  const handled = await state.router({
+    interaction: createInteraction('cx_model', { name: 'o3' }),
+    commandName: 'model',
+    respond: async (payload) => {
+      state.replies.push(payload);
+    },
+  });
+
+  assert.equal(handled, true);
+  assert.equal(state.session.model, undefined);
+  assert.deepEqual(state.replies, [{
+    content: '❌ 模型 `o3` 不支持 effort `xhigh`。',
+    flags: 64,
+  }]);
+});
+
+test('createSlashCommandRouter validates the inherited effort after legacy effort default', async () => {
+  const state = createRouterState({
+    resolveModelSetting: (session) => ({ value: session?.model || 'o3' }),
+    resolveReasoningEffortSetting: (session) => ({ value: session?.effort || 'xhigh', source: 'parent channel' }),
+    getModelCatalog: () => ({
+      models: [{
+        slug: 'o3',
+        supportedReasoningLevels: ['low', 'medium', 'high'],
+      }],
+      error: null,
+    }),
+  });
+  state.session.model = 'o3';
+  state.session.effort = 'high';
+
+  const handled = await state.router({
+    interaction: createInteraction('cx_model', { effort: 'default' }),
+    commandName: 'model',
+    respond: async (payload) => {
+      state.replies.push(payload);
+    },
+  });
+
+  assert.equal(handled, true);
+  assert.equal(state.session.effort, 'high');
+  assert.deepEqual(state.replies, [{
+    content: '❌ 模型 `o3` 不支持 effort `xhigh`。',
+    flags: 64,
+  }]);
+});
+
 test('createSlashCommandRouter creates native Codex fork in a new thread and preserves parent binding', async () => {
   const parentSession = { provider: 'codex', language: 'zh', runnerSessionId: 'parent-1' };
   const childSession = { provider: 'codex', language: 'zh' };

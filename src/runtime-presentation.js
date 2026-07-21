@@ -147,6 +147,12 @@ export function createRuntimePresentation({
         ? 'auto-edit (--permission-mode acceptEdits)'
         : '自动编辑（--permission-mode acceptEdits）';
     }
+    if (provider === 'zcode') {
+      if (session.mode === 'dangerous') {
+        return language === 'en' ? 'full access (--mode yolo)' : '完全权限（--mode yolo）';
+      }
+      return language === 'en' ? 'auto-edit (--mode edit)' : '自动编辑（--mode edit）';
+    }
     if (session.mode === 'dangerous') {
       return formatCodexPermissionsLabel(session.mode, language);
     }

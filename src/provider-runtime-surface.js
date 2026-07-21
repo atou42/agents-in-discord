@@ -108,6 +108,40 @@ const PROVIDER_RUNTIME_SURFACES = Object.freeze({
       zh: 'CLI 没有暴露稳定的 raw config passthrough',
     }),
   }),
+  zcode: Object.freeze({
+    sessionTerm: Object.freeze({
+      en: Object.freeze({ singular: 'ZCode session', plural: 'ZCode sessions' }),
+      zh: Object.freeze({ singular: 'ZCode session', plural: 'ZCode sessions' }),
+    }),
+    recentSessionsTitle: Object.freeze({
+      en: 'Recent ZCode Sessions',
+      zh: '最近 ZCode Sessions',
+    }),
+    recentSessionsLookup: Object.freeze({
+      en: 'ZCode CLI rollout history in `~/.zcode/cli/rollout`',
+      zh: 'ZCode CLI rollout 历史，来源 `~/.zcode/cli/rollout`',
+    }),
+    runtimeSummary: Object.freeze({
+      en: 'workspace sessions, workspace-bound resume, headless JSON runner',
+      zh: 'workspace sessions、workspace 绑定 resume、headless JSON runner',
+    }),
+    sessionStore: Object.freeze({
+      en: 'ZCode CLI state (`~/.zcode/cli`)',
+      zh: 'ZCode CLI 状态（`~/.zcode/cli`）',
+    }),
+    resumeSurface: Object.freeze({
+      en: 'session-id resume; workspace changes reset the bound session',
+      zh: '按 session id 恢复；切换 workspace 时会重置已绑定 session',
+    }),
+    nativeCompactSurface: Object.freeze({
+      en: 'native compaction is not exposed by the headless runner',
+      zh: 'headless runner 暂未暴露原生压缩',
+    }),
+    rawConfigSurface: Object.freeze({
+      en: 'configuration is managed by `~/.zcode/cli/config.json`',
+      zh: '配置由 `~/.zcode/cli/config.json` 管理',
+    }),
+  }),
 });
 
 function getSurface(provider) {

@@ -16,6 +16,7 @@ test('parseOptionalProvider accepts empty shared mode', () => {
   assert.equal(parseOptionalProvider('codex'), 'codex');
   assert.equal(parseOptionalProvider('anthropic'), 'claude');
   assert.equal(parseOptionalProvider('agy'), 'antigravity');
+  assert.equal(parseOptionalProvider('zcode'), 'zcode');
   assert.equal(parseOptionalProvider('google'), null);
   assert.equal(parseOptionalProvider('gemini'), null);
   assert.equal(parseOptionalProvider('unknown'), null);
@@ -29,11 +30,13 @@ test('resolveProviderScopedEnv prefers provider-scoped key then fallback', () =>
     DISCORD_TOKEN_CLAUDE: 'claude-token',
     ANTIGRAVITY__DISCORD_TOKEN: 'antigravity-prefixed-token',
     DISCORD_TOKEN_ANTIGRAVITY: 'antigravity-token',
+    ZCODE__DISCORD_TOKEN: 'zcode-prefixed-token',
   };
 
   assert.equal(resolveProviderScopedEnv('DISCORD_TOKEN', 'codex', env), 'codex-prefixed-token');
   assert.equal(resolveProviderScopedEnv('DISCORD_TOKEN', 'claude', env), 'claude-token');
   assert.equal(resolveProviderScopedEnv('DISCORD_TOKEN', 'antigravity', env), 'antigravity-prefixed-token');
+  assert.equal(resolveProviderScopedEnv('DISCORD_TOKEN', 'zcode', env), 'zcode-prefixed-token');
   const removedScopeKey = `GEM${'INI'}__DISCORD_TOKEN`;
   assert.equal(resolveProviderScopedEnv('DISCORD_TOKEN', 'gemini', { [removedScopeKey]: 'removed-token' }), '');
   assert.equal(resolveProviderScopedEnv('DISCORD_TOKEN', null, env), 'shared-token');
@@ -53,6 +56,7 @@ test('resolveDiscordToken uses provider-specific token in locked mode', () => {
 test('appendProviderSuffix namespaces state files', () => {
   assert.equal(appendProviderSuffix('sessions.json', 'claude'), 'sessions.claude.json');
   assert.equal(appendProviderSuffix('bot.lock', 'codex'), 'bot.codex.lock');
+  assert.equal(appendProviderSuffix('sessions.json', 'zcode'), 'sessions.zcode.json');
   assert.equal(appendProviderSuffix('sessions.json', null), 'sessions.json');
 });
 
@@ -62,6 +66,7 @@ test('describeBotMode reflects shared and locked modes', () => {
   assert.equal(describeBotMode('claude'), 'locked:claude');
   assert.equal(describeBotMode('gemini'), 'shared');
   assert.equal(describeBotMode('antigravity'), 'locked:antigravity');
+  assert.equal(describeBotMode('zcode'), 'locked:zcode');
 });
 
 test('getDefaultSlashPrefix uses provider-aware defaults', () => {
@@ -70,6 +75,7 @@ test('getDefaultSlashPrefix uses provider-aware defaults', () => {
   assert.equal(getDefaultSlashPrefix('claude'), 'cc');
   assert.equal(getDefaultSlashPrefix('anthropic'), 'cc');
   assert.equal(getDefaultSlashPrefix('antigravity'), 'ag');
+  assert.equal(getDefaultSlashPrefix('zcode'), 'zc');
   assert.equal(getDefaultSlashPrefix('gemini'), 'cx');
   assert.equal(getDefaultSlashPrefix('google'), 'cx');
 });

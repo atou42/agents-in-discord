@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+
 import {
   formatBusyPromptModeLabel,
   formatCodexProfileLabel,
@@ -176,31 +178,37 @@ function formatReplyDeliveryButtonLabel(mode, language) {
   return mode;
 }
 
-function buildSettingsComponentId(kind, target, value, userId) {
-  return `${SETTINGS_COMPONENT_PREFIX}:${kind}:${target}:${value}:${String(userId || '').trim()}`;
+function buildSettingsComponentId(kind, target, value, userId, generation = '') {
+  const base = `${SETTINGS_COMPONENT_PREFIX}:${kind}:${target}:${value}:${String(userId || '').trim()}`;
+  const token = String(generation || '').trim().toLowerCase();
+  return token ? `${base}:${token}` : base;
 }
 
-function buildSettingsModalId(target, userId) {
-  return `${SETTINGS_MODAL_PREFIX}:${target}:${String(userId || '').trim()}`;
+function buildSettingsModalId(target, userId, generation = '') {
+  const base = `${SETTINGS_MODAL_PREFIX}:${target}:${String(userId || '').trim()}`;
+  const token = String(generation || '').trim().toLowerCase();
+  return token ? `${base}:${token}` : base;
 }
 
 function parseSettingsComponentId(customId) {
-  const match = /^stg:(nav|set|act):([a-z_]+):([a-z0-9_-]+):([0-9]{5,32})$/i.exec(String(customId || '').trim());
+  const match = /^stg:(nav|set|act):([a-z_]+):([a-z0-9_-]+):([0-9]{5,32})(?::([a-z0-9_-]{1,16}))?$/i.exec(String(customId || '').trim());
   if (!match) return null;
   return {
     kind: String(match[1] || '').trim().toLowerCase(),
     target: String(match[2] || '').trim().toLowerCase(),
     value: String(match[3] || '').trim().toLowerCase(),
     userId: String(match[4] || '').trim(),
+    generation: String(match[5] || '').trim().toLowerCase() || null,
   };
 }
 
 function parseSettingsModalId(customId) {
-  const match = /^stgm:([a-z_]+):([0-9]{5,32})$/i.exec(String(customId || '').trim());
+  const match = /^stgm:([a-z_]+):([0-9]{5,32})(?::([a-z0-9_-]{1,16}))?$/i.exec(String(customId || '').trim());
   if (!match) return null;
   return {
     target: String(match[1] || '').trim().toLowerCase(),
     userId: String(match[2] || '').trim(),
+    generation: String(match[3] || '').trim().toLowerCase() || null,
   };
 }
 
@@ -244,20 +252,25 @@ function normalizeModelCatalog(catalog) {
         description: String(model?.description || '').trim(),
         defaultReasoningLevel: String(model?.defaultReasoningLevel || model?.default_reasoning_level || '').trim(),
         supportedReasoningLevels,
+        visibility: String(model?.visibility || '').trim().toLowerCase(),
       };
     }).filter((model) => model.slug),
     error: catalog?.error ? String(catalog.error) : null,
   };
 }
 
-function buildModelSelectOptions(snapshot, session) {
-  const currentOverride = String(session?.model || '').trim();
+function buildModelSelectOptions(snapshot, session, {
+  currentOverride: overrideValue = session?.model,
+  effectiveModel: effectiveValue = snapshot.modelValue,
+} = {}) {
+  const currentOverride = String(overrideValue || '').trim();
+  const effectiveModel = String(effectiveValue || '').trim();
   const options = [{
     label: snapshot.language === 'en' ? 'Use provider default' : '使用 provider 默认',
     value: 'default',
     description: truncateOptionText(snapshot.language === 'en'
-      ? `Effective: ${snapshot.modelValue || '(provider default)'}`
-      : `当前生效：${snapshot.modelValue || 'provider 默认'}`),
+      ? `Effective: ${effectiveModel || '(provider default)'}`
+      : `当前生效：${effectiveModel || 'provider 默认'}`),
     default: !currentOverride,
   }];
   const seen = new Set(['default']);
@@ -266,6 +279,10 @@ function buildModelSelectOptions(snapshot, session) {
   for (const model of snapshot.modelCatalog.models) {
     if (seen.has(model.slug)) continue;
     seen.add(model.slug);
+    if (model.visibility === 'hide' || model.visibility === 'hidden') {
+      if (currentOverride === model.slug) hasCurrentOverride = true;
+      continue;
+    }
     const isCurrent = currentOverride === model.slug;
     if (isCurrent) hasCurrentOverride = true;
     options.push({
@@ -289,6 +306,47 @@ function buildModelSelectOptions(snapshot, session) {
   }
 
   return options;
+}
+
+function findCatalogModel(modelCatalog, modelName) {
+  const slug = String(modelName || '').trim();
+  if (!slug) return null;
+  return modelCatalog.models.find((model) => model.slug === slug) || null;
+}
+
+function resolveModelEffortLevels(snapshot, session, modelName = '') {
+  const effectiveModel = String(modelName || session?.model || snapshot.modelValue || '').trim();
+  const catalogModel = findCatalogModel(snapshot.modelCatalog, effectiveModel);
+  return catalogModel?.supportedReasoningLevels.length
+    ? [...catalogModel.supportedReasoningLevels]
+    : [...snapshot.effortLevels];
+}
+
+function resolveGlobalModelEffortLevels(snapshot) {
+  const configuredModel = snapshot.codexDefaults?.modelConfigured
+    ? String(snapshot.codexDefaults.model || '').trim()
+    : '';
+  const catalogModel = findCatalogModel(snapshot.modelCatalog, configuredModel);
+  return catalogModel?.supportedReasoningLevels.length
+    ? [...catalogModel.supportedReasoningLevels]
+    : [...snapshot.effortLevels];
+}
+
+function formatUnsupportedModelEffort(model, effort, language, { current = false } = {}) {
+  if (language === 'en') {
+    return current
+      ? `❌ Model \`${model}\` does not support the current effort \`${effort}\`.`
+      : `❌ Model \`${model}\` does not support \`${effort}\`.`;
+  }
+  return current
+    ? `❌ 模型 \`${model}\` 不支持当前的 effort \`${effort}\`。`
+    : `❌ 模型 \`${model}\` 不支持 effort \`${effort}\`。`;
+}
+
+function normalizeResolvedEffort(value) {
+  const effort = String(value || '').trim().toLowerCase();
+  if (!effort || effort.includes('default') || effort.startsWith('(') || effort.startsWith('（')) return '';
+  return effort;
 }
 
 export function createSettingsPanel({
@@ -334,6 +392,72 @@ export function createSettingsPanel({
       closeRuntimeSession(key, reason);
     } catch {
     }
+  };
+  const modelPanelGenerations = new Map();
+  const modelPanelScope = (key, userId) => `${String(key || '').trim()}:${String(userId || '').trim()}`;
+  const issueModelPanelGeneration = (key, userId) => {
+    const generation = randomBytes(6).toString('hex');
+    modelPanelGenerations.set(modelPanelScope(key, userId), generation);
+    return generation;
+  };
+  const isCurrentModelPanelGeneration = (key, userId, generation) => (
+    Boolean(generation)
+    && modelPanelGenerations.get(modelPanelScope(key, userId)) === generation
+  );
+  const isModelPanelTarget = (target) => [
+    'model',
+    'model_effort',
+    'quick_model',
+    'quick_model_effort',
+    'default_model',
+    'default_effort',
+  ].includes(target);
+  const resolveRequestedModel = (key, session, requestedModel) => {
+    const normalized = String(requestedModel || '').trim();
+    if (normalized.toLowerCase() !== 'default') return normalized;
+    return String(buildSnapshot(key, { ...session, model: null }).modelValue || '').trim();
+  };
+  const findModelEffortConflict = (key, session, requestedModel) => {
+    const snapshot = buildSnapshot(key, session);
+    const model = resolveRequestedModel(key, session, requestedModel);
+    const catalogModel = findCatalogModel(snapshot.modelCatalog, model);
+    const effort = normalizeResolvedEffort(snapshot.effortValue);
+    if (!catalogModel || !effort || catalogModel.supportedReasoningLevels.includes(effort)) return null;
+    return { model, effort };
+  };
+  const findEffortConflict = (key, session, requestedEffort) => {
+    const candidate = {
+      ...session,
+      effort: requestedEffort === 'default' ? null : requestedEffort,
+    };
+    const snapshot = buildSnapshot(key, candidate);
+    const model = String(snapshot.modelValue || candidate.model || '').trim();
+    const catalogModel = findCatalogModel(snapshot.modelCatalog, model);
+    const effort = normalizeResolvedEffort(snapshot.effortValue);
+    if (!catalogModel || !effort || catalogModel.supportedReasoningLevels.includes(effort)) return null;
+    return { model, effort };
+  };
+  const findGlobalModelEffortConflict = (key, session, requestedModel) => {
+    const snapshot = buildSnapshot(key, session);
+    const model = String(requestedModel || '').trim();
+    const effort = snapshot.codexDefaults?.effortConfigured
+      ? normalizeResolvedEffort(snapshot.codexDefaults.effort)
+      : '';
+    if (!model || model.toLowerCase() === 'default' || !effort) return null;
+    const catalogModel = findCatalogModel(snapshot.modelCatalog, model);
+    if (!catalogModel?.supportedReasoningLevels.length || catalogModel.supportedReasoningLevels.includes(effort)) return null;
+    return { model, effort };
+  };
+  const findGlobalEffortConflict = (key, session, requestedEffort) => {
+    const snapshot = buildSnapshot(key, session);
+    const model = snapshot.codexDefaults?.modelConfigured
+      ? String(snapshot.codexDefaults.model || '').trim()
+      : '';
+    const effort = normalizeResolvedEffort(requestedEffort);
+    if (!model || !effort || String(requestedEffort || '').trim().toLowerCase() === 'default') return null;
+    const catalogModel = findCatalogModel(snapshot.modelCatalog, model);
+    if (!catalogModel?.supportedReasoningLevels.length || catalogModel.supportedReasoningLevels.includes(effort)) return null;
+    return { model, effort };
   };
 
   const shouldStreamProcessMessages = (mode) => mode === 'stream_mention' || mode === 'stream_only';
@@ -403,8 +527,7 @@ export function createSettingsPanel({
     const workspace = getWorkspaceBinding(session, key) || { workspaceDir: null, source: 'unset' };
     const effortLevels = getSupportedReasoningEffortLevels(provider);
     const modelCatalog = normalizeModelCatalog(getModelCatalog(provider));
-
-    return {
+    const snapshot = {
       language,
       isThread: Boolean(session?.parentChannelId),
       provider,
@@ -428,6 +551,8 @@ export function createSettingsPanel({
       effortValue: effortLevels.length ? (effortSetting?.value || defaults.effort) : null,
       effortSource: effortLevels.length ? (effortSetting?.source || defaults.source) : defaults.source,
     };
+    snapshot.modelEffortLevels = resolveModelEffortLevels(snapshot, session);
+    return snapshot;
   }
 
   function buildSectionNavigation(session, userId, activeSection) {
@@ -459,53 +584,63 @@ export function createSettingsPanel({
     );
   }
 
-  function buildModelControlRows(session, userId, snapshot, { quick = false } = {}) {
+  function buildModelControlRows(session, userId, snapshot, { quick = false, generation = '' } = {}) {
     const modelTarget = quick ? 'quick_model' : 'model';
     const effortTarget = quick ? 'quick_model_effort' : 'model_effort';
     const modelOptions = buildModelSelectOptions(snapshot, session);
     const rows = [
       new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
-          .setCustomId(buildSettingsComponentId('set', modelTarget, 'preset', userId))
+          .setCustomId(buildSettingsComponentId('set', modelTarget, 'preset', userId, generation))
           .setPlaceholder(snapshot.language === 'en'
             ? `Current model: ${snapshot.modelValue || '(provider default)'}`
             : `当前模型：${snapshot.modelValue || 'provider 默认'}`)
           .addOptions(modelOptions),
       ),
-      new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId(buildSettingsComponentId('act', modelTarget, 'custom', userId))
-          .setLabel(snapshot.language === 'en' ? 'Type custom model' : '手写模型名')
-          .setStyle(ButtonStyle.Success),
-        new ButtonBuilder()
-          .setCustomId(buildSettingsComponentId('act', modelTarget, 'default', userId))
-          .setLabel(snapshot.language === 'en' ? 'Use provider default' : '使用 provider 默认')
-          .setStyle(!session?.model ? ButtonStyle.Primary : ButtonStyle.Secondary),
-      ),
     ];
-    if (snapshot.effortLevels.length) {
-      rows.push(...chunk([...snapshot.effortLevels, 'default'], 5).map((rowValues) => new ActionRowBuilder().addComponents(
+    const modelActionButtons = [
+      new ButtonBuilder()
+        .setCustomId(buildSettingsComponentId('act', modelTarget, 'custom', userId, generation))
+        .setLabel(snapshot.language === 'en' ? 'Type custom model' : '手写模型名')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(buildSettingsComponentId('act', modelTarget, 'default', userId, generation))
+        .setLabel(snapshot.language === 'en' ? 'Use provider default' : '使用 provider 默认')
+        .setStyle(!session?.model ? ButtonStyle.Primary : ButtonStyle.Secondary),
+    ];
+    if (snapshot.modelEffortLevels.length) {
+      const effortRows = chunk([...snapshot.modelEffortLevels, 'default'], 5).map((rowValues) => new ActionRowBuilder().addComponents(
         ...rowValues.map((value) => {
           const selected = value === 'default'
             ? !session?.effort
             : session?.effort === value;
           return new ButtonBuilder()
-            .setCustomId(buildSettingsComponentId('set', effortTarget, value, userId))
+            .setCustomId(buildSettingsComponentId('set', effortTarget, value, userId, generation))
             .setLabel(value)
             .setStyle(selected ? ButtonStyle.Primary : ButtonStyle.Secondary);
         }),
-      )));
+      ));
+      const lastEffortRow = effortRows.at(-1);
+      const lastEffortRowSize = [...snapshot.modelEffortLevels, 'default'].length % 5 || 5;
+      if (lastEffortRowSize <= 3) {
+        lastEffortRow.addComponents(...modelActionButtons);
+      } else {
+        effortRows.push(new ActionRowBuilder().addComponents(...modelActionButtons));
+      }
+      rows.push(...effortRows);
+    } else {
+      rows.push(new ActionRowBuilder().addComponents(...modelActionButtons));
     }
     return rows;
   }
 
-  function buildSectionControls(key, session, userId, activeSection, snapshot) {
+  function buildSectionControls(key, session, userId, activeSection, snapshot, modelPanelGeneration = '') {
     switch (activeSection) {
       case 'provider': {
         if (botProvider) return [];
         return [
           new ActionRowBuilder().addComponents(
-            ...['codex', 'claude', 'antigravity'].map((provider) => new ButtonBuilder()
+            ...['codex', 'claude', 'antigravity', 'zcode'].map((provider) => new ButtonBuilder()
               .setCustomId(buildSettingsComponentId('set', 'provider', provider, userId))
               .setLabel(provider)
               .setStyle(snapshot.provider === provider ? ButtonStyle.Primary : ButtonStyle.Secondary)),
@@ -519,29 +654,47 @@ export function createSettingsPanel({
         const defaultFastSelected = !snapshot.codexDefaults.fastModeConfigured
           ? 'default'
           : (snapshot.codexDefaults.fastMode ? 'on' : 'off');
+        const configuredModel = snapshot.codexDefaults.modelConfigured
+          ? String(snapshot.codexDefaults.model || '').trim()
+          : '';
+        const modelOptions = buildModelSelectOptions(snapshot, session, {
+          currentOverride: configuredModel,
+          effectiveModel: configuredModel,
+        });
+        const effortLevels = resolveGlobalModelEffortLevels(snapshot);
+        const effortOptions = [...effortLevels, 'default'].map((value) => ({
+          label: value,
+          value,
+          default: value === 'default'
+            ? !snapshot.codexDefaults.effortConfigured
+            : snapshot.codexDefaults.effortConfigured && snapshot.codexDefaults.effort === value,
+        }));
         return [
+          new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+              .setCustomId(buildSettingsComponentId('set', 'default_model', 'preset', userId, modelPanelGeneration))
+              .setPlaceholder(snapshot.language === 'en'
+                ? `Global model: ${configuredModel || '(provider default)'}`
+                : `全局模型：${configuredModel || 'provider 默认'}`)
+              .addOptions(modelOptions),
+          ),
+          new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+              .setCustomId(buildSettingsComponentId('set', 'default_effort', 'preset', userId, modelPanelGeneration))
+              .setPlaceholder(snapshot.language === 'en'
+                ? `Global effort: ${snapshot.codexDefaults.effortConfigured ? snapshot.codexDefaults.effort : '(provider default)'}`
+                : `全局 effort：${snapshot.codexDefaults.effortConfigured ? snapshot.codexDefaults.effort : 'provider 默认'}`)
+              .addOptions(effortOptions),
+          ),
           new ActionRowBuilder().addComponents(
             new ButtonBuilder()
               .setCustomId(buildSettingsComponentId('act', 'default_profile', 'custom', userId))
               .setLabel(snapshot.language === 'en' ? 'Set profile' : '设置 profile')
               .setStyle(ButtonStyle.Success),
             new ButtonBuilder()
-              .setCustomId(buildSettingsComponentId('act', 'default_model', 'custom', userId))
-              .setLabel(snapshot.language === 'en' ? 'Set model' : '设置 model')
+              .setCustomId(buildSettingsComponentId('act', 'default_model', 'custom', userId, modelPanelGeneration))
+              .setLabel(snapshot.language === 'en' ? 'Custom model' : '手写 model')
               .setStyle(ButtonStyle.Success),
-          ),
-          ...chunk([...snapshot.effortLevels, 'default'], 5).map((rowValues) => new ActionRowBuilder().addComponents(
-            ...rowValues.map((value) => {
-              const selected = value === 'default'
-                ? !snapshot.codexDefaults.effortConfigured
-                : snapshot.codexDefaults.effortConfigured && snapshot.codexDefaults.effort === value;
-              return new ButtonBuilder()
-                .setCustomId(buildSettingsComponentId('set', 'default_effort', value, userId))
-                .setLabel(value)
-                .setStyle(selected ? ButtonStyle.Primary : ButtonStyle.Secondary);
-            }),
-          )),
-          new ActionRowBuilder().addComponents(
             new ButtonBuilder()
               .setCustomId(buildSettingsComponentId('set', 'default_fast', 'default', userId))
               .setLabel(snapshot.language === 'en' ? 'Use built-in default' : '使用内建默认')
@@ -757,7 +910,7 @@ export function createSettingsPanel({
       }
 
       case 'model':
-        return buildModelControlRows(session, userId, snapshot);
+        return buildModelControlRows(session, userId, snapshot, { generation: modelPanelGeneration });
 
       case 'workspace':
         return [
@@ -803,8 +956,8 @@ function formatOverviewSection(snapshot) {
     switch (activeSection) {
       case 'defaults':
         return snapshot.language === 'en'
-          ? 'This section edits global Codex defaults in `~/.codex/config.toml`. Effort and fast stay visible here. Model and profile use the modal buttons above. Enter `default` in either modal to go back to the provider default. Channel and thread overrides still win.'
-          : '这个分区会直接修改 `~/.codex/config.toml` 里的全局 Codex 默认值。effort 和 fast 直接在这里改。model 和 profile 用上面的按钮弹窗修改。在弹窗里输入 `default` 就会回到 provider 默认。频道或 thread 的显式覆盖仍然优先。';
+          ? 'This section edits global Codex defaults in `~/.codex/config.toml`. Model, effort, and fast are selected here. Custom model and profile names still use the buttons below. Provider default clears the matching global override. Channel and thread overrides still win.'
+          : '这个分区会直接修改 `~/.codex/config.toml` 里的全局 Codex 默认值。model、effort 和 fast 直接在这里改。自定义 model 和 profile 仍可用下方按钮手写。provider 默认会清除对应的全局覆盖。频道或 thread 的显式覆盖仍然优先。';
       case 'provider':
         return snapshot.language === 'en'
           ? 'Provider switches the active runtime for this channel. Each provider keeps its own saved session/model/runtime overrides.'
@@ -965,9 +1118,13 @@ function formatOverviewSection(snapshot) {
   function buildSettingsPayload({ key, session, userId, flags = undefined, activeSection = '', activeDefaultsGroup = 'model', notice = '' } = {}) {
     const section = resolveActiveSection(session, activeSection || resolveDefaultSection(session));
     const snapshot = buildSnapshot(key, session);
+    const issuedGeneration = issueModelPanelGeneration(key, userId);
+    const modelPanelGeneration = (section === 'model' || section === 'defaults')
+      ? issuedGeneration
+      : '';
     const components = [
       ...buildSectionNavigation(session, userId, section),
-      ...buildSectionControls(key, session, userId, section, snapshot),
+      ...buildSectionControls(key, session, userId, section, snapshot, modelPanelGeneration),
       buildCloseRow(session, userId),
     ];
     const payload = {
@@ -1008,12 +1165,13 @@ function formatOverviewSection(snapshot) {
 
   function buildModelSettingsPayload({ key, session, userId, flags = undefined, notice = '' } = {}) {
     const snapshot = buildSnapshot(key, session);
+    const generation = issueModelPanelGeneration(key, userId);
     const closeLabel = snapshot.language === 'en' ? 'close' : '关闭';
     const components = [
-      ...buildModelControlRows(session, userId, snapshot, { quick: true }),
+      ...buildModelControlRows(session, userId, snapshot, { quick: true, generation }),
       new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-          .setCustomId(buildSettingsComponentId('act', 'quick_model', 'close', userId))
+          .setCustomId(buildSettingsComponentId('act', 'quick_model', 'close', userId, generation))
           .setLabel(closeLabel)
           .setStyle(ButtonStyle.Danger),
       ),
@@ -1026,7 +1184,7 @@ function formatOverviewSection(snapshot) {
     return payload;
   }
 
-  function buildModelModal(session, userId, { useGlobalDefault = false, target = '' } = {}) {
+  function buildModelModal(session, userId, { useGlobalDefault = false, target = '', generation = '' } = {}) {
     const language = normalizeUiLanguage(getSessionLanguage(session) || defaultUiLanguage);
     const defaults = useGlobalDefault ? (getProviderDefaults('codex') || {}) : null;
     const input = new TextInputBuilder()
@@ -1049,7 +1207,7 @@ function formatOverviewSection(snapshot) {
     }
 
     return new ModalBuilder()
-      .setCustomId(buildSettingsModalId(target || (useGlobalDefault ? 'default_model' : 'model'), userId))
+      .setCustomId(buildSettingsModalId(target || (useGlobalDefault ? 'default_model' : 'model'), userId, generation))
       .setTitle(useGlobalDefault
         ? (language === 'en' ? 'Set global default model' : '设置全局默认 model')
         : (language === 'en' ? 'Set custom model' : '设置自定义模型'))
@@ -1133,6 +1291,17 @@ function formatOverviewSection(snapshot) {
       return true;
     }
 
+    if (isModelPanelTarget(parsed.target) && !isCurrentModelPanelGeneration(key, parsed.userId, parsed.generation)) {
+      const isGlobalDefault = parsed.target === 'default_model' || parsed.target === 'default_effort';
+      await interaction.reply({
+        content: language === 'en'
+          ? `❌ This ${isGlobalDefault ? 'settings' : 'model'} panel has expired. Open /${isGlobalDefault ? 'settings' : 'model'} again.`
+          : `❌ 这个${isGlobalDefault ? '设置' : '模型'}面板已过期，请重新打开 /${isGlobalDefault ? 'settings' : 'model'}。`,
+        flags: 64,
+      });
+      return true;
+    }
+
     if (parsed.kind === 'nav') {
       const nextSection = parsed.target === 'section'
         ? normalizeSection(interaction.values?.[0] || '')
@@ -1148,6 +1317,7 @@ function formatOverviewSection(snapshot) {
 
     if (parsed.kind === 'act') {
       if (parsed.target === 'panel' && parsed.value === 'close') {
+        issueModelPanelGeneration(key, interaction.user.id);
         await interaction.update({
           content: language === 'en' ? '⚙️ Settings panel closed.' : '⚙️ 设置面板已关闭。',
           components: [],
@@ -1156,6 +1326,7 @@ function formatOverviewSection(snapshot) {
       }
 
       if (parsed.target === 'quick_model' && parsed.value === 'close') {
+        issueModelPanelGeneration(key, interaction.user.id);
         await interaction.update({
           content: language === 'en' ? 'Model panel closed.' : '模型面板已关闭。',
           components: [],
@@ -1164,12 +1335,15 @@ function formatOverviewSection(snapshot) {
       }
 
       if (parsed.target === 'model' && parsed.value === 'custom') {
-        await interaction.showModal(buildModelModal(session, interaction.user.id));
+        await interaction.showModal(buildModelModal(session, interaction.user.id, { generation: parsed.generation }));
         return true;
       }
 
       if (parsed.target === 'quick_model' && parsed.value === 'custom') {
-        await interaction.showModal(buildModelModal(session, interaction.user.id, { target: 'quick_model' }));
+        await interaction.showModal(buildModelModal(session, interaction.user.id, {
+          target: 'quick_model',
+          generation: parsed.generation,
+        }));
         return true;
       }
 
@@ -1179,7 +1353,10 @@ function formatOverviewSection(snapshot) {
       }
 
       if (parsed.target === 'default_model' && parsed.value === 'custom') {
-        await interaction.showModal(buildModelModal(session, interaction.user.id, { useGlobalDefault: true }));
+        await interaction.showModal(buildModelModal(session, interaction.user.id, {
+          useGlobalDefault: true,
+          generation: parsed.generation,
+        }));
         return true;
       }
 
@@ -1194,6 +1371,14 @@ function formatOverviewSection(snapshot) {
       }
 
       if (parsed.target === 'model' && parsed.value === 'default') {
+        const conflict = findModelEffortConflict(key, session, 'default');
+        if (conflict) {
+          await interaction.reply({
+            content: formatUnsupportedModelEffort(conflict.model, conflict.effort, language, { current: true }),
+            flags: 64,
+          });
+          return true;
+        }
         commandActions.setModel?.(session, 'default');
         closeRuntimeForKey(key);
         await interaction.update(buildSettingsPayload({
@@ -1207,6 +1392,14 @@ function formatOverviewSection(snapshot) {
       }
 
       if (parsed.target === 'quick_model' && parsed.value === 'default') {
+        const conflict = findModelEffortConflict(key, session, 'default');
+        if (conflict) {
+          await interaction.reply({
+            content: formatUnsupportedModelEffort(conflict.model, conflict.effort, language, { current: true }),
+            flags: 64,
+          });
+          return true;
+        }
         commandActions.setModel?.(session, 'default');
         closeRuntimeForKey(key);
         await interaction.update(buildModelSettingsPayload({
@@ -1219,6 +1412,14 @@ function formatOverviewSection(snapshot) {
       }
 
       if (parsed.target === 'default_model' && parsed.value === 'default') {
+        const conflict = findGlobalModelEffortConflict(key, session, 'default');
+        if (conflict) {
+          await interaction.reply({
+            content: formatUnsupportedModelEffort(conflict.model, conflict.effort, language, { current: true }),
+            flags: 64,
+          });
+          return true;
+        }
         commandActions.setGlobalModelDefault?.(session, 'default');
         await interaction.update(buildSettingsPayload({
           key,
@@ -1321,8 +1522,34 @@ function formatOverviewSection(snapshot) {
           });
           return true;
         }
+        const conflict = findModelEffortConflict(key, session, selectedModel);
+        if (conflict) {
+          await interaction.reply({
+            content: formatUnsupportedModelEffort(conflict.model, conflict.effort, language, { current: true }),
+            flags: 64,
+          });
+          return true;
+        }
         commandActions.setModel?.(session, selectedModel);
         closeRuntimeForKey(key);
+      } else if (parsed.target === 'default_model' && parsed.value === 'preset') {
+        const selectedModel = String(interaction.values?.[0] || '').trim();
+        if (!selectedModel) {
+          await interaction.reply({
+            content: language === 'en' ? '❌ No model selected.' : '❌ 没有选择模型。',
+            flags: 64,
+          });
+          return true;
+        }
+        const conflict = findGlobalModelEffortConflict(key, session, selectedModel);
+        if (conflict) {
+          await interaction.reply({
+            content: formatUnsupportedModelEffort(conflict.model, conflict.effort, language, { current: true }),
+            flags: 64,
+          });
+          return true;
+        }
+        commandActions.setGlobalModelDefault?.(session, selectedModel);
       } else if (parsed.target === 'provider' && !botProvider) {
         commandActions.setProvider?.(session, parsed.value);
         closeRuntimeForKey(key);
@@ -1347,9 +1574,33 @@ function formatOverviewSection(snapshot) {
       } else if (parsed.target === 'busy_prompt') {
         const next = parsed.value === 'follow' ? null : parsed.value;
         commandActions.setBusyPromptMode?.(session, next);
-      } else if (parsed.target === 'default_effort') {
-        commandActions.setGlobalReasoningEffortDefault?.(session, parsed.value);
+      } else if (parsed.target === 'default_effort' && parsed.value === 'preset') {
+        const selectedEffort = String(interaction.values?.[0] || '').trim().toLowerCase();
+        if (!selectedEffort) {
+          await interaction.reply({
+            content: language === 'en' ? '❌ No effort selected.' : '❌ 没有选择 effort。',
+            flags: 64,
+          });
+          return true;
+        }
+        const conflict = findGlobalEffortConflict(key, session, selectedEffort);
+        if (conflict) {
+          await interaction.reply({
+            content: formatUnsupportedModelEffort(conflict.model, conflict.effort, language),
+            flags: 64,
+          });
+          return true;
+        }
+        commandActions.setGlobalReasoningEffortDefault?.(session, selectedEffort);
       } else if (parsed.target === 'effort' || parsed.target === 'model_effort' || parsed.target === 'quick_model_effort') {
+        const conflict = findEffortConflict(key, session, parsed.value);
+        if (conflict) {
+          await interaction.reply({
+            content: formatUnsupportedModelEffort(conflict.model, conflict.effort, language),
+            flags: 64,
+          });
+          return true;
+        }
         commandActions.setReasoningEffort?.(session, parsed.value);
         closeRuntimeForKey(key);
       } else if (parsed.target === 'compact') {
@@ -1432,8 +1683,27 @@ function formatOverviewSection(snapshot) {
       return true;
     }
 
+    if (isModelPanelTarget(parsed.target) && !isCurrentModelPanelGeneration(key, parsed.userId, parsed.generation)) {
+      const isGlobalDefault = parsed.target === 'default_model' || parsed.target === 'default_effort';
+      await interaction.reply({
+        content: language === 'en'
+          ? `❌ This ${isGlobalDefault ? 'settings' : 'model'} panel has expired. Open /${isGlobalDefault ? 'settings' : 'model'} again.`
+          : `❌ 这个${isGlobalDefault ? '设置' : '模型'}面板已过期，请重新打开 /${isGlobalDefault ? 'settings' : 'model'}。`,
+        flags: 64,
+      });
+      return true;
+    }
+
     if (parsed.target === 'model') {
       const rawValue = String(interaction.fields.getTextInputValue(MODEL_INPUT_ID) || '').trim();
+      const conflict = findModelEffortConflict(key, session, rawValue);
+      if (conflict) {
+        await interaction.reply({
+          content: formatUnsupportedModelEffort(conflict.model, conflict.effort, language, { current: true }),
+          flags: 64,
+        });
+        return true;
+      }
       commandActions.setModel?.(session, rawValue);
       closeRuntimeForKey(key);
       await interaction.reply(buildSettingsPayload({
@@ -1449,6 +1719,14 @@ function formatOverviewSection(snapshot) {
 
     if (parsed.target === 'quick_model') {
       const rawValue = String(interaction.fields.getTextInputValue(MODEL_INPUT_ID) || '').trim();
+      const conflict = findModelEffortConflict(key, session, rawValue);
+      if (conflict) {
+        await interaction.reply({
+          content: formatUnsupportedModelEffort(conflict.model, conflict.effort, language, { current: true }),
+          flags: 64,
+        });
+        return true;
+      }
       commandActions.setModel?.(session, rawValue);
       closeRuntimeForKey(key);
       await interaction.reply(buildModelSettingsPayload({
@@ -1463,6 +1741,14 @@ function formatOverviewSection(snapshot) {
 
     if (parsed.target === 'default_model') {
       const rawValue = String(interaction.fields.getTextInputValue(MODEL_INPUT_ID) || '').trim();
+      const conflict = findGlobalModelEffortConflict(key, session, rawValue);
+      if (conflict) {
+        await interaction.reply({
+          content: formatUnsupportedModelEffort(conflict.model, conflict.effort, language, { current: true }),
+          flags: 64,
+        });
+        return true;
+      }
       commandActions.setGlobalModelDefault?.(session, rawValue);
       await interaction.reply(buildSettingsPayload({
         key,

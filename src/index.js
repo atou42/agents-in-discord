@@ -286,6 +286,7 @@ const PROVIDER_CHILD_THREAD_WORKSPACE_MODE_OVERRIDES = {
   codex: process.env.CODEX__CHILD_THREAD_WORKSPACE_MODE,
   claude: process.env.CLAUDE__CHILD_THREAD_WORKSPACE_MODE,
   antigravity: process.env.ANTIGRAVITY__CHILD_THREAD_WORKSPACE_MODE,
+  zcode: process.env.ZCODE__CHILD_THREAD_WORKSPACE_MODE,
 };
 const {
   resolve: resolveChildThreadWorkspaceMode,
@@ -301,6 +302,7 @@ const PROVIDER_DEFAULT_WORKSPACE_OVERRIDES = {
   codex: resolveConfiguredWorkspaceDir(process.env.CODEX__DEFAULT_WORKSPACE_DIR),
   claude: resolveConfiguredWorkspaceDir(process.env.CLAUDE__DEFAULT_WORKSPACE_DIR),
   antigravity: resolveConfiguredWorkspaceDir(process.env.ANTIGRAVITY__DEFAULT_WORKSPACE_DIR),
+  zcode: resolveConfiguredWorkspaceDir(process.env.ZCODE__DEFAULT_WORKSPACE_DIR),
 };
 const {
   resolve: resolveProviderDefaultWorkspace,
@@ -344,6 +346,7 @@ const TASK_RETRY_MAX_DELAY_MS = Math.max(
 const CODEX_BIN = (process.env.CODEX_BIN || 'codex').trim() || 'codex';
 const CLAUDE_BIN = (process.env.CLAUDE_BIN || 'claude').trim() || 'claude';
 const ANTIGRAVITY_BIN = (process.env.ANTIGRAVITY_BIN || 'agy').trim() || 'agy';
+const ZCODE_BIN = (process.env.ZCODE_BIN || 'zcode').trim() || 'zcode';
 const SHOW_REASONING = String(process.env.SHOW_REASONING || 'false').toLowerCase() === 'true';
 const DEBUG_EVENTS = String(process.env.DEBUG_EVENTS || 'false').toLowerCase() === 'true';
 const PROGRESS_UPDATES_ENABLED = String(process.env.PROGRESS_UPDATES_ENABLED || 'true').toLowerCase() !== 'false';
@@ -440,11 +443,13 @@ const getProviderBin = (provider) => getProviderBinBase(provider, {
   codexBin: CODEX_BIN,
   claudeBin: CLAUDE_BIN,
   antigravityBin: ANTIGRAVITY_BIN,
+  zcodeBin: ZCODE_BIN,
 });
 const getCliHealth = (provider = DEFAULT_PROVIDER) => getCliHealthBase(provider, {
   codexBin: CODEX_BIN,
   claudeBin: CLAUDE_BIN,
   antigravityBin: ANTIGRAVITY_BIN,
+  zcodeBin: ZCODE_BIN,
   spawnEnv: SPAWN_ENV,
   safeError,
 });

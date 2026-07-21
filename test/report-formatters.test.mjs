@@ -486,7 +486,7 @@ test('createReportFormatters.formatHelpReport documents browse actions and provi
   const sharedHelp = sharedFormatters.formatHelpReport({ language: 'en' });
   const lockedHelp = lockedFormatters.formatHelpReport({ language: 'en' });
 
-  assert.match(sharedHelp, /!provider <codex\|claude\|antigravity\|status>/);
+  assert.match(sharedHelp, /!provider <codex\|claude\|antigravity\|zcode\|status>/);
   assert.match(sharedHelp, /!setdir <path\|browse\|default\|status>/);
   assert.match(sharedHelp, /!setdefaultdir <path\|browse\|clear\|status>/);
   assert.match(sharedHelp, /!dq/);
@@ -498,7 +498,7 @@ test('createReportFormatters.formatHelpReport documents browse actions and provi
   assert.doesNotMatch(antigravityHelp, /!config <key=value>/);
   assert.doesNotMatch(antigravityHelp, /!effort </);
   assert.match(antigravityHelp, /raw config passthrough/);
-  assert.doesNotMatch(lockedHelp, /!provider <codex\|claude\|antigravity\|status>/);
+  assert.doesNotMatch(lockedHelp, /!provider <codex\|claude\|antigravity\|zcode\|status>/);
 });
 
 test('createReportFormatters.workspace reports explain session reset and lock owner', () => {

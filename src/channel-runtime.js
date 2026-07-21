@@ -42,6 +42,9 @@ export function createChannelRuntimeStore({
       progressPlan: cloneProgressPlan(prev?.progressPlan),
       completedSteps: Array.isArray(prev?.completedSteps) ? [...prev.completedSteps] : [],
       recentActivities: Array.isArray(prev?.recentActivities) ? [...prev.recentActivities] : [],
+      streamedProcessActivityKeys: Array.isArray(prev?.streamedProcessActivityKeys)
+        ? [...prev.streamedProcessActivityKeys]
+        : [],
     };
   }
 

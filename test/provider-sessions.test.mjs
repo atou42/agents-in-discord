@@ -48,6 +48,30 @@ test('provider-sessions reads Antigravity conversation id from workspace cache',
   }
 });
 
+test('provider-sessions lists recent ZCode rollout sessions', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agents-in-discord-zcode-'));
+  const rolloutDir = path.join(root, '.zcode', 'cli', 'rollout');
+  fs.mkdirSync(rolloutDir, { recursive: true });
+  const older = path.join(rolloutDir, 'model-io-sess_zcode_old.jsonl');
+  const newer = path.join(rolloutDir, 'model-io-sess_zcode_new.jsonl');
+  fs.writeFileSync(older, '{}\n');
+  fs.writeFileSync(newer, '{}\n');
+  fs.utimesSync(older, new Date(1000), new Date(1000));
+  fs.utimesSync(newer, new Date(2000), new Date(2000));
+
+  const previousHome = process.env.HOME;
+  process.env.HOME = root;
+  try {
+    assert.deepEqual(listRecentSessions({ provider: 'zcode', limit: 2 }), [
+      { id: 'sess_zcode_new', mtime: 2000 },
+      { id: 'sess_zcode_old', mtime: 1000 },
+    ]);
+  } finally {
+    if (previousHome === undefined) delete process.env.HOME;
+    else process.env.HOME = previousHome;
+  }
+});
+
 test('provider-sessions builds a local Claude rescue summary when the session is over context', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agents-in-discord-claude-rescue-'));
   const workspaceDir = path.join(root, 'workspace');

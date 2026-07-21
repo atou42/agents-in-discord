@@ -699,14 +699,16 @@ export function renderMissingDiscordTokenHint({ botProvider = null, env = proces
   const hasCodexScopedToken = Boolean(String(env.CODEX__DISCORD_TOKEN || env.DISCORD_TOKEN_CODEX || '').trim());
   const hasClaudeScopedToken = Boolean(String(env.CLAUDE__DISCORD_TOKEN || env.DISCORD_TOKEN_CLAUDE || '').trim());
   const hasAntigravityScopedToken = Boolean(String(env.ANTIGRAVITY__DISCORD_TOKEN || env.DISCORD_TOKEN_ANTIGRAVITY || '').trim());
+  const hasZCodeScopedToken = Boolean(String(env.ZCODE__DISCORD_TOKEN || env.DISCORD_TOKEN_ZCODE || '').trim());
 
-  if (hasCodexScopedToken || hasClaudeScopedToken || hasAntigravityScopedToken) {
+  if (hasCodexScopedToken || hasClaudeScopedToken || hasAntigravityScopedToken || hasZCodeScopedToken) {
     const availableProviders = [
       hasCodexScopedToken ? 'codex' : null,
       hasClaudeScopedToken ? 'claude' : null,
       hasAntigravityScopedToken ? 'antigravity' : null,
+      hasZCodeScopedToken ? 'zcode' : null,
     ].filter(Boolean).join(', ');
-    return `Missing DISCORD_TOKEN in shared mode. Found provider-scoped tokens for: ${availableProviders}. Start with npm run start:codex / npm run start:claude / npm run start:antigravity, or add a shared DISCORD_TOKEN.`;
+    return `Missing DISCORD_TOKEN in shared mode. Found provider-scoped tokens for: ${availableProviders}. Start the matching dedicated provider instance, or add a shared DISCORD_TOKEN.`;
   }
 
   return 'Missing DISCORD_TOKEN in environment';

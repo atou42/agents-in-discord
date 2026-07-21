@@ -252,6 +252,7 @@ export function createRunnerExecutor({
 
       let stdoutBuf = '';
       let stderrBuf = '';
+      let zcodeStdoutBuf = '';
 
       const messages = [];
       const finalAnswerMessages = [];
@@ -423,6 +424,10 @@ export function createRunnerExecutor({
       };
 
       const onData = (chunk, source) => {
+        if (normalizeProvider(provider) === 'zcode' && source === 'stdout') {
+          zcodeStdoutBuf += chunk.toString('utf8');
+          return;
+        }
         let buf = source === 'stdout' ? stdoutBuf : stderrBuf;
         buf += chunk.toString('utf8');
 
@@ -492,6 +497,26 @@ export function createRunnerExecutor({
 
       child.on('close', (code, signal) => {
         flushRemainders();
+        let zcodeProtocolError = '';
+        if (normalizeProvider(provider) === 'zcode') {
+          const rawResponse = zcodeStdoutBuf.trim();
+          if (!rawResponse) {
+            zcodeProtocolError = 'ZCode returned an empty JSON response';
+          } else {
+            try {
+              const event = JSON.parse(rawResponse);
+              const sessionId = String(event?.sessionId || '').trim();
+              if (!sessionId || typeof event?.response !== 'string') {
+                throw new Error('response is missing sessionId or response');
+              }
+              handleEvent(event);
+              options.onEvent?.(event);
+            } catch (err) {
+              zcodeProtocolError = `invalid ZCode JSON response: ${safeError(err)}`;
+            }
+          }
+          if (zcodeProtocolError) logs.push(zcodeProtocolError);
+        }
         if (normalizeProvider(provider) === 'antigravity') {
           const sessionState = readAntigravitySessionState({
             sessionId: threadId,
@@ -523,12 +548,13 @@ export function createRunnerExecutor({
             finalAnswerMessages.push(formatCodexGoalCompletedMessage(goalCompleted));
           }
         }
-        const ok = stoppedAfterGoalComplete || stoppedAfterGoalBlocked || (!cancelled && code === 0);
+        const ok = !zcodeProtocolError
+          && (stoppedAfterGoalComplete || stoppedAfterGoalBlocked || (!cancelled && code === 0));
         finish({
           ok,
           cancelled: stoppedAfterGoalComplete || stoppedAfterGoalBlocked ? false : cancelled,
           timedOut,
-          error: ok ? '' : buildRunnerError({ provider, code, signal, logs }),
+          error: ok ? '' : (zcodeProtocolError || buildRunnerError({ provider, code, signal, logs })),
           logs,
           messages,
           finalAnswerMessages,

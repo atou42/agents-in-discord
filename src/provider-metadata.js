@@ -59,6 +59,26 @@ const PROVIDER_METADATA = Object.freeze({
       workspaceSessionPolicy: 'strict',
     }),
   }),
+  zcode: Object.freeze({
+    aliases: Object.freeze(['zcode', 'glm']),
+    displayName: 'ZCode CLI',
+    shortName: 'ZCode',
+    defaultBin: 'zcode',
+    binEnvName: 'ZCODE_BIN',
+    defaultSlashPrefix: 'zc',
+    capabilities: Object.freeze({
+      reasoningEffortLevels: Object.freeze([]),
+      rawConfigOverrides: Object.freeze({
+        supported: false,
+      }),
+      compact: Object.freeze({
+        strategies: Object.freeze(['hard', 'off']),
+        supportsNativeStrategy: false,
+        supportsNativeLimit: false,
+      }),
+      workspaceSessionPolicy: 'strict',
+    }),
+  }),
 });
 
 function normalizeCompactStrategyValue(value) {

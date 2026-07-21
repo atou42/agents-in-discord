@@ -9,9 +9,32 @@ export function listRecentSessions({ provider = 'codex', workspaceDir = '', limi
       return listRecentClaudeSessions(limit, workspaceDir);
     case 'antigravity':
       return listRecentAntigravitySessions(limit, workspaceDir);
+    case 'zcode':
+      return listRecentZCodeSessions(limit);
     default:
       return listRecentCodexSessions(limit);
   }
+}
+
+function listRecentZCodeSessions(limit = 10) {
+  const home = process.env.HOME || process.env.USERPROFILE || '';
+  const rolloutDir = home ? path.join(home, '.zcode', 'cli', 'rollout') : '';
+  if (!rolloutDir || !fs.existsSync(rolloutDir)) return [];
+
+  const sessions = [];
+  for (const filename of fs.readdirSync(rolloutDir)) {
+    const match = /^model-io-(sess_.+)\.jsonl$/.exec(filename);
+    if (!match?.[1]) continue;
+    const file = path.join(rolloutDir, filename);
+    try {
+      const stat = fs.statSync(file);
+      if (stat.isFile()) sessions.push({ id: match[1], mtime: stat.mtimeMs });
+    } catch {
+    }
+  }
+  return sessions
+    .sort((a, b) => b.mtime - a.mtime)
+    .slice(0, limit);
 }
 
 function listRecentCodexSessions(limit = 10) {

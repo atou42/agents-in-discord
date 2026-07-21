@@ -25,12 +25,15 @@ test('provider-metadata normalizes aliases and optional parsing consistently', (
   assert.equal(normalizeProvider('anthropic'), 'claude');
   assert.equal(normalizeProvider('agy'), 'antigravity');
   assert.equal(normalizeProvider('antigravity'), 'antigravity');
+  assert.equal(normalizeProvider('zcode'), 'zcode');
+  assert.equal(normalizeProvider('glm'), 'zcode');
   assert.equal(normalizeProvider('google'), 'codex');
   assert.equal(normalizeProvider('gemini'), 'codex');
   assert.equal(parseOptionalProvider('google'), null);
   assert.equal(parseOptionalProvider('gemini'), null);
   assert.equal(parseOptionalProvider(''), null);
   assert.equal(parseProviderInput('anthropic'), 'claude');
+  assert.equal(parseProviderInput('zcode'), 'zcode');
   assert.equal(parseProviderInput('unknown'), null);
 });
 
@@ -38,15 +41,20 @@ test('provider-metadata exposes provider labels, bins, and slash prefixes', () =
   assert.equal(getProviderDisplayName('codex'), 'Codex CLI');
   assert.equal(getProviderDisplayName('claude'), 'Claude Code');
   assert.equal(getProviderDisplayName('antigravity'), 'Antigravity CLI');
+  assert.equal(getProviderDisplayName('zcode'), 'ZCode CLI');
   assert.equal(getProviderDisplayName('gemini'), 'Codex CLI');
   assert.equal(getProviderShortName('antigravity'), 'Antigravity');
+  assert.equal(getProviderShortName('zcode'), 'ZCode');
   assert.equal(getProviderDefaultBin('claude'), 'claude');
   assert.equal(getProviderDefaultBin('antigravity'), 'agy');
+  assert.equal(getProviderDefaultBin('zcode'), 'zcode');
   assert.equal(getProviderBinEnvName('codex'), 'CODEX_BIN');
   assert.equal(getProviderBinEnvName('antigravity'), 'ANTIGRAVITY_BIN');
+  assert.equal(getProviderBinEnvName('zcode'), 'ZCODE_BIN');
   assert.equal(getProviderDefaultSlashPrefix('codex'), 'cx');
   assert.equal(getProviderDefaultSlashPrefix('claude'), 'cc');
   assert.equal(getProviderDefaultSlashPrefix('antigravity'), 'ag');
+  assert.equal(getProviderDefaultSlashPrefix('zcode'), 'zc');
 });
 
 test('provider-metadata exposes workspace, compact, and reasoning capabilities', () => {

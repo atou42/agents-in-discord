@@ -26,4 +26,7 @@ test('provider-runtime-surface formats provider-specific runtime vocabulary', ()
   assert.match(formatProviderRawConfigSurface('codex', 'en'), /-c key=value/);
   assert.match(formatProviderReasoningSurface('claude', 'en'), /`low`, `medium`, `high`/);
   assert.equal(formatProviderReasoningSurface('antigravity', 'en'), 'reasoning effort not exposed');
+  assert.match(formatRecentSessionsLookup('zcode', 'en'), /~\/\.zcode\/cli\/rollout/);
+  assert.equal(formatProviderSessionTerm('zcode', 'en'), 'ZCode session');
+  assert.match(formatProviderResumeSurface('zcode', 'zh'), /workspace/);
 });

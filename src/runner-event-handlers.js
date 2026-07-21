@@ -1,6 +1,7 @@
 import { createClaudeProviderAdapter } from './providers/claude.js';
 import { createCodexProviderAdapter } from './providers/codex.js';
 import { createAntigravityProviderAdapter } from './providers/antigravity.js';
+import { createZCodeProviderAdapter } from './providers/zcode.js';
 import { createProviderAdapterRegistry } from './providers/index.js';
 
 export function createRunnerEventParser({
@@ -21,12 +22,27 @@ export function createRunnerEventParser({
     createAntigravityProviderAdapter({
       parseEvent: (event, state, ensureSessionBridge) => handleAntigravityRunnerEvent(event, state, ensureSessionBridge),
     }),
+    createZCodeProviderAdapter({
+      parseEvent: (event, state) => handleZCodeRunnerEvent(event, state),
+    }),
   ]);
 
   return function handleRunnerEvent(provider, event, state, ensureSessionBridge) {
     const adapter = providerAdapters.get(normalizeProvider(provider));
     adapter.runtime.parseEvent(event, state, ensureSessionBridge);
   };
+}
+
+export function handleZCodeRunnerEvent(event, state) {
+  const sessionId = String(event?.sessionId || '').trim();
+  if (sessionId) state.threadId = sessionId;
+
+  const response = String(event?.response || '').trim();
+  if (response) appendUniqueText(state.finalAnswerMessages, response);
+  if (event?.usage && typeof event.usage === 'object') state.usage = event.usage;
+  if (event?.projection && typeof event.projection === 'object') {
+    state.meta.zcodeProjection = event.projection;
+  }
 }
 
 export function handleCodexRunnerEvent(event, state, ensureSessionBridge, {

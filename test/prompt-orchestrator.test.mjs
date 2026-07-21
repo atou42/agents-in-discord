@@ -80,6 +80,9 @@ function createOrchestrator(overrides = {}) {
     formatWorkspaceBusyReport: () => 'busy',
     formatTimeoutLabel: (timeoutMs) => `${timeoutMs}ms`,
     setActiveRun: (channelState, message, prompt, child = null, phase = 'exec') => {
+      const previousStreamedProcessActivityKeys = Array.isArray(channelState.activeRun?.streamedProcessActivityKeys)
+        ? [...channelState.activeRun.streamedProcessActivityKeys]
+        : [];
       channelState.activeRun = {
         messageId: message.id,
         prompt,
@@ -89,6 +92,7 @@ function createOrchestrator(overrides = {}) {
         completedSteps: [],
         recentActivities: [],
         progressPlan: null,
+        streamedProcessActivityKeys: previousStreamedProcessActivityKeys,
       };
     },
     acquireWorkspace: async () => ({ acquired: true, aborted: false, release() {} }),
@@ -226,7 +230,6 @@ test('createPromptOrchestrator.handlePrompt clears pending Claude fork after fir
     }),
   });
   const { session, orchestrator } = harness;
-  session.provider = 'claude';
   session.runnerSessionId = 'child-session';
   session.codexThreadId = 'child-session';
   session.pendingForkFromSessionId = 'parent-session';
@@ -373,6 +376,7 @@ test('createPromptOrchestrator.handlePrompt can disable or customize stable extr
     },
   });
   const { session, orchestrator } = harness;
+  session.provider = 'claude';
   const message = {
     id: 'msg-extra',
     channel: {
@@ -592,6 +596,156 @@ test('createPromptOrchestrator.handlePrompt uses the latest reply delivery setti
 
   assert.deepEqual(outcome, { ok: true, cancelled: false });
   assert.deepEqual(streamLog, ['live event']);
+});
+
+test('createPromptOrchestrator.handlePrompt records a process message only after Discord accepts it', async () => {
+  let attempts = 0;
+  let recordedAfterFailure = null;
+  const streamLog = [];
+  const harness = createOrchestrator({
+    resolveReplyDeliverySetting: () => ({ mode: 'stream_only', source: 'env default' }),
+    safeChannelSend: async (_message, payload) => {
+      attempts += 1;
+      if (attempts === 1) throw new Error('temporary Discord send failure');
+      streamLog.push(payload);
+    },
+    createProgressReporter: ({ onStreamProcessMessage }) => ({
+      async start() {
+        try {
+          await onStreamProcessMessage('live event');
+        } catch {
+          recordedAfterFailure = [...(channelStateRef.activeRun?.streamedProcessActivityKeys || [])];
+        }
+        await onStreamProcessMessage('live event');
+      },
+      sync() {},
+      setLatestStep() {},
+      onEvent() {},
+      onLog() {},
+      async finish() {},
+    }),
+  });
+  const { orchestrator } = harness;
+  let channelStateRef = { queue: [], cancelRequested: false, activeRun: null };
+  const message = {
+    id: 'msg-process-retry',
+    channel: {
+      async sendTyping() {},
+      async send(payload) {
+        streamLog.push(payload);
+      },
+    },
+  };
+
+  const outcome = await orchestrator.handlePrompt(message, 'thread-1', 'do work', channelStateRef);
+
+  assert.deepEqual(outcome, { ok: true, cancelled: false });
+  assert.deepEqual(recordedAfterFailure, []);
+  assert.deepEqual(streamLog, ['live event']);
+  assert.deepEqual(channelStateRef.activeRun.streamedProcessActivityKeys, ['live event']);
+});
+
+test('createPromptOrchestrator.handlePrompt records a delivered process message after a run phase change', async () => {
+  let channelStateRef = { queue: [], cancelRequested: false, activeRun: null };
+  const harness = createOrchestrator({
+    resolveReplyDeliverySetting: () => ({ mode: 'stream_only', source: 'env default' }),
+    safeChannelSend: async () => {
+      channelStateRef.activeRun = {
+        ...channelStateRef.activeRun,
+        phase: 'exec',
+        streamedProcessActivityKeys: [],
+      };
+    },
+    createProgressReporter: ({ onStreamProcessMessage }) => ({
+      async start() {
+        await onStreamProcessMessage('live event');
+      },
+      sync() {},
+      setLatestStep() {},
+      onEvent() {},
+      onLog() {},
+      async finish() {},
+    }),
+  });
+  const message = {
+    id: 'msg-process-phase-change',
+    channel: {
+      async sendTyping() {},
+      async send() {},
+    },
+  };
+
+  const outcome = await harness.orchestrator.handlePrompt(
+    message,
+    'thread-1',
+    'do work',
+    channelStateRef,
+  );
+
+  assert.deepEqual(outcome, { ok: true, cancelled: false });
+  assert.deepEqual(channelStateRef.activeRun.streamedProcessActivityKeys, ['live event']);
+});
+
+test('createPromptOrchestrator.handlePrompt settles process delivery before the terminal reply', async () => {
+  const deliveryOrder = [];
+  let releaseProcessDelivery = null;
+  let processDeliveryPromise = null;
+  const harness = createOrchestrator({
+    resolveReplyDeliverySetting: () => ({ mode: 'stream_only', source: 'env default' }),
+    safeChannelSend: async (_message, payload) => {
+      await new Promise((resolve) => {
+        releaseProcessDelivery = resolve;
+      });
+      deliveryOrder.push(`process:${payload}`);
+    },
+    safeReply: async (_message, payload) => {
+      deliveryOrder.push(`terminal:${payload}`);
+      return { id: 'terminal-reply', edit: async () => {} };
+    },
+    createProgressReporter: ({ onStreamProcessMessage }) => ({
+      async start() {
+        processDeliveryPromise = onStreamProcessMessage('same paragraph');
+      },
+      sync() {},
+      setLatestStep() {},
+      onEvent() {},
+      onLog() {},
+      async finish() {
+        releaseProcessDelivery();
+        await processDeliveryPromise;
+      },
+    }),
+    runTask: async (options) => {
+      options.onSpawn?.({ pid: 123 });
+      return {
+        ok: true,
+        cancelled: false,
+        timedOut: false,
+        error: '',
+        logs: [],
+        notes: [],
+        reasonings: [],
+        messages: [],
+        finalAnswerMessages: ['same paragraph'],
+        threadId: 'sess-1',
+        usage: { input_tokens: 321 },
+      };
+    },
+  });
+  const message = {
+    id: 'msg-process-before-terminal',
+    channel: {
+      async sendTyping() {},
+      async send() {},
+    },
+  };
+  const channelState = { queue: [], cancelRequested: false, activeRun: null };
+
+  const outcome = await harness.orchestrator.handlePrompt(message, 'thread-1', 'do work', channelState);
+
+  assert.deepEqual(outcome, { ok: true, cancelled: false });
+  assert.equal(deliveryOrder[0], 'process:same paragraph');
+  assert.match(deliveryOrder[1], /^terminal:/);
 });
 
 test('createPromptOrchestrator.handlePrompt removes streamed process paragraphs from the final reply', async () => {
@@ -951,6 +1105,45 @@ test('createPromptOrchestrator.handlePrompt aborts when workspace changes while 
   });
 });
 
+test('createPromptOrchestrator.handlePrompt finishes progress before reporting a workspace switch', async () => {
+  let ensureCalls = 0;
+  const deliveryOrder = [];
+  const harness = createOrchestrator({
+    ensureWorkspace: () => {
+      ensureCalls += 1;
+      return ensureCalls === 1 ? '/repo/shared' : '/repo/isolated';
+    },
+    acquireWorkspace: async () => ({ acquired: true, aborted: false, release() {} }),
+    safeReply: async () => {
+      deliveryOrder.push('terminal');
+      return { id: 'workspace-switch-reply', edit: async () => {} };
+    },
+    createProgressReporter: () => ({
+      async start() {},
+      sync() {},
+      setLatestStep() {},
+      onEvent() {},
+      onLog() {},
+      async finish() {
+        deliveryOrder.push('progress-finished');
+      },
+    }),
+  });
+  const message = {
+    id: 'msg-workspace-switch-order',
+    channel: {
+      async sendTyping() {},
+      async send() {},
+    },
+  };
+  const channelState = { queue: [], cancelRequested: false, activeRun: null };
+
+  const outcome = await harness.orchestrator.handlePrompt(message, 'thread-1', 'do work', channelState);
+
+  assert.equal(outcome.ok, false);
+  assert.deepEqual(deliveryOrder, ['progress-finished', 'terminal']);
+});
+
 test('createPromptOrchestrator.handlePrompt preserves the current session across auto retries', async () => {
   let runCount = 0;
   const harness = createOrchestrator({
@@ -989,6 +1182,7 @@ test('createPromptOrchestrator.handlePrompt preserves the current session across
     resolveTaskRetrySetting: () => ({ maxAttempts: 2, baseDelayMs: 0, maxDelayMs: 0, source: 'test' }),
   });
   const { session, orchestrator } = harness;
+  session.provider = 'claude';
   const message = {
     id: 'msg-2b',
     channel: {
@@ -1004,6 +1198,54 @@ test('createPromptOrchestrator.handlePrompt preserves the current session across
   assert.equal(session.runnerSessionId, 'sess-1');
   assert.equal(session.codexThreadId, 'sess-1');
   assert.equal(runCount, 2);
+});
+
+test('createPromptOrchestrator.handlePrompt does not retry a missing bound Claude session', async () => {
+  let runCount = 0;
+  const harness = createOrchestrator({
+    runTask: async (options) => {
+      runCount += 1;
+      options.onSpawn?.({ pid: 655 });
+      return {
+        ok: false,
+        cancelled: false,
+        timedOut: false,
+        error: 'No conversation found with session ID: stale-session',
+        logs: ['No conversation found with session ID: stale-session'],
+        notes: [],
+        reasonings: [],
+        messages: [],
+        finalAnswerMessages: [],
+        threadId: 'stale-session',
+        usage: null,
+      };
+    },
+    resolveTaskRetrySetting: () => ({ maxAttempts: 3, baseDelayMs: 0, maxDelayMs: 0, source: 'test' }),
+  });
+  harness.session.provider = 'claude';
+  harness.session.runnerSessionId = 'stale-session';
+  harness.session.codexThreadId = 'stale-session';
+  const message = {
+    id: 'msg-missing-claude-session',
+    author: { id: 'user-missing-session' },
+    channel: {
+      async sendTyping() {},
+      async send() {},
+    },
+  };
+  const channelState = { queue: [], cancelRequested: false, activeRun: null };
+
+  const outcome = await harness.orchestrator.handlePrompt(message, 'thread-1', 'continue old work', channelState);
+
+  assert.deepEqual(outcome, { ok: false, cancelled: false });
+  assert.equal(runCount, 1);
+  assert.equal(harness.session.runnerSessionId, 'stale-session');
+  assert.equal(harness.session.codexThreadId, 'stale-session');
+  assert.equal(harness.replyLog.length, 1);
+  assert.equal(typeof harness.replyLog[0], 'object');
+  assert.match(harness.replyLog[0].content, /No conversation found with session ID: stale-session/);
+  assert.match(harness.replyLog[0].content, /\/bot-new/);
+  assert.doesNotMatch(harness.replyLog[0].content, /已自动重试/);
 });
 
 test('createPromptOrchestrator.handlePrompt exposes and rejects implicit session switch on success', async () => {
@@ -1232,6 +1474,68 @@ test('createPromptOrchestrator.compactCurrentSession stores summary and clears t
   assert.equal(session.pendingCompactSourceSessionId, 'sess-1');
   assert.match(prompts[0], /请压缩总结当前会话上下文/);
   assert.match(replyLog[0], /已压缩 rollout session：sess-1/);
+});
+
+test('createPromptOrchestrator.compactCurrentSession settles process delivery before the terminal reply', async () => {
+  const deliveryOrder = [];
+  let releaseProcessDelivery = null;
+  let processDeliveryPromise = null;
+  const harness = createOrchestrator({
+    resolveReplyDeliverySetting: () => ({ mode: 'stream_only', source: 'env default' }),
+    safeChannelSend: async (_message, payload) => {
+      await new Promise((resolve) => {
+        releaseProcessDelivery = resolve;
+      });
+      deliveryOrder.push(`process:${payload}`);
+    },
+    safeReply: async (_message, payload) => {
+      deliveryOrder.push(`terminal:${payload}`);
+      return { id: 'terminal-compact', edit: async () => {} };
+    },
+    createProgressReporter: ({ onStreamProcessMessage }) => ({
+      async start() {
+        processDeliveryPromise = onStreamProcessMessage('compact progress');
+      },
+      sync() {},
+      setLatestStep() {},
+      onEvent() {},
+      onLog() {},
+      async finish() {
+        releaseProcessDelivery();
+        await processDeliveryPromise;
+      },
+    }),
+    runTask: async (options) => {
+      options.onSpawn?.({ pid: 793 });
+      return {
+        ok: true,
+        cancelled: false,
+        timedOut: false,
+        error: '',
+        logs: [],
+        notes: [],
+        reasonings: [],
+        messages: ['manual summary'],
+        finalAnswerMessages: ['manual summary'],
+        threadId: 'sess-1',
+        usage: { input_tokens: 333 },
+      };
+    },
+  });
+  const message = {
+    id: 'msg-compact-process-before-terminal',
+    channel: {
+      async sendTyping() {},
+      async send() {},
+    },
+  };
+  const channelState = { queue: [], cancelRequested: false, activeRun: null };
+
+  const outcome = await harness.orchestrator.compactCurrentSession(message, 'thread-1', channelState);
+
+  assert.equal(outcome.ok, true);
+  assert.equal(deliveryOrder[0], 'process:compact progress');
+  assert.match(deliveryOrder[1], /^terminal:/);
 });
 
 test('createPromptOrchestrator.compactCurrentSession rescues Claude sessions that are already over context', async () => {

@@ -1174,7 +1174,7 @@ export function createReportFormatters({
         (provider === 'codex' || provider === 'claude') ? `• \`${slashRef('fork')} [name]\` / \`!fork [name]\` — create a native ${getProviderDisplayName(provider)} fork in a new Discord thread` : null,
         provider === 'codex' ? `• \`${slashRef('side')} action:<start|status|close> name:<optional>\` / \`!side [start|status|close] [name]\` — open or manage a temporary Codex side conversation` : null,
         provider === 'codex' ? `• \`${slashRef('goal')} action:<status|set|pause|resume|done|clear|budget>\` / \`!goal <status|objective|pause|resume|done|clear>\` — manage the current Codex goal; active goals continue until marked complete or blocked` : null,
-        !botProvider ? '• `!provider <codex|claude|antigravity|status>` — switch provider for current channel' : null,
+        !botProvider ? '• `!provider <codex|claude|antigravity|zcode|status>` — switch provider for current channel' : null,
         '',
         '**Workspace**',
         '• `!setdir <path|browse|default|status>` — set or clear current thread workspace',
@@ -1184,9 +1184,7 @@ export function createReportFormatters({
         '',
         '**Model & Runtime**',
         `• \`${slashRef('model')}\` — choose model and effort from a compact panel`,
-        reasoningLevels.length
-          ? `• \`${slashRef('model')} name:<name|default> effort:<${[...reasoningLevels, 'default'].join('|')}>\` / \`!model <name|default>\` — set model or effort directly`
-          : `• \`${slashRef('model')} name:<name|default>\` / \`!model <name|default>\` — set model directly`,
+        `• \`!model <name|default>\` — type a custom model directly`,
         provider === 'codex' ? `• \`${slashRef('fast')} <on|off|status|default>\` / \`!fast <...>\` — toggle Codex Fast mode for this channel` : null,
         (provider === 'claude' || provider === 'codex') ? `• \`${slashRef('runtime')} <normal|long|status|default>\` / \`!runtime <...>\` — switch ${getProviderDisplayName(provider)} runtime mode for this channel` : null,
         reasoningLevels.length ? null : `• effort — not exposed by current provider (${getProviderDisplayName(provider)})`,
@@ -1235,7 +1233,7 @@ export function createReportFormatters({
       (provider === 'codex' || provider === 'claude') ? `• \`${slashRef('fork')} [name]\` / \`!fork [name]\` — 用 ${getProviderDisplayName(provider)} 原生 fork 创建新 Discord thread` : null,
       provider === 'codex' ? `• \`${slashRef('side')} action:<start|status|close> name:<可选>\` / \`!side [start|status|close] [name]\` — 开启或管理临时 Codex side conversation` : null,
       provider === 'codex' ? `• \`${slashRef('goal')} action:<status|set|pause|resume|done|clear|budget>\` / \`!goal <状态|目标|暂停|恢复|完成|清除>\` — 管理当前 Codex goal；active 时应持续推进直到标记完成或报告阻塞` : null,
-      !botProvider ? '• `!provider <codex|claude|antigravity|status>` — 切换当前频道 provider' : null,
+      !botProvider ? '• `!provider <codex|claude|antigravity|zcode|status>` — 切换当前频道 provider' : null,
       '',
       '**工作目录**',
       '• `!setdir <path|browse|default|status>` — 设置或清除当前 thread 的 workspace',
@@ -1245,9 +1243,7 @@ export function createReportFormatters({
         '',
         '**模型 & 执行**',
         `• \`${slashRef('model')}\` — 打开只包含模型和推理力度的小面板`,
-        reasoningLevels.length
-          ? `• \`${slashRef('model')} name:<name|default> effort:<${[...reasoningLevels, 'default'].join('|')}>\` / \`!model <name|default>\` — 直接设置 model 或 effort`
-          : `• \`${slashRef('model')} name:<name|default>\` / \`!model <name|default>\` — 直接设置 model`,
+        `• \`!model <name|default>\` — 手写设置自定义 model`,
         provider === 'codex' ? `• \`${slashRef('fast')} <on|off|status|default>\` / \`!fast <...>\` — 切换当前频道的 Codex Fast mode` : null,
         (provider === 'claude' || provider === 'codex') ? `• \`${slashRef('runtime')} <normal|long|status|default>\` / \`!runtime <...>\` — 切换当前频道的 ${getProviderDisplayName(provider)} 接入方式` : null,
       reasoningLevels.length ? null : `• effort — 当前 provider (${getProviderDisplayName(provider)}) 未暴露`,

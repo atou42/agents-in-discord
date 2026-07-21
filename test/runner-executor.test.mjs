@@ -104,6 +104,102 @@ test('createRunnerExecutor reads Antigravity stdout and conversation id', async 
   assert.deepEqual(result.finalAnswerMessages, ['Antigravity done']);
 });
 
+test('createRunnerExecutor parses pretty-printed ZCode JSON and preserves its session', async () => {
+  const child = new EventEmitter();
+  child.stdout = new EventEmitter();
+  child.stderr = new EventEmitter();
+  child.killed = false;
+
+  const executor = createRunnerExecutor({
+    spawnEnv: process.env,
+    ensureDir: () => {},
+    normalizeProvider: testNormalizeProvider,
+    getSessionProvider: (session) => session.provider,
+    getProviderBin: () => 'zcode',
+    getSessionId: (session) => session.runnerSessionId,
+    resolveModelSetting: () => ({ value: null, source: 'provider' }),
+    resolveReasoningEffortSetting: () => ({ value: null, source: 'provider' }),
+    resolveTimeoutSetting: () => ({ timeoutMs: 0 }),
+    resolveCompactStrategySetting: () => ({ strategy: 'hard' }),
+    resolveCompactEnabledSetting: () => ({ enabled: false }),
+    resolveNativeCompactTokenLimitSetting: () => ({ tokens: 0 }),
+    normalizeTimeoutMs: (value) => Number(value || 0),
+    safeError: (err) => String(err?.message || err),
+    stopChildProcess: () => {},
+    startSessionProgressBridge: () => () => {},
+    extractAgentMessageText,
+    isFinalAnswerLikeAgentMessage,
+    spawnFn: () => {
+      setImmediate(() => {
+        child.stdout.emit('data', Buffer.from(JSON.stringify({
+          sessionId: 'sess_zcode_1',
+          response: 'ZCODE_DONE',
+          usage: { inputTokens: 42, outputTokens: 3, totalTokens: 45 },
+          projection: { status: 'idle', contextUsed: 45, contextWindow: 1000000 },
+        }, null, 2)));
+        child.emit('close', 0, null);
+      });
+      return child;
+    },
+  });
+
+  const result = await executor.runProviderTask({
+    session: { provider: 'zcode', mode: 'safe', runnerSessionId: null },
+    workspaceDir: '/tmp/workspace',
+    prompt: 'hello',
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.threadId, 'sess_zcode_1');
+  assert.deepEqual(result.finalAnswerMessages, ['ZCODE_DONE']);
+  assert.deepEqual(result.usage, { inputTokens: 42, outputTokens: 3, totalTokens: 45 });
+});
+
+test('createRunnerExecutor rejects malformed ZCode JSON even when the process exits zero', async () => {
+  const child = new EventEmitter();
+  child.stdout = new EventEmitter();
+  child.stderr = new EventEmitter();
+  child.killed = false;
+
+  const executor = createRunnerExecutor({
+    spawnEnv: process.env,
+    ensureDir: () => {},
+    normalizeProvider: testNormalizeProvider,
+    getSessionProvider: (session) => session.provider,
+    getProviderBin: () => 'zcode',
+    getSessionId: (session) => session.runnerSessionId,
+    resolveModelSetting: () => ({ value: null, source: 'provider' }),
+    resolveReasoningEffortSetting: () => ({ value: null, source: 'provider' }),
+    resolveTimeoutSetting: () => ({ timeoutMs: 0 }),
+    resolveCompactStrategySetting: () => ({ strategy: 'hard' }),
+    resolveCompactEnabledSetting: () => ({ enabled: false }),
+    resolveNativeCompactTokenLimitSetting: () => ({ tokens: 0 }),
+    normalizeTimeoutMs: (value) => Number(value || 0),
+    safeError: (err) => String(err?.message || err),
+    stopChildProcess: () => {},
+    startSessionProgressBridge: () => () => {},
+    extractAgentMessageText,
+    isFinalAnswerLikeAgentMessage,
+    spawnFn: () => {
+      setImmediate(() => {
+        child.stdout.emit('data', Buffer.from('{not-json}\n'));
+        child.emit('close', 0, null);
+      });
+      return child;
+    },
+  });
+
+  const result = await executor.runProviderTask({
+    session: { provider: 'zcode', mode: 'safe', runnerSessionId: null },
+    workspaceDir: '/tmp/workspace',
+    prompt: 'hello',
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.error, /invalid ZCode JSON response/);
+  assert.deepEqual(result.finalAnswerMessages, []);
+});
+
 test('createRunnerExecutor applies Antigravity model setting before spawning', async () => {
   const child = new EventEmitter();
   child.stdout = new EventEmitter();

@@ -199,6 +199,13 @@ export function createPromptOrchestrator({
     return text.includes('context window limit') || text.includes('max_output_tokens');
   }
 
+  function isMissingBoundClaudeSession(result, session) {
+    if (String(getSessionProvider(session) || '').trim().toLowerCase() !== 'claude') return false;
+    const match = String(result?.error || '').trim().match(/^No conversation found with session ID:\s*(\S+)$/i);
+    const boundSessionId = String(getSessionId(session) || '').trim();
+    return Boolean(match && boundSessionId && match[1] === boundSessionId);
+  }
+
   function normalizeTaskRetryPolicy(policy) {
     const maxAttemptsRaw = Number(policy?.maxAttempts);
     const baseDelayRaw = Number(policy?.baseDelayMs);
@@ -217,8 +224,12 @@ export function createPromptOrchestrator({
     };
   }
 
-  function shouldAutoRetryResult(result) {
-    return Boolean(result) && !result.ok && !result.cancelled && !result.timedOut;
+  function shouldAutoRetryResult(result, session) {
+    return Boolean(result)
+      && !result.ok
+      && !result.cancelled
+      && !result.timedOut
+      && !isMissingBoundClaudeSession(result, session);
   }
 
   function computeRetryDelayMs(nextAttempt, policy) {
@@ -352,9 +363,16 @@ export function createPromptOrchestrator({
       }
       const sent = new Set(activeRun.streamedProcessActivityKeys.map(normalizeProcessActivityKey));
       if (sent.has(key)) return;
-      activeRun.streamedProcessActivityKeys.push(text);
     }
     await safeChannelSend(message, text);
+    const currentActiveRun = channelState?.activeRun;
+    if (currentActiveRun && key) {
+      if (!Array.isArray(currentActiveRun.streamedProcessActivityKeys)) {
+        currentActiveRun.streamedProcessActivityKeys = [];
+      }
+      const sent = new Set(currentActiveRun.streamedProcessActivityKeys.map(normalizeProcessActivityKey));
+      if (!sent.has(key)) currentActiveRun.streamedProcessActivityKeys.push(text);
+    }
   }
 
   function applyCurrentTerminalMention(message, session, payload) {
@@ -393,6 +411,12 @@ export function createPromptOrchestrator({
     });
     let workspaceLock = null;
     let progressOutcome = { ok: false, cancelled: false, timedOut: false, error: '' };
+    let progressFinished = false;
+    const finishProgress = async () => {
+      if (progressFinished) return;
+      progressFinished = true;
+      await progress.finish(progressOutcome);
+    };
 
     const releaseWorkspaceLock = () => {
       if (!workspaceLock?.acquired || typeof workspaceLock.release !== 'function') return;
@@ -453,6 +477,7 @@ export function createPromptOrchestrator({
       if (!compactResult.ok) {
         const error = compactResult.error || 'manual compact failed';
         progressOutcome = { ok: false, cancelled: false, timedOut: false, error };
+        await finishProgress();
         await safeReply(
           message,
           applyCurrentTerminalMention(message, session, language === 'en'
@@ -468,6 +493,7 @@ export function createPromptOrchestrator({
       session.lastInputTokens = null;
       saveDb();
       progressOutcome = { ok: true, cancelled: false, timedOut: false, error: '' };
+      await finishProgress();
       await safeReply(
         message,
         applyCurrentTerminalMention(message, session, language === 'en'
@@ -477,7 +503,7 @@ export function createPromptOrchestrator({
       return { ok: true, summary: compactResult.summary };
     } finally {
       releaseWorkspaceLock();
-      await progress.finish(progressOutcome);
+      await finishProgress();
     }
   }
 
@@ -514,6 +540,12 @@ export function createPromptOrchestrator({
     }, 8000);
     await progress.start();
     let progressOutcome = { ok: false, cancelled: false, timedOut: false, error: '' };
+    let progressFinished = false;
+    const finishProgress = async () => {
+      if (progressFinished) return;
+      progressFinished = true;
+      await progress.finish(progressOutcome);
+    };
     let nativeInputs = {
       inputImages: [],
       promptNote: '',
@@ -581,6 +613,7 @@ export function createPromptOrchestrator({
           ? `workspace changed while waiting: ${currentWorkspaceDir}`
           : `等待期间 workspace 已切换：${currentWorkspaceDir}`;
         progressOutcome = { ok: false, cancelled: false, timedOut: false, error };
+        await finishProgress();
         await safeReply(
           message,
           applyCurrentTerminalMention(message, session, language === 'en'
@@ -716,7 +749,7 @@ export function createPromptOrchestrator({
         });
       }
 
-      while (!skipRetries && shouldAutoRetryResult(result) && attemptNumber < taskRetryPolicy.maxAttempts) {
+      while (!skipRetries && shouldAutoRetryResult(result, session) && attemptNumber < taskRetryPolicy.maxAttempts) {
         if (nativeCompactAutoContinueActive) {
           const currentSessionId = getSessionId(session);
           const retrySessionId = String(result.threadId || '').trim() || null;
@@ -876,12 +909,14 @@ export function createPromptOrchestrator({
       if (!result.ok) {
         if (result.cancelled) {
           progressOutcome = { ok: false, cancelled: true, timedOut: false, error: result.error || 'cancelled' };
+          await finishProgress();
           await safeReply(message, applyCurrentTerminalMention(message, session, '🛑 当前任务已中断。'));
           return { ok: false, cancelled: true };
         }
 
         const provider = getSessionProvider(session);
         const cliMissing = isCliNotFound(result.error);
+        const missingBoundClaudeSession = isMissingBoundClaudeSession(result, session);
         const timeoutSetting = resolveTimeoutSetting(session);
         const retrySummaryLine = buildRetrySummaryLine({
           attemptsUsed: attemptNumber,
@@ -906,7 +941,9 @@ export function createPromptOrchestrator({
           cliMissing ? `• 处理: 在该设备安装 ${getProviderDefaultBin(provider)}，或在 .env 配置 \`${getProviderBinEnvName(provider)}=/绝对路径/${getProviderDefaultBin(provider)}\`，然后重启 bot。` : null,
           cliMissing ? `• 自检: 用 \`${slashRef('status')}\` 或 \`!status\` 查看 CLI 状态。` : null,
           '',
-          `可以先 \`${slashRef('reset')}\` 再重试，或 \`${slashRef('status')}\` 看状态。`,
+          missingBoundClaudeSession
+            ? `当前绑定的 Claude project session 已不存在。请先 \`${slashRef('new')}\` 新开会话，再重试。`
+            : `可以先 \`${slashRef('reset')}\` 再重试，或 \`${slashRef('status')}\` 看状态。`,
         ].filter(Boolean).join('\n');
         progressOutcome = {
           ok: false,
@@ -914,6 +951,7 @@ export function createPromptOrchestrator({
           timedOut: Boolean(result.timedOut),
           error: result.error || `${getSessionProvider(session)} run failed`,
         };
+        await finishProgress();
         await safeReply(
           message,
           applyCurrentTerminalMention(message, session, withRetryAction(failText, message?.author?.id || null)),
@@ -921,6 +959,8 @@ export function createPromptOrchestrator({
         return { ok: false, cancelled: false };
       }
 
+      progressOutcome = { ok: true, cancelled: false, timedOut: false, error: '' };
+      await finishProgress();
       const body = stripStreamedProcessMessagesFromFinalBody(
         composeResultText(result, session),
         channelState,
@@ -934,7 +974,6 @@ export function createPromptOrchestrator({
 
       if (parts.length === 0) {
         await safeReply(message, applyCurrentTerminalMention(message, session, '✅ 完成（无可展示文本输出）。'));
-        progressOutcome = { ok: true, cancelled: false, timedOut: false, error: '' };
         return { ok: true, cancelled: false };
       }
 
@@ -943,7 +982,6 @@ export function createPromptOrchestrator({
         await safeChannelSend(message, parts[i]);
       }
 
-      progressOutcome = { ok: true, cancelled: false, timedOut: false, error: '' };
       return { ok: true, cancelled: false };
     } catch (err) {
       progressOutcome = { ok: false, cancelled: false, timedOut: false, error: safeError(err) };
@@ -952,7 +990,7 @@ export function createPromptOrchestrator({
       releaseWorkspaceLock();
       clearInterval(typingInterval);
       try {
-        await progress.finish(progressOutcome);
+        await finishProgress();
       } finally {
         await nativeInputs.cleanup().catch(() => {});
       }
