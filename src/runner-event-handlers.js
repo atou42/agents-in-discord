@@ -3,6 +3,11 @@ import { createCodexProviderAdapter } from './providers/codex.js';
 import { createAntigravityProviderAdapter } from './providers/antigravity.js';
 import { createZCodeProviderAdapter } from './providers/zcode.js';
 import { createProviderAdapterRegistry } from './providers/index.js';
+import {
+  extractUnphasedCodexAgentMessage,
+  isCodexTurnTerminalEvent,
+  isCodexWorkEvent,
+} from './codex-event-utils.js';
 
 export function createRunnerEventParser({
   normalizeProvider = (value) => String(value || '').trim().toLowerCase(),
@@ -57,6 +62,10 @@ export function handleCodexRunnerEvent(event, state, ensureSessionBridge, {
     });
   }
 
+  if (isCodexWorkEvent(event)) {
+    flushPendingCodexAgentMessages(state, state.messages);
+  }
+
   switch (event.type) {
     case 'thread.started':
     case 'thread.created':
@@ -77,6 +86,11 @@ export function handleCodexRunnerEvent(event, state, ensureSessionBridge, {
       if (!['agent_message', 'assistant_message', 'message'].includes(itemType)) break;
       const text = extractAgentMessageText(item);
       if (!text) break;
+      const unphasedText = extractUnphasedCodexAgentMessage(event);
+      if (unphasedText) {
+        appendPendingCodexAgentMessage(state, unphasedText);
+        break;
+      }
       if (isFinalAnswerLikeAgentMessage(item)) appendUniqueText(state.finalAnswerMessages, text);
       else appendUniqueText(state.messages, text);
       break;
@@ -114,9 +128,15 @@ export function handleCodexRunnerEvent(event, state, ensureSessionBridge, {
       state.usage = event;
       break;
     case 'turn.completed':
+      flushPendingCodexAgentMessages(state, state.finalAnswerMessages);
       state.usage = event;
       break;
+    case 'turn.failed':
+    case 'turn.cancelled':
+      flushPendingCodexAgentMessages(state, state.messages);
+      break;
     default:
+      if (isCodexTurnTerminalEvent(event)) clearPendingCodexAgentMessages(state);
       break;
   }
 }
@@ -207,6 +227,27 @@ function appendUniqueText(list, text) {
   const previous = String(list?.[list.length - 1] || '').trim();
   if (normalizeComparableText(previous) === normalizeComparableText(next)) return;
   list.push(next);
+}
+
+function appendPendingCodexAgentMessage(state, text) {
+  if (!state.meta || typeof state.meta !== 'object') state.meta = {};
+  if (!Array.isArray(state.meta.pendingCodexAgentMessages)) {
+    state.meta.pendingCodexAgentMessages = [];
+  }
+  appendUniqueText(state.meta.pendingCodexAgentMessages, text);
+}
+
+function flushPendingCodexAgentMessages(state, target) {
+  const pending = Array.isArray(state?.meta?.pendingCodexAgentMessages)
+    ? state.meta.pendingCodexAgentMessages
+    : [];
+  for (const text of pending) appendUniqueText(target, text);
+  clearPendingCodexAgentMessages(state);
+}
+
+function clearPendingCodexAgentMessages(state) {
+  if (!state?.meta || typeof state.meta !== 'object') return;
+  delete state.meta.pendingCodexAgentMessages;
 }
 
 function normalizeComparableText(value) {

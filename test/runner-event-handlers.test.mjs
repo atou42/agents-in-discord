@@ -96,6 +96,66 @@ test('handleCodexRunnerEvent keeps commentary item.completed out of final answer
   assert.deepEqual(state.finalAnswerMessages, []);
 });
 
+test('handleCodexRunnerEvent classifies unphased Codex 0.144 agent messages by event order', () => {
+  const state = {
+    messages: [],
+    finalAnswerMessages: [],
+    reasonings: [],
+    logs: [],
+    usage: null,
+    threadId: null,
+    meta: {},
+  };
+  const options = {
+    extractAgentMessageText,
+    isFinalAnswerLikeAgentMessage,
+  };
+
+  handleCodexRunnerEvent({
+    type: 'item.completed',
+    item: {
+      id: 'item_2',
+      type: 'agent_message',
+      text: '准备检查当前目录的位置和其中的文件、文件夹，全程只读。',
+    },
+  }, state, () => {}, options);
+
+  assert.deepEqual(state.messages, []);
+  assert.deepEqual(state.finalAnswerMessages, []);
+
+  handleCodexRunnerEvent({
+    type: 'item.started',
+    item: {
+      id: 'item_3',
+      type: 'command_execution',
+      command: "/bin/zsh -lc 'pwd && ls'",
+      status: 'in_progress',
+    },
+  }, state, () => {}, options);
+
+  assert.deepEqual(state.messages, ['准备检查当前目录的位置和其中的文件、文件夹，全程只读。']);
+  assert.deepEqual(state.finalAnswerMessages, []);
+
+  handleCodexRunnerEvent({
+    type: 'item.completed',
+    item: {
+      id: 'item_4',
+      type: 'agent_message',
+      text: '当前目录是 `/private/tmp`。只读检查完成。',
+    },
+  }, state, () => {}, options);
+
+  assert.deepEqual(state.finalAnswerMessages, []);
+
+  handleCodexRunnerEvent({
+    type: 'turn.completed',
+    usage: { input_tokens: 100, output_tokens: 20 },
+  }, state, () => {}, options);
+
+  assert.deepEqual(state.messages, ['准备检查当前目录的位置和其中的文件、文件夹，全程只读。']);
+  assert.deepEqual(state.finalAnswerMessages, ['当前目录是 `/private/tmp`。只读检查完成。']);
+});
+
 test('handleCodexRunnerEvent captures final answer from bridged session events', () => {
   const state = {
     messages: [],

@@ -1,4 +1,9 @@
 import { getSupportedReasoningEffortLevels } from './provider-metadata.js';
+import {
+  extractUnphasedCodexAgentMessage,
+  isCodexTurnTerminalEvent,
+  isCodexWorkEvent,
+} from './codex-event-utils.js';
 
 function defaultNormalizeUiLanguage(value) {
   return String(value || '').trim().toLowerCase() === 'en' ? 'en' : 'zh';
@@ -748,6 +753,7 @@ export function createPromptProgressReporterFactory({
       ? [...channelState.activeRun.recentActivities]
       : [];
     const pendingStreamActivities = [];
+    const pendingCodexAgentMessages = [];
     let lastActivityPushAt = 0;
     let activityPushPromise = null;
     let failedStreamActivity = null;
@@ -870,6 +876,26 @@ export function createPromptProgressReporterFactory({
       return true;
     };
 
+    const appendPendingCodexAgentMessage = (value) => {
+      const text = normalizeProgressText(value);
+      const key = normalizeActivityKey(text);
+      if (!key) return;
+      const previous = normalizeActivityKey(pendingCodexAgentMessages[pendingCodexAgentMessages.length - 1]);
+      if (previous !== key) pendingCodexAgentMessages.push(text);
+    };
+
+    const removePendingCodexAgentMessage = (value) => {
+      const key = normalizeActivityKey(value);
+      if (!key) return;
+      for (let index = pendingCodexAgentMessages.length - 1; index >= 0; index -= 1) {
+        if (normalizeActivityKey(pendingCodexAgentMessages[index]) === key) {
+          pendingCodexAgentMessages.splice(index, 1);
+        }
+      }
+    };
+
+    const takePendingCodexAgentMessages = () => pendingCodexAgentMessages.splice(0);
+
     const pushOneStreamActivity = ({ force = false } = {}) => {
       if (!pendingStreamActivities.length) return Promise.resolve(false);
       if (activityPushPromise) return Promise.resolve(false);
@@ -947,6 +973,13 @@ export function createPromptProgressReporterFactory({
 
     const onEvent = (event) => {
       if (stopped) return;
+      if (session?.provider === 'codex') {
+        const unphasedAgentMessage = extractUnphasedCodexAgentMessage(event);
+        if (unphasedAgentMessage) {
+          appendPendingCodexAgentMessage(unphasedAgentMessage);
+          return;
+        }
+      }
       const providerProgress = session?.provider === 'claude'
         ? (claudeProgressTracker.capture(event) || null)
         : null;
@@ -957,12 +990,20 @@ export function createPromptProgressReporterFactory({
         subagentDisplayNames: codexSubagentDisplayNameTracker.snapshot(),
       };
       const summaryStep = providerProgress?.summaryStep || summarizeCodexEvent(event, codexProgressOptions);
-      const rawActivities = providerProgress?.rawActivities?.length
+      let rawActivities = providerProgress?.rawActivities?.length
         ? providerProgress.rawActivities
         : (() => {
           const raw = extractRawProgressTextFromEvent(event, codexProgressOptions);
           return raw ? [raw] : [];
         })();
+      if (session?.provider === 'codex') {
+        for (const rawActivity of rawActivities) removePendingCodexAgentMessage(rawActivity);
+        if (isCodexWorkEvent(event)) {
+          rawActivities = [...takePendingCodexAgentMessages(), ...rawActivities];
+        } else if (isCodexTurnTerminalEvent(event)) {
+          pendingCodexAgentMessages.length = 0;
+        }
+      }
       const nextPlan = extractPlanStateFromEvent(event);
       const completedStepsFromEvent = providerProgress?.completedSteps?.length
         ? providerProgress.completedSteps
@@ -1047,6 +1088,7 @@ export function createPromptProgressReporterFactory({
       }
       stopped = true;
       pendingStreamActivities.length = 0;
+      pendingCodexAgentMessages.length = 0;
       latestStep = getFinalLatestStep({
         ok,
         cancelled,

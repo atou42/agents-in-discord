@@ -86,6 +86,37 @@ export function isFinalAnswerLikeAgentMessage(item) {
   return phase !== 'commentary';
 }
 
+export function extractUnphasedCodexAgentMessage(event) {
+  if (!event || typeof event !== 'object') return '';
+  const type = normalizePhase(event.type || '');
+  if (type !== 'item_completed') return '';
+  const item = event.item;
+  if (normalizePhase(item?.type || '') !== 'agent_message') return '';
+  if (getAgentMessagePhase(item)) return '';
+  return extractAgentMessageText(item);
+}
+
+export function isCodexWorkEvent(event) {
+  if (!event || typeof event !== 'object') return false;
+  const type = normalizePhase(event.type || '');
+  if (type !== 'item_started' && type !== 'item_completed') return false;
+  const itemType = normalizePhase(event.item?.type || '');
+  return [
+    'command_execution',
+    'local_shell_call',
+    'mcp_tool_call',
+    'collab_tool_call',
+    'web_search',
+    'web_search_call',
+    'file_change',
+  ].includes(itemType);
+}
+
+export function isCodexTurnTerminalEvent(event) {
+  const type = normalizePhase(event?.type || '');
+  return type === 'turn_completed' || type === 'turn_failed' || type === 'turn_cancelled';
+}
+
 export function composeFinalAnswerText({ messages = [], finalAnswerMessages = [] } = {}) {
   const preferred = normalizeTextList(finalAnswerMessages);
   if (preferred.length) return preferred.join('\n\n');

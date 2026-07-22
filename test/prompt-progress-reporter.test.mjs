@@ -272,6 +272,62 @@ test('createPromptProgressReporterFactory streams current Codex CLI command exec
   assert.doesNotMatch(harness.edits.at(-1).content, /command_execution completed/);
 });
 
+test('createPromptProgressReporterFactory streams unphased Codex 0.144 commentary only after work continues', async () => {
+  const harness = createHarness({
+    factoryOptions: {
+      presentation: createRealPresentation(),
+    },
+  });
+
+  await harness.reporter.start();
+  harness.channelState.activeRun.phase = 'exec';
+  harness.reporter.onEvent({
+    type: 'item.completed',
+    item: {
+      id: 'item_2',
+      type: 'agent_message',
+      text: '准备检查当前目录的位置和其中的文件、文件夹，全程只读。',
+    },
+  });
+
+  assert.deepEqual(harness.streamed, []);
+
+  harness.reporter.onEvent({
+    type: 'item.started',
+    item: {
+      id: 'item_3',
+      type: 'command_execution',
+      command: "/bin/zsh -lc 'pwd && ls'",
+      aggregated_output: '',
+      exit_code: null,
+      status: 'in_progress',
+    },
+  });
+
+  assert.deepEqual(harness.streamed, ['准备检查当前目录的位置和其中的文件、文件夹，全程只读。']);
+  assert.deepEqual(harness.channelState.activeRun.recentActivities.slice(0, 1), [
+    '准备检查当前目录的位置和其中的文件、文件夹，全程只读。',
+  ]);
+
+  harness.reporter.onEvent({
+    type: 'item.completed',
+    item: {
+      id: 'item_4',
+      type: 'agent_message',
+      text: '当前目录是 `/private/tmp`。只读检查完成。',
+    },
+  });
+  harness.reporter.onEvent({
+    type: 'turn.completed',
+    usage: { input_tokens: 100, output_tokens: 20 },
+  });
+
+  assert.doesNotMatch(
+    harness.channelState.activeRun.recentActivities.join('\n'),
+    /当前目录是 `\/private\/tmp`。只读检查完成。/,
+  );
+});
+
 test('createPromptProgressReporterFactory streams during the run without dumping backlog on finish', async () => {
   const harness = createHarness();
 
