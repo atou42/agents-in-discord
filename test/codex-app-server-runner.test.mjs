@@ -191,6 +191,122 @@ test('createCodexAppServerRunner runs a turn over persistent app-server and clos
   assert.equal(fake.child.killed, true);
 });
 
+test('createCodexAppServerRunner forwards completed native reasoning summaries as progress events', async () => {
+  const fake = createFakeAppServerSpawn({ autoComplete: false });
+  const events = [];
+  const runner = createCodexAppServerRunner({
+    spawnEnv: { HOME: '/tmp/home' },
+    getProviderBin: () => 'codex-test',
+    getSessionId: () => null,
+    resolveModelSetting: () => ({ value: 'gpt-5.6-sol' }),
+    resolveCodexProfileSetting: () => ({ value: null, isExplicit: false, valid: true }),
+    resolveReasoningEffortSetting: () => ({ value: 'high' }),
+    resolveFastModeSetting: () => ({ enabled: false, source: 'env default' }),
+    resolveCompactStrategySetting: () => ({ strategy: 'hard' }),
+    resolveCompactEnabledSetting: () => ({ enabled: false }),
+    resolveNativeCompactTokenLimitSetting: () => ({ tokens: 0 }),
+    resolveTimeoutSetting: () => ({ timeoutMs: 0 }),
+    normalizeTimeoutMs: (value) => Number(value || 0),
+    safeError: (err) => String(err?.message || err),
+    stopChildProcess: (target) => target.kill(),
+    idleMs: 0,
+    spawnFn: fake.spawnFn,
+    log: () => {},
+  });
+
+  const resultPromise = runner.runTask({
+    session: { provider: 'codex', mode: 'safe' },
+    sessionKey: 'discord-thread-reasoning',
+    workspaceDir: '/tmp/workspace',
+    prompt: 'inspect the repository',
+    onEvent: (event) => events.push(event),
+  });
+  await waitFor(() => fake.writes.some((line) => JSON.parse(line).method === 'turn/start'));
+
+  fake.child.stdout.write(`${JSON.stringify({
+    method: 'turn/plan/updated',
+    params: {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      explanation: '先定位事件链，再验证 Discord 输出。',
+      plan: [
+        { step: '定位事件链', status: 'completed' },
+        { step: '验证 Discord 输出', status: 'inProgress' },
+      ],
+    },
+  })}\n`);
+  fake.child.stdout.write(`${JSON.stringify({
+    method: 'item/started',
+    params: {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      item: {
+        type: 'commandExecution',
+        id: 'command-1',
+        command: 'rg reasoning src',
+        status: 'inProgress',
+      },
+    },
+  })}\n`);
+  fake.child.stdout.write(`${JSON.stringify({
+    method: 'item/reasoning/summaryTextDelta',
+    params: {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      itemId: 'reasoning-1',
+      summaryIndex: 0,
+      delta: '正在核对 Discord bot ',
+    },
+  })}\n`);
+  fake.child.stdout.write(`${JSON.stringify({
+    method: 'item/reasoning/summaryTextDelta',
+    params: {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      itemId: 'reasoning-1',
+      summaryIndex: 0,
+      delta: '遗漏的原生过程事件。',
+    },
+  })}\n`);
+  fake.child.stdout.write(`${JSON.stringify({
+    method: 'item/completed',
+    params: {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      item: { type: 'reasoning', id: 'reasoning-1', summary: [] },
+    },
+  })}\n`);
+  fake.completeTurn();
+
+  const result = await resultPromise;
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.reasonings, ['正在核对 Discord bot 遗漏的原生过程事件。']);
+  assert.deepEqual(
+    events.filter((event) => event.type === 'reasoning.summary'),
+    [{
+      type: 'reasoning.summary',
+      item_id: 'reasoning-1',
+      text: '正在核对 Discord bot 遗漏的原生过程事件。',
+    }],
+  );
+  assert.deepEqual(
+    events.find((event) => event.type === 'turn.plan.updated'),
+    {
+      type: 'turn.plan.updated',
+      explanation: '先定位事件链，再验证 Discord 输出。',
+      plan: [
+        { step: '定位事件链', status: 'completed' },
+        { step: '验证 Discord 输出', status: 'inProgress' },
+      ],
+    },
+  );
+  assert.equal(
+    events.some((event) => event.type === 'item.started' && event.item?.id === 'command-1'),
+    true,
+  );
+  runner.closeAll('test done');
+});
+
 test('createCodexAppServerRunner promotes commentary output only for Codex goal continuation', async () => {
   const completedItems = [
     { type: 'agentMessage', id: 'item-1', text: '本地加严验收通过。', phase: 'commentary' },

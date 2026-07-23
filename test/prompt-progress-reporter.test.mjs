@@ -272,6 +272,32 @@ test('createPromptProgressReporterFactory streams current Codex CLI command exec
   assert.doesNotMatch(harness.edits.at(-1).content, /command_execution completed/);
 });
 
+test('createPromptProgressReporterFactory streams native Codex reasoning summaries', async () => {
+  const harness = createHarness({
+    factoryOptions: {
+      presentation: createRealPresentation(),
+    },
+  });
+
+  await harness.reporter.start();
+  harness.channelState.activeRun.phase = 'exec';
+  harness.reporter.onEvent({
+    type: 'reasoning.summary',
+    item_id: 'reasoning-1',
+    text: '正在核对 Discord bot 遗漏的原生过程事件。',
+  });
+
+  assert.deepEqual(harness.streamed, ['正在核对 Discord bot 遗漏的原生过程事件。']);
+  assert.deepEqual(
+    harness.channelState.activeRun.recentActivities,
+    ['正在核对 Discord bot 遗漏的原生过程事件。'],
+  );
+  assert.match(
+    harness.edits.at(-1).content,
+    /正在核对 Discord bot 遗漏的原生过程事件。/,
+  );
+});
+
 test('createPromptProgressReporterFactory streams unphased Codex 0.144 commentary only after work continues', async () => {
   const harness = createHarness({
     factoryOptions: {

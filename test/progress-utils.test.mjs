@@ -541,6 +541,43 @@ test('extractRawProgressTextFromEvent reads commentary from event_msg agent_mess
   assert.equal(raw, '正在检查日志并定位过程内容过滤条件。');
 });
 
+test('native Codex reasoning summaries are readable process content', () => {
+  const ev = {
+    type: 'reasoning.summary',
+    item_id: 'reasoning-1',
+    text: '正在核对 Discord bot 遗漏的原生过程事件。',
+  };
+
+  assert.equal(
+    extractRawProgressTextFromEvent(ev),
+    '正在核对 Discord bot 遗漏的原生过程事件。',
+  );
+  assert.equal(
+    summarizeCodexEvent(ev),
+    '正在核对 Discord bot 遗漏的原生过程事件。',
+  );
+
+  const planEvent = {
+    type: 'turn.plan.updated',
+    explanation: '先定位事件链，再验证 Discord 输出。',
+    plan: [
+      { step: '定位事件链', status: 'completed' },
+      { step: '验证 Discord 输出', status: 'inProgress' },
+    ],
+  };
+  const plan = extractPlanStateFromEvent(planEvent);
+  assert.equal(plan.completed, 1);
+  assert.equal(plan.inProgress, 1);
+  assert.equal(
+    extractRawProgressTextFromEvent(planEvent),
+    '先定位事件链，再验证 Discord 输出。',
+  );
+  assert.equal(
+    summarizeCodexEvent(planEvent),
+    '先定位事件链，再验证 Discord 输出。',
+  );
+});
+
 test('extractRawProgressTextFromEvent ignores final_answer from event_msg agent_message', () => {
   const ev = {
     type: 'event_msg',

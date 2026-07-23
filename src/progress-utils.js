@@ -739,6 +739,17 @@ export function summarizeCodexEvent(ev, options = {}) {
     }, options);
   }
 
+  if (type === 'reasoning_summary') {
+    return extractEventTextPreview(ev, opts) || 'reasoning summary';
+  }
+
+  if (type === 'turn_plan_updated') {
+    const plan = extractPlanStateFromEvent(ev, opts);
+    return plan?.explanation
+      || plan?.steps?.find((step) => step.status === 'in_progress')?.step
+      || 'plan updated';
+  }
+
   if (type === 'response_item' && payload) {
     const summary = summarizeResponseItem(payload, opts);
     if (summary) return summary;
@@ -1060,6 +1071,22 @@ export function extractRawProgressTextFromEvent(ev, options = {}) {
     }, options);
   }
 
+  if (type === 'reasoning_summary') {
+    return pickFirstRawText([
+      ev.text,
+      ev.message,
+      payload?.text,
+      payload?.message,
+    ]);
+  }
+
+  if (type === 'turn_plan_updated') {
+    const plan = extractPlanStateFromEvent(ev, options);
+    return plan?.explanation
+      || plan?.steps?.find((step) => step.status === 'in_progress')?.step
+      || '';
+  }
+
   if (type === 'assistant') {
     const content = Array.isArray(payload?.content) ? payload.content : Array.isArray(ev?.content) ? ev.content : [];
     const hasClaudeMessageShape = payload && typeof payload === 'object'
@@ -1267,7 +1294,7 @@ export function normalizePlanStatus(value) {
   const raw = normalizeWhitespace(value).toLowerCase();
   if (!raw) return 'pending';
   if (['completed', 'complete', 'done', 'finished', 'success', 'ok'].includes(raw)) return 'completed';
-  if (['in_progress', 'in-progress', 'progress', 'running', 'active', 'doing', 'current'].includes(raw)) return 'in_progress';
+  if (['in_progress', 'in-progress', 'inprogress', 'progress', 'running', 'active', 'doing', 'current'].includes(raw)) return 'in_progress';
   if (['pending', 'todo', 'not_started', 'queued', 'planned', 'next'].includes(raw)) return 'pending';
   return 'pending';
 }
@@ -1355,6 +1382,7 @@ export function extractPlanStateFromEvent(ev, options = {}) {
   const item = ev.item && typeof ev.item === 'object' ? ev.item : null;
   const payload = extractEventPayload(ev);
   const candidates = [
+    ev,
     ev.plan,
     ev.result,
     ev.output,

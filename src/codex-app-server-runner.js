@@ -137,6 +137,63 @@ function appendUnique(list, text) {
   list.push(value);
 }
 
+function appendReasoningSummaryDelta(turn, params) {
+  const itemId = String(params?.itemId || '').trim();
+  const delta = String(params?.delta || params?.text || '');
+  if (!itemId || !delta) return;
+  const summaryIndex = Number.isFinite(Number(params?.summaryIndex))
+    ? Number(params.summaryIndex)
+    : 0;
+  let parts = turn.reasoningSummaryByItemId.get(itemId);
+  if (!parts) {
+    parts = new Map();
+    turn.reasoningSummaryByItemId.set(itemId, parts);
+  }
+  parts.set(summaryIndex, `${parts.get(summaryIndex) || ''}${delta}`);
+}
+
+function extractReasoningSummaryTexts(item) {
+  const summary = Array.isArray(item?.summary) ? item.summary : [];
+  return summary
+    .map((part) => {
+      if (typeof part === 'string') return part.trim();
+      if (!part || typeof part !== 'object') return '';
+      return String(part.text || part.summary_text || part.summaryText || '').trim();
+    })
+    .filter(Boolean);
+}
+
+function flushReasoningSummaries(turn, itemId, item = null) {
+  const normalizedItemId = String(itemId || item?.id || '').trim();
+  const completedTexts = extractReasoningSummaryTexts(item);
+  const bufferedParts = normalizedItemId
+    ? turn.reasoningSummaryByItemId.get(normalizedItemId)
+    : null;
+  const bufferedTexts = bufferedParts
+    ? [...bufferedParts.entries()]
+      .sort(([left], [right]) => left - right)
+      .map(([, text]) => String(text || '').trim())
+      .filter(Boolean)
+    : [];
+  const texts = completedTexts.length ? completedTexts : bufferedTexts;
+
+  for (const text of texts) {
+    appendUnique(turn.reasonings, text);
+    turn.onEvent?.({
+      type: 'reasoning.summary',
+      item_id: normalizedItemId || null,
+      text,
+    });
+  }
+  if (normalizedItemId) turn.reasoningSummaryByItemId.delete(normalizedItemId);
+}
+
+function flushAllReasoningSummaries(turn) {
+  for (const itemId of [...turn.reasoningSummaryByItemId.keys()]) {
+    flushReasoningSummaries(turn, itemId);
+  }
+}
+
 function promoteGoalContinuationMessages(turn) {
   if (!turn?.isGoalContinuation) return;
   if (Array.isArray(turn.finalAnswerMessages) && turn.finalAnswerMessages.length) return;
@@ -344,8 +401,29 @@ export function createCodexAppServerRunner({
 
     if (method === 'item/reasoning/textDelta' || method === 'item/reasoning/summaryTextDelta') {
       if (!turn) return;
-      const text = String(params.delta || params.text || '');
-      if (text.trim()) turn.reasonings.push(text.trim());
+      if (method === 'item/reasoning/summaryTextDelta') {
+        appendReasoningSummaryDelta(turn, params);
+      } else {
+        const text = String(params.delta || params.text || '').trim();
+        if (text) appendUnique(turn.reasonings, text);
+      }
+      return;
+    }
+
+    if (method === 'turn/plan/updated') {
+      if (!turn) return;
+      turn.onEvent?.({
+        type: 'turn.plan.updated',
+        explanation: String(params.explanation || '').trim(),
+        plan: Array.isArray(params.plan) ? params.plan : [],
+      });
+      return;
+    }
+
+    if (method === 'item/started') {
+      if (!turn) return;
+      const item = normalizeThreadItem(params.item);
+      if (item) turn.onEvent?.({ type: 'item.started', item });
       return;
     }
 
@@ -358,7 +436,7 @@ export function createCodexAppServerRunner({
         if (isFinalAgentItem(item)) appendUnique(turn.finalAnswerMessages, text);
         else appendUnique(turn.messages, text);
       } else if (item.type === 'reasoning') {
-        appendUnique(turn.reasonings, text);
+        flushReasoningSummaries(turn, item.id, item);
       }
       turn.onEvent?.({ type: 'item.completed', item });
       return;
@@ -373,6 +451,7 @@ export function createCodexAppServerRunner({
       }
       const status = String(completed.status || '').trim();
       const ok = status === 'completed';
+      flushAllReasoningSummaries(turn);
       const buffered = [...turn.deltaByItemId.values()].join('').trim();
       if (!turn.finalAnswerMessages.length && buffered) {
         turn.finalAnswerMessages.push(buffered);
@@ -808,6 +887,7 @@ export function createCodexAppServerRunner({
         turnId: null,
         meta: {},
         deltaByItemId: new Map(),
+        reasoningSummaryByItemId: new Map(),
         timedOut: false,
         timeout: null,
       };
