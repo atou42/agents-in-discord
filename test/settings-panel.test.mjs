@@ -1,8 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 import { createSettingsPanel } from '../src/settings-panel.js';
-import { readCodexModelCatalog } from '../src/runtime-bootstrap.js';
+import { readCodexDefaults, readCodexModelCatalog, writeCodexDefaults } from '../src/runtime-bootstrap.js';
+import { createSessionSettings, normalizeSessionFastMode } from '../src/session-settings.js';
+import { createSessionCommandActions } from '../src/session-command-actions.js';
+import { createSessionStore } from '../src/session-store.js';
+import { createRunnerArgsBuilder } from '../src/runner-args.js';
+import { buildCodexLongConfig } from '../src/codex-app-server-runner.js';
+import { getSupportedReasoningEffortLevels } from '../src/provider-metadata.js';
 
 class FakeButtonBuilder {
   constructor() {
@@ -143,6 +152,7 @@ function createPanel({
   modelCatalog,
   getChannelState,
   safeChannelSend,
+  panelOptions = {},
 } = {}) {
   return createSettingsPanel({
     botProvider,
@@ -298,6 +308,7 @@ function createPanel({
     commandActions,
     openWorkspaceBrowser,
     slashRef: (base) => `/cx_${base}`,
+    ...panelOptions,
   });
 }
 
@@ -326,10 +337,253 @@ test('createSettingsPanel opens an overview payload with key channel settings', 
   assert.match(payload.content, /provider：`codex`/);
   assert.match(payload.content, /Codex profile：`work`（当前频道）/);
   assert.match(payload.content, /model：`gpt-5.4`/);
-  assert.equal(payload.components.length, 2);
+  assert.equal(payload.components.length, 5);
   assert.equal(payload.components[0].components[0].data.customId, 'stg:nav:section:picker:12345');
   assert.equal(payload.components[0].components[0].data.placeholder, '选择设置分区');
-  assert.equal(payload.components[1].components[0].data.label, '关闭');
+  assert.equal(payload.components.at(-1).components[0].data.label, '关闭');
+});
+
+test('settings overview edits the channel and stays aligned with model effort and fast sections', async () => {
+  const session = { provider: 'codex', language: 'en', model: 'gpt-5.4', effort: 'high', fastMode: true };
+  const writes = [];
+  const panel = createPanel({
+    session,
+    commandActions: {
+      setModel(current, value) { current.model = value === 'default' ? null : value; writes.push('model'); },
+      setReasoningEffort(current, value) { current.effort = value === 'default' ? null : value; writes.push('effort'); },
+      setFastMode(current, value) { current.fastMode = value; writes.push('fast'); },
+      setGlobalModelDefault() { assert.fail('overview must not write global defaults'); },
+      setGlobalReasoningEffortDefault() { assert.fail('overview must not write global defaults'); },
+      setGlobalFastModeDefault() { assert.fail('overview must not write global defaults'); },
+    },
+  });
+  const open = (activeSection = '') => panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345', activeSection });
+  let payload = open();
+  assert.match(payload.content, /Active: Overview/);
+  const interact = async (control, values) => {
+    await panel.handleSettingsPanelInteraction({
+      customId: control.data.customId, channelId: 'thread-1', user: { id: '12345' }, values,
+      async update(updated) { payload = updated; },
+      async reply(result) { assert.fail(result.content); },
+    });
+  };
+  await interact(payload.components[1].components[0], ['o3']);
+  assert.match(payload.content, /Active: Overview/);
+  assert.equal(session.model, 'o3');
+  assert.deepEqual(payload.components[2].components[0].data.options.map(o => o.value), ['low', 'medium', 'high', 'default']);
+  await interact(payload.components[2].components[0], ['medium']);
+  const off = payload.components.flatMap(row => row.components).find(c => c.data.customId.includes(':overview_fast:off:'));
+  await interact(off);
+  assert.deepEqual(writes, ['model', 'effort', 'fast']);
+  assert.match(payload.content, /Active: Overview/);
+  const overviewOptions = payload.components[1].components[0].data.options;
+  const modelPage = open('model');
+  assert.deepEqual(modelPage.components[1].components[0].data.options, overviewOptions);
+  const effortButtons = open('effort').components.flatMap(row => row.components).filter(c => c.data.customId.includes(':set:effort:'));
+  assert.deepEqual(effortButtons.map(c => c.data.label), ['low', 'medium', 'high', 'default']);
+  assert.equal(effortButtons.find(c => c.data.label === 'medium').data.style, ButtonStyle.Primary);
+  const fastPage = open('fast');
+  assert.equal(fastPage.components[1].components.find(c => c.data.customId.includes(':off:')).data.style, ButtonStyle.Primary);
+  await interact(fastPage.components[1].components.find(c => c.data.customId.includes(':on:')));
+  payload = open();
+  assert.equal(payload.components[3].components.find(c => c.data.customId.includes(':on:')).data.style, ButtonStyle.Primary);
+});
+
+test('settings overview and sections persist the same settings and forward them to both Codex runtimes', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-settings-roundtrip-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const env = { HOME: root };
+  writeCodexDefaults({ env, model: 'gpt-5.4', effort: 'high', fastMode: true });
+  const configPath = path.join(root, '.codex', 'config.toml');
+  const originalConfig = fs.readFileSync(configPath, 'utf8');
+  const storeOptions = {
+    dataFile: path.join(root, 'sessions.json'), workspaceRoot: root, botProvider: 'codex',
+    defaults: { provider: 'codex', mode: 'safe', language: 'en' },
+    normalizeProvider: value => value || 'codex', normalizeUiLanguage: value => value || 'en',
+    normalizeSessionSecurityProfile: value => value || null, normalizeSessionFastMode,
+    normalizeSessionTimeoutMs: value => value || null, normalizeSessionCompactStrategy: value => value || null,
+    normalizeSessionCompactEnabled: value => value ?? null, normalizeSessionCompactTokenLimit: value => value || null,
+    getSessionId: current => current.runnerSessionId || null,
+  };
+  const store = createSessionStore(storeOptions);
+  const session = store.getSession('thread-1', { parentChannelId: 'parent' });
+  const parent = store.getSession('parent');
+  const settings = createSessionSettings({
+    readCodexDefaults: () => readCodexDefaults({ env }),
+    getParentSession: current => current.parentChannelId ? store.getSession(current.parentChannelId) : null,
+  });
+  const actions = createSessionCommandActions({
+    saveDb: store.saveDb, resolveFastModeSetting: settings.resolveFastModeSetting,
+    writeCodexDefaults: options => writeCodexDefaults({ env, ...options }),
+  });
+  actions.setModel(parent, 'o3');
+  actions.setReasoningEffort(parent, 'medium');
+  actions.setFastMode(parent, false);
+  const panel = createPanel({ session, commandActions: actions, panelOptions: { ...settings, getSession: store.getSession } });
+  const open = (activeSection = '') => panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345', activeSection });
+  const controls = payload => payload.components.flatMap(row => row.components);
+  let payload = open();
+  assert.match(payload.content, /model: `o3` \(parent channel\)/);
+  assert.match(payload.content, /effort: `medium` \(parent channel\)/);
+  assert.match(payload.content, /fast mode: off \(parent channel\)/);
+  const interact = async (idPart, values) => {
+    const control = controls(payload).find(c => c.data.customId.includes(idPart));
+    assert.ok(control, idPart);
+    await panel.handleSettingsPanelInteraction({
+      customId: control.data.customId, channelId: 'thread-1', user: { id: '12345' }, values,
+      async update(updated) { payload = updated; }, async reply(result) { assert.fail(result.content); },
+    });
+  };
+  const assertEffective = (model, effort, tier) => {
+    const reopened = createSessionStore(storeOptions).getSession('thread-1');
+    assert.equal(settings.resolveModelSetting(reopened).value, model);
+    assert.equal(settings.resolveReasoningEffortSetting(reopened).value, effort);
+    for (const sessionId of [null, 'saved-native-thread']) {
+      const builder = createRunnerArgsBuilder({ ...settings, getSessionId: () => sessionId });
+      const args = builder.buildCodexArgs({ session: reopened, workspaceDir: root, prompt: 'test' });
+      assert.equal(args[args.indexOf('-m') + 1], model);
+      assert.ok(args.includes(`model_reasoning_effort="${effort}"`));
+      assert.ok(args.includes(`service_tier="${tier}"`));
+    }
+    const config = buildCodexLongConfig({ session: reopened, ...settings });
+    assert.equal(config.service_tier, tier);
+    assert.equal(fs.readFileSync(configPath, 'utf8'), originalConfig, 'channel settings must not change global defaults');
+    assert.equal(parent.model, 'o3');
+    assert.equal(parent.effort, 'medium');
+    assert.equal(parent.fastMode, false);
+  };
+  await interact(':overview_model:preset:', ['gpt-5.4']);
+  await interact(':overview_effort:preset:', ['high']);
+  await interact(':overview_fast:on:');
+  assertEffective('gpt-5.4', 'high', 'fast');
+  payload = open('model');
+  await interact(':set:model:preset:', ['o3']);
+  payload = open('effort');
+  await interact(':set:effort:low:');
+  payload = open('fast');
+  await interact(':set:fast:off:');
+  assertEffective('o3', 'low', 'default');
+  payload = open();
+  assert.equal(payload.components[1].components[0].data.options.find(o => o.default).value, 'o3');
+  assert.equal(payload.components[2].components[0].data.options.find(o => o.default).value, 'low');
+  await interact(':overview_model:preset:', ['default']);
+  await interact(':overview_effort:preset:', ['default']);
+  await interact(':overview_fast:follow:');
+  assertEffective('o3', 'medium', 'default');
+  assert.equal(session.model, null);
+  assert.equal(session.effort, null);
+  assert.equal(session.fastMode, null);
+});
+
+test('settings overview rejects stale owner mismatched empty and incompatible choices without saving', async () => {
+  const session = { provider: 'codex', language: 'en', model: 'o3', effort: 'high', fastMode: false };
+  let saves = 0;
+  const panel = createPanel({ session, commandActions: {
+    setModel() { saves++; }, setReasoningEffort() { saves++; }, setFastMode() { saves++; },
+  } });
+  const open = () => panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  const old = open();
+  const current = open();
+  for (const [control, values, userId, expected] of [
+    [old.components[1].components[0], ['gpt-5.4'], '12345', /expired/],
+    [old.components[3].components[1], undefined, '12345', /expired/],
+    [current.components[1].components[0], ['gpt-5.4'], '54321', /another user/],
+    [current.components[1].components[0], [], '12345', /No model selected/],
+    [current.components[2].components[0], [], '12345', /No effort selected/],
+    [current.components[2].components[0], ['xhigh'], '12345', /does not support/],
+  ]) {
+    let reply;
+    await panel.handleSettingsPanelInteraction({
+      customId: control.data.customId, channelId: 'thread-1', user: { id: userId }, values,
+      async update() { assert.fail('invalid action must not update'); }, async reply(value) { reply = value; },
+    });
+    assert.match(reply.content, expected);
+  }
+  assert.equal(saves, 0);
+});
+
+test('other provider panels persist aligned model effort and fast settings through runner arguments', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'provider-settings-roundtrip-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  for (const provider of ['claude', 'cursor', 'grok', 'antigravity', 'pi', 'omp']) {
+    const storeOptions = {
+      dataFile: path.join(root, `${provider}.json`), workspaceRoot: root, botProvider: provider,
+      defaults: { provider, mode: 'safe', language: 'en' },
+      normalizeProvider: value => value || provider, normalizeUiLanguage: value => value || 'en',
+      normalizeSessionSecurityProfile: value => value || null, normalizeSessionFastMode,
+      normalizeSessionTimeoutMs: value => value || null, normalizeSessionCompactStrategy: value => value || null,
+      normalizeSessionCompactEnabled: value => value ?? null, normalizeSessionCompactTokenLimit: value => value || null,
+      getSessionId: current => current.runnerSessionId || null,
+    };
+    const store = createSessionStore(storeOptions);
+    const session = store.getSession('thread-1', { parentChannelId: 'parent' });
+    const parent = store.getSession('parent');
+    const settings = createSessionSettings({
+      getParentSession: current => current.parentChannelId ? store.getSession(current.parentChannelId) : null,
+      readOmpDefaults: () => ({ serviceTier: 'flex' }),
+    });
+    const actions = createSessionCommandActions({ saveDb: store.saveDb, resolveFastModeSetting: settings.resolveFastModeSetting });
+    const supportsEffort = getSupportedReasoningEffortLevels(provider).length > 0;
+    actions.setModel(parent, 'parent-model');
+    if (supportsEffort) actions.setReasoningEffort(parent, 'medium');
+    if (provider === 'omp') actions.setFastMode(parent, true);
+    const panel = createPanel({
+      session, botProvider: provider, commandActions: actions,
+      modelCatalog: { models: [{ slug: 'parent-model' }, { slug: 'selected-model' }] },
+      panelOptions: { ...settings, getSession: store.getSession, getSupportedReasoningEffortLevels },
+    });
+    const open = activeSection => panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345', activeSection });
+    let payload = open('model');
+    const interact = async (idPart, values) => {
+      const control = payload.components.flatMap(row => row.components).find(c => c.data.customId.includes(idPart));
+      assert.ok(control, `${provider} ${idPart}`);
+      await panel.handleSettingsPanelInteraction({
+        customId: control.data.customId, channelId: 'thread-1', user: { id: '12345' }, values,
+        async update(next) { payload = next; }, async reply(result) { assert.fail(`${provider}: ${result.content}`); },
+      });
+    };
+    const assertEffective = (model, effort, tier) => {
+      const restored = createSessionStore(storeOptions).getSession('thread-1');
+      assert.equal(settings.resolveModelSetting(restored).value, model, provider);
+      if (supportsEffort) assert.equal(settings.resolveReasoningEffortSetting(restored).value, effort, provider);
+      const overview = open('overview');
+      assert.match(overview.content, new RegExp(`model: \x60${model}\x60`));
+      if (supportsEffort) assert.match(overview.content, new RegExp(`effort: \x60${effort}\x60`));
+      for (const sessionId of [null, 'saved-native-session']) {
+        const builder = createRunnerArgsBuilder({ ...settings, getSessionId: () => sessionId });
+        const args = builder.buildSessionRunnerArgs({ provider, session: restored, workspaceDir: root, prompt: 'test', promptFile: '/tmp/fixture-prompt.txt' });
+        assert.equal(args[args.indexOf('--model') + 1], model, provider);
+        if (supportsEffort) assert.equal(args[args.indexOf(['pi', 'omp'].includes(provider) ? '--thinking' : '--effort') + 1], effort, provider);
+        else assert.ok(!args.includes('--effort') && !args.includes('--thinking'));
+        if (provider === 'omp') assert.equal(args[args.indexOf('--service-tier') + 1], tier);
+      }
+      assert.equal(parent.model, 'parent-model');
+      if (supportsEffort) assert.equal(parent.effort, 'medium');
+    };
+    await interact(':model:preset:', ['selected-model']);
+    if (supportsEffort) {
+      await interact(':model_effort:high:');
+      payload = open('effort');
+      assert.ok(payload.components.flatMap(row => row.components).some(c => c.data.label === 'high' && c.data.style === 'primary'));
+      await interact(':effort:low:');
+    }
+    if (provider === 'omp') {
+      payload = open('fast');
+      await interact(':fast:off:');
+    }
+    assertEffective('selected-model', 'low', 'none');
+    payload = panel.openModelSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+    assert.equal(payload.components[0].components[0].data.options.find(option => option.default).value, 'selected-model');
+    await interact(':quick_model:preset:', ['default']);
+    if (supportsEffort) await interact(':quick_model_effort:default:');
+    if (provider === 'omp') {
+      payload = open('fast');
+      await interact(':fast:follow:');
+    }
+    assertEffective('parent-model', 'medium', 'priority');
+    assert.equal(session.model, null);
+    assert.equal(session.effort, null);
+  }
 });
 
 test('createSettingsPanel shows provider default instead of the Codex compact threshold for Grok', () => {
@@ -378,7 +632,7 @@ test('createSettingsPanel keeps provider button rows within Discord limits', () 
   assert.ok(payload.components.every((row) => row.components.length <= 5));
 });
 
-test('createSettingsPanel defaults to the global codex defaults section', () => {
+test('createSettingsPanel keeps global codex defaults in an explicit separate section', () => {
   const session = {
     provider: 'codex',
     language: 'zh',
@@ -390,11 +644,12 @@ test('createSettingsPanel defaults to the global codex defaults section', () => 
     key: 'thread-1',
     session,
     userId: '12345',
+    activeSection: 'defaults',
   });
 
-  assert.match(payload.content, /Codex 默认设置/);
+  assert.match(payload.content, /Codex 全局默认设置/);
   assert.match(payload.content, /作用域：`~\/.codex\/config\.toml`/);
-  assert.match(payload.content, /当前项：Codex 默认/);
+  assert.match(payload.content, /当前项：Codex 全局默认/);
   assert.match(payload.content, /model、effort 和 fast 直接在这里改/);
   assert.match(payload.content, /compact context 长度：272000（环境默认）/);
   assert.equal(payload.components.length, 5);
@@ -456,7 +711,7 @@ test('createSettingsPanel uses the Codex catalog for global model and effort def
     },
   });
 
-  const payload = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  const payload = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345', activeSection: 'defaults' });
 
   assert.equal(payload.components.length, 5);
   const modelSelect = payload.components[1].components[0];
@@ -667,7 +922,7 @@ test('createSettingsPanel shows Antigravity models from local catalog', () => {
     activeSection: 'model',
   });
 
-  assert.match(payload.content, /Antigravity 设置/);
+  assert.match(payload.content, /settings\.json/);
   const select = payload.components[1].components[0];
   assert.equal(select.data.placeholder, '当前模型：Claude Opus 4.6 (Thinking)');
   assert.deepEqual(select.data.options.map((option) => option.value), [
@@ -1707,6 +1962,88 @@ test('createSettingsPanel rejects a custom catalog model that conflicts with eff
   assert.match(replies[0].content, /Model `o3` does not support the current effort `xhigh`/);
 });
 
+test('settings use provider effort levels when the catalog does not specify them', async () => {
+  for (const provider of ['claude', 'grok', 'pi', 'omp']) {
+    const session = { provider, language: 'en', model: 'model-a', effort: 'high' };
+    const actions = createSessionCommandActions({ saveDb() {} });
+    const panel = createPanel({
+      session, commandActions: actions,
+      modelCatalog: { models: [{ slug: 'model-a' }, { slug: 'model-b', supportedReasoningLevels: [] }] },
+      panelOptions: { getSupportedReasoningEffortLevels },
+    });
+    let payload = panel.openModelSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+    const interact = async (idPart, values) => {
+      const control = payload.components.flatMap(row => row.components).find(c => c.data.customId.includes(idPart));
+      assert.ok(control, `${provider} ${idPart}`);
+      await panel.handleSettingsPanelInteraction({
+        customId: control.data.customId, channelId: 'thread-1', user: { id: '12345' }, values,
+        async update(next) { payload = next; }, async reply(result) { assert.fail(`${provider}: ${result.content}`); },
+      });
+    };
+    await interact(':quick_model:preset:', ['model-b']);
+    await interact(':quick_model_effort:low:');
+    assert.equal(session.model, 'model-b');
+    assert.equal(session.effort, 'low');
+    const effortPanel = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345', activeSection: 'effort' });
+    assert.ok(effortPanel.components.flatMap(row => row.components).some(c => c.data.label === 'low' && c.data.style === 'primary'));
+  }
+});
+
+test('Cursor does not expose ineffective effort controls from model catalog metadata', async () => {
+  const session = { provider: 'cursor', language: 'en', model: 'claude-fable-5-1[context=300k,effort=high]' };
+  const panel = createPanel({
+    session,
+    modelCatalog: { models: [{ slug: session.model, supportedReasoningLevels: ['high'] }] },
+    panelOptions: { getSupportedReasoningEffortLevels },
+    commandActions: { setReasoningEffort() { assert.fail('unsupported effort must not be saved'); } },
+  });
+  for (const payload of [
+    panel.openModelSettingsPanel({ key: 'thread-1', session, userId: '12345' }),
+    panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345', activeSection: 'model' }),
+  ]) {
+    assert.ok(!payload.components.flatMap(row => row.components).some(c => c.data.customId?.includes('model_effort')));
+    assert.match(payload.content, /effort: .*not exposed/);
+  }
+  let response;
+  await panel.handleSettingsPanelInteraction({
+    customId: 'stg:set:effort:high:12345', channelId: 'thread-1', user: { id: '12345' },
+    async reply(result) { response = result; }, async update() { assert.fail('unsupported effort must not succeed'); },
+  });
+  assert.match(response.content, /not .*support|not .*expose/i);
+});
+
+test('unknown catalog effort metadata still rejects invalid explicit effort values', async () => {
+  const session = { provider: 'claude', language: 'en', model: 'custom-model', effort: 'high' };
+  const replies = [];
+  const panel = createPanel({
+    session, modelCatalog: { models: [{ slug: session.model, supportedReasoningLevels: [] }] },
+    panelOptions: { getSupportedReasoningEffortLevels },
+    commandActions: { setReasoningEffort() { assert.fail('invalid effort must not be saved'); } },
+  });
+  await panel.handleSettingsPanelInteraction({
+    customId: 'stg:set:effort:invalid:12345', channelId: 'thread-1', user: { id: '12345' },
+    async reply(payload) { replies.push(payload); }, async update() { assert.fail('invalid effort must not succeed'); },
+  });
+  assert.match(replies[0].content, /does not support.*invalid/);
+  assert.equal(session.effort, 'high');
+});
+
+test('ZCode model panels do not offer unsupported channel overrides or display them as effective', () => {
+  const session = { provider: 'zcode', language: 'en', model: 'ignored-old-model' };
+  const settings = createSessionSettings();
+  const panel = createPanel({ session, panelOptions: { ...settings, getSupportedReasoningEffortLevels } });
+  for (const payload of [
+    panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345' }),
+    panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345', activeSection: 'model' }),
+    panel.openModelSettingsPanel({ key: 'thread-1', session, userId: '12345' }),
+  ]) {
+    assert.doesNotMatch(payload.content, /ignored-old-model/);
+    assert.match(payload.content, /native session/i);
+    assert.ok(!payload.components.flatMap(row => row.components).some(c => /:(preset|custom|search|default):/.test(c.data.customId)));
+  }
+  assert.equal(session.model, 'ignored-old-model', 'rendering must not rewrite stored data');
+});
+
 test('createSettingsPanel reads Claude model catalog and keeps custom model control', () => {
   const session = {
     provider: 'claude',
@@ -1953,7 +2290,7 @@ test('createSettingsPanel opens a global default model modal from the defaults s
   };
   const modals = [];
   const panel = createPanel({ session });
-  const opened = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  const opened = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345', activeSection: 'defaults' });
   const customModelButton = opened.components[3].components[1];
 
   await panel.handleSettingsPanelInteraction({
@@ -2015,7 +2352,7 @@ test('createSettingsPanel switches the global model default and refreshes its ef
       },
     },
   });
-  const opened = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  const opened = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345', activeSection: 'defaults' });
   const oldGeneration = opened.components[1].components[0].data.customId.split(':').at(-1);
 
   await panel.handleSettingsPanelInteraction({
@@ -2077,7 +2414,7 @@ test('createSettingsPanel rejects an incompatible global model before writing co
       },
     },
   });
-  const opened = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  const opened = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345', activeSection: 'defaults' });
 
   await panel.handleSettingsPanelInteraction({
     customId: opened.components[1].components[0].data.customId,
@@ -2125,7 +2462,7 @@ test('createSettingsPanel rejects an incompatible global effort before writing c
       },
     },
   });
-  const opened = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  const opened = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345', activeSection: 'defaults' });
   const generation = opened.components[2].components[0].data.customId.split(':').at(-1);
 
   await panel.handleSettingsPanelInteraction({
@@ -2166,8 +2503,8 @@ test('createSettingsPanel expires older global model controls in the same channe
       },
     },
   });
-  const older = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345' });
-  panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  const older = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345', activeSection: 'defaults' });
+  panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345', activeSection: 'defaults' });
 
   await panel.handleSettingsPanelInteraction({
     customId: older.components[1].components[0].data.customId,
@@ -2219,7 +2556,7 @@ test('createSettingsPanel expires a global model modal and validates it before w
       },
     },
   });
-  const opened = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  const opened = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345', activeSection: 'defaults' });
   await panel.handleSettingsPanelInteraction({
     customId: opened.components[3].components[1].data.customId,
     channelId: 'thread-1',
@@ -2231,7 +2568,7 @@ test('createSettingsPanel expires a global model modal and validates it before w
       throw new Error('should not reply');
     },
   });
-  panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345', activeSection: 'defaults' });
 
   await panel.handleSettingsPanelModalSubmit({
     customId: modals[0].data.customId,
@@ -2250,7 +2587,7 @@ test('createSettingsPanel expires a global model modal and validates it before w
   assert.equal(writes, 0);
   assert.match(replies[0].content, /expired/);
 
-  const current = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  const current = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345', activeSection: 'defaults' });
   const currentGeneration = current.components[1].components[0].data.customId.split(':').at(-1);
   await panel.handleSettingsPanelModalSubmit({
     customId: `stgm:default_model:12345:${currentGeneration}`,
@@ -2611,7 +2948,7 @@ test('createSettingsPanel updates global effort defaults through button interact
       },
     },
   });
-  const opened = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  const opened = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345', activeSection: 'defaults' });
 
   await panel.handleSettingsPanelInteraction({
     customId: opened.components[2].components[0].data.customId,
@@ -2631,7 +2968,7 @@ test('createSettingsPanel updates global effort defaults through button interact
 
   assert.equal(session.globalDefaultEffort, 'xhigh');
   assert.equal(updates.length, 1);
-  assert.match(updates[0].content, /当前项：Codex 默认/);
+  assert.match(updates[0].content, /当前项：Codex 全局默认/);
   assert.match(updates[0].content, /effort 默认：`xhigh`（全局配置）/);
 });
 

@@ -1,5 +1,10 @@
 import fs from 'node:fs';
 import {
+  formatModelSelectionUnsupported,
+  getSupportedReasoningEffortLevels,
+  providerSupportsModelSelection,
+} from './provider-metadata.js';
+import {
   getActionButtonCommandNames,
   normalizeCommandName,
 } from './command-spec.js';
@@ -515,6 +520,15 @@ export function createSlashCommandRouter({
         content: language === 'en' ? '❌ Model settings panel is unavailable.' : '❌ 当前环境没有可用的 model 设置面板。',
         flags: 64,
       });
+      return;
+    }
+
+    if (name && name.trim().toLowerCase() !== 'default' && !providerSupportsModelSelection(provider)) {
+      await respond({ content: formatModelSelectionUnsupported(provider, language), flags: 64 });
+      return;
+    }
+    if (effort && effort !== 'default' && !getSupportedReasoningEffortLevels(provider).length) {
+      await respond({ content: formatReasoningEffortUnsupported(provider, language), flags: 64 });
       return;
     }
 

@@ -50,6 +50,21 @@ test('createSessionCommandActions.setProvider clears bound session and persists'
   assert.equal(saveCount, 1);
 });
 
+test('session commands reject unsupported model and effort overrides without saving', () => {
+  let saves = 0;
+  const actions = createSessionCommandActions({ saveDb() { saves += 1; }, getSessionLanguage: () => 'en' });
+  const session = { provider: 'zcode', model: 'old-value', effort: null };
+  assert.throws(() => actions.setModel(session, 'new-model'), /ZCode.*not .*support/i);
+  assert.equal(session.model, 'old-value');
+  for (const provider of ['cursor', 'antigravity', 'zcode']) {
+    assert.throws(() => actions.setReasoningEffort({ provider }, 'high'), /effort/i);
+  }
+  assert.equal(saves, 0);
+  actions.setModel(session, 'default');
+  assert.equal(session.model, null);
+  assert.equal(saves, 1);
+});
+
 test('createSessionCommandActions updates extra info settings', () => {
   let saveCount = 0;
   const actions = createSessionCommandActions({

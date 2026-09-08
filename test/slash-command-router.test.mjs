@@ -360,6 +360,24 @@ test('createSlashCommandRouter model command can update model and effort togethe
   assert.deepEqual(state.getCloseRuntimeCalls(), [{ key: 'channel-1', reason: 'runtime config changed' }]);
 });
 
+test('model slash commands reject unsupported overrides before changing either setting', async () => {
+  for (const provider of ['cursor', 'zcode']) {
+    const state = createRouterState({
+      getModelCatalog: () => ({ models: [{ slug: 'new-model', supportedReasoningLevels: ['high'] }] }),
+      formatReasoningEffortUnsupported: () => 'effort not supported',
+    });
+    Object.assign(state.session, { provider, language: 'en', model: 'original-model' });
+    await state.router({
+      interaction: createInteraction('cx_model', { name: 'new-model', effort: 'high' }),
+      commandName: 'model', respond: async payload => state.replies.push(payload),
+    });
+    assert.equal(state.session.model, 'original-model', provider);
+    assert.equal(state.session.effort, undefined);
+    assert.match(state.replies[0].content, /not .*support/i);
+    assert.deepEqual(state.getCloseRuntimeCalls(), []);
+  }
+});
+
 test('createSlashCommandRouter rejects a catalog model and effort combination the model does not support', async () => {
   const state = createRouterState({
     getModelCatalog: () => ({

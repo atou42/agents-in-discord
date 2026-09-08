@@ -48,6 +48,8 @@ test('createRunnerExecutor builds Antigravity args instead of codex args', () =>
     '--dangerously-skip-permissions',
     '--conversation',
     'sess-agy-1',
+    '--model',
+    'Claude Opus 4.6 (Thinking)',
     '--prompt',
     'summarize the repo',
   ]);
@@ -754,13 +756,13 @@ test('createRunnerExecutor rejects malformed ZCode JSON even when the process ex
   assert.deepEqual(result.finalAnswerMessages, []);
 });
 
-test('createRunnerExecutor applies Antigravity model setting before spawning', async () => {
+test('createRunnerExecutor passes Antigravity model without mutating provider defaults', async () => {
   const child = new EventEmitter();
   child.stdout = new EventEmitter();
   child.stderr = new EventEmitter();
   child.killed = false;
   const applied = [];
-  let spawned = false;
+  let spawnArgs;
 
   const executor = createRunnerExecutor({
     spawnEnv: process.env,
@@ -776,7 +778,6 @@ test('createRunnerExecutor applies Antigravity model setting before spawning', a
     resolveCompactEnabledSetting: () => ({ enabled: false }),
     resolveNativeCompactTokenLimitSetting: () => ({ tokens: 0 }),
     applyProviderModelSetting(input) {
-      assert.equal(spawned, false);
       applied.push(input);
     },
     normalizeTimeoutMs: (value) => Number(value || 0),
@@ -786,8 +787,8 @@ test('createRunnerExecutor applies Antigravity model setting before spawning', a
     extractAgentMessageText,
     isFinalAnswerLikeAgentMessage,
     readAntigravitySessionState: () => null,
-    spawnFn: () => {
-      spawned = true;
+    spawnFn: (_bin, args) => {
+      spawnArgs = args;
       setImmediate(() => {
         child.stdout.emit('data', Buffer.from('done\n'));
         child.emit('close', 0, null);
@@ -803,9 +804,8 @@ test('createRunnerExecutor applies Antigravity model setting before spawning', a
   });
 
   assert.equal(result.ok, true);
-  assert.equal(applied.length, 1);
-  assert.equal(applied[0].provider, 'antigravity');
-  assert.equal(applied[0].modelSetting.value, 'Claude Opus 4.6 (Thinking)');
+  assert.equal(applied.length, 0, 'a channel setting must not rewrite settings.json');
+  assert.equal(spawnArgs[spawnArgs.indexOf('--model') + 1], 'Claude Opus 4.6 (Thinking)');
 });
 
 test('createRunnerExecutor routes Claude long runtime to the hot-session runner', async () => {

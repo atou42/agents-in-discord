@@ -1,6 +1,12 @@
 import fs from 'node:fs';
 
-import { providerRequiresWorkspaceBoundSession } from './provider-metadata.js';
+import {
+  formatModelSelectionUnsupported,
+  formatReasoningEffortUnsupported,
+  getSupportedReasoningEffortLevels,
+  providerRequiresWorkspaceBoundSession,
+  providerSupportsModelSelection,
+} from './provider-metadata.js';
 import { switchSessionProviderState } from './session-provider-state.js';
 import { normalizeSessionModeOverride } from './session-mode.js';
 
@@ -190,7 +196,12 @@ export function createSessionCommandActions({
   }
 
   function setModel(session, name) {
-    session.model = normalizeOptionalOverride(name);
+    const model = normalizeOptionalOverride(name);
+    const provider = getSessionProvider?.(session) || session?.provider;
+    if (model && !providerSupportsModelSelection(provider)) {
+      throw new Error(formatModelSelectionUnsupported(provider, getSessionLanguage(session)));
+    }
+    session.model = model;
     saveDb();
     return { model: session.model };
   }
@@ -202,7 +213,12 @@ export function createSessionCommandActions({
   }
 
   function setReasoningEffort(session, effort) {
-    session.effort = normalizeOptionalEffortOverride(effort);
+    const value = normalizeOptionalEffortOverride(effort);
+    const provider = getSessionProvider?.(session) || session?.provider;
+    if (value && !getSupportedReasoningEffortLevels(provider).length) {
+      throw new Error(formatReasoningEffortUnsupported(provider, getSessionLanguage(session)));
+    }
+    session.effort = value;
     saveDb();
     return { effort: session.effort };
   }

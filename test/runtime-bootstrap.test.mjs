@@ -79,7 +79,7 @@ function makeTempRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'agents-in-discord-runtime-bootstrap-'));
 }
 
-test('readCodexDefaults reads model reasoning effort and keeps fast mode on by default', () => {
+test('readCodexDefaults reads the actual service tier rather than fast feature availability', () => {
   const rootDir = makeTempRoot();
   const homeDir = path.join(rootDir, 'home');
   const configDir = path.join(homeDir, '.codex');
@@ -95,8 +95,9 @@ test('readCodexDefaults reads model reasoning effort and keeps fast mode on by d
     modelConfigured: true,
     effort: 'high',
     effortConfigured: true,
-    fastMode: true,
-    fastModeConfigured: true,
+    fastMode: false,
+    fastModeConfigured: false,
+    serviceTier: null,
   });
 
   fs.writeFileSync(
@@ -108,8 +109,9 @@ test('readCodexDefaults reads model reasoning effort and keeps fast mode on by d
     modelConfigured: true,
     effort: 'high',
     effortConfigured: true,
-    fastMode: true,
+    fastMode: false,
     fastModeConfigured: false,
+    serviceTier: null,
   });
 
   fs.writeFileSync(
@@ -122,7 +124,8 @@ test('readCodexDefaults reads model reasoning effort and keeps fast mode on by d
     effort: 'high',
     effortConfigured: true,
     fastMode: false,
-    fastModeConfigured: true,
+    fastModeConfigured: false,
+    serviceTier: null,
   });
 
   assert.deepEqual(readCodexDefaults({ env: { HOME: path.join(rootDir, 'missing') } }), {
@@ -130,8 +133,9 @@ test('readCodexDefaults reads model reasoning effort and keeps fast mode on by d
     modelConfigured: false,
     effort: null,
     effortConfigured: false,
-    fastMode: true,
+    fastMode: false,
     fastModeConfigured: false,
+    serviceTier: null,
   });
 });
 
@@ -166,11 +170,13 @@ test('writeCodexDefaults updates codex config defaults and can clear back to bui
     effortConfigured: true,
     fastMode: true,
     fastModeConfigured: true,
+    serviceTier: 'fast',
   });
   assert.match(fs.readFileSync(configPath, 'utf-8'), /^model = "gpt-5\.4"$/m);
   assert.match(fs.readFileSync(configPath, 'utf-8'), /^model_reasoning_effort = "xhigh"$/m);
   assert.match(fs.readFileSync(configPath, 'utf-8'), /^\[features\]$/m);
-  assert.match(fs.readFileSync(configPath, 'utf-8'), /^fast_mode = true$/m);
+  assert.match(fs.readFileSync(configPath, 'utf-8'), /^service_tier = "fast"$/m);
+  assert.match(fs.readFileSync(configPath, 'utf-8'), /^fast_mode = false$/m);
 
   defaults = writeCodexDefaults({
     env: { HOME: homeDir },
@@ -184,13 +190,15 @@ test('writeCodexDefaults updates codex config defaults and can clear back to bui
     modelConfigured: false,
     effort: null,
     effortConfigured: false,
-    fastMode: true,
+    fastMode: false,
     fastModeConfigured: false,
+    serviceTier: null,
   });
   const raw = fs.readFileSync(configPath, 'utf-8');
   assert.doesNotMatch(raw, /^model = /m);
   assert.doesNotMatch(raw, /^model_reasoning_effort = /m);
-  assert.doesNotMatch(raw, /^fast_mode = /m);
+  assert.doesNotMatch(raw, /^service_tier = /m);
+  assert.match(raw, /^fast_mode = false$/m);
   assert.match(raw, /^\[features\]$/m);
 });
 
@@ -212,13 +220,74 @@ test('writeCodexDefaults trims string inputs and clears blank string values', ()
     modelConfigured: true,
     effort: null,
     effortConfigured: false,
-    fastMode: true,
+    fastMode: false,
     fastModeConfigured: false,
+    serviceTier: null,
   });
 
   const raw = fs.readFileSync(configPath, 'utf-8');
   assert.match(raw, /^model = "gpt-5\.4"$/m);
   assert.doesNotMatch(raw, /^model_reasoning_effort = /m);
+});
+
+test('Codex defaults respect TOML scope and preserve profiles while switching the service tier', (t) => {
+  const root = makeTempRoot();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const env = { HOME: root };
+  const configPath = path.join(root, '.codex', 'config.toml');
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  const suffix = [
+    '[profiles.work] # profile defaults must stay separate',
+    'model = "profile-model"', 'model_reasoning_effort = "ultra"', 'service_tier = "fast"',
+    '[features]', 'fast_mode = true',
+  ].join('\n');
+  fs.writeFileSync(configPath, `model = 'global-model'\nservice_tier = 'priority'\n${suffix}\n`);
+  assert.deepEqual(readCodexDefaults({ env }), {
+    model: 'global-model', modelConfigured: true, effort: null, effortConfigured: false,
+    fastMode: true, fastModeConfigured: true, serviceTier: 'priority',
+  });
+  const result = writeCodexDefaults({ env, fastMode: false, effort: 'high' });
+  assert.equal(result.serviceTier, 'default');
+  assert.equal(result.fastMode, false);
+  assert.equal(result.effort, 'high');
+  assert.ok(fs.readFileSync(configPath, 'utf8').includes(suffix));
+  const inherited = writeCodexDefaults({ env, model: null, effort: null, fastMode: null });
+  assert.equal(inherited.model, null);
+  assert.equal(inherited.effort, null);
+  assert.equal(inherited.serviceTier, null);
+  assert.equal(inherited.fastMode, false);
+});
+
+test('Codex defaults never replace corrupt unreadable or wrongly typed config with defaults', (t) => {
+  const root = makeTempRoot();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const env = { HOME: root };
+  const configPath = path.join(root, '.codex', 'config.toml');
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  for (const raw of ['model = "broken', 'model = 42', 'service_tier = true', 'model_reasoning_effort = ""']) {
+    fs.writeFileSync(configPath, raw);
+    assert.throws(() => readCodexDefaults({ env }));
+    assert.throws(() => writeCodexDefaults({ env, fastMode: true }));
+    assert.equal(fs.readFileSync(configPath, 'utf8'), raw);
+  }
+  fs.rmSync(configPath);
+  fs.mkdirSync(configPath);
+  assert.throws(() => readCodexDefaults({ env }), /EISDIR/);
+  assert.throws(() => writeCodexDefaults({ env, fastMode: true }), /EISDIR/);
+  assert.ok(fs.statSync(configPath).isDirectory());
+});
+
+test('Codex default edits preserve blank lines inside unrelated multiline instructions', (t) => {
+  const root = makeTempRoot();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const env = { HOME: root };
+  const configPath = path.join(root, '.codex', 'config.toml');
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  const instructions = 'developer_instructions = """\nFirst line\n\n\nLast line\n"""';
+  fs.writeFileSync(configPath, `model = "gpt-5.4"\n${instructions}\n[features]\nfast_mode = true\n`);
+  const result = writeCodexDefaults({ env, model: 'o3', effort: 'high', fastMode: false });
+  assert.equal(result.model, 'o3');
+  assert.ok(fs.readFileSync(configPath, 'utf8').includes(instructions));
 });
 
 test('readCodexProfileCatalog reads named codex profiles from config.toml', () => {

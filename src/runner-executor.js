@@ -41,7 +41,6 @@ export function createRunnerExecutor({
   resolveCompactEnabledSetting,
   resolveNativeCompactTokenLimitSetting,
   resolveRuntimeModeSetting = () => ({ mode: 'normal', supported: false, source: 'provider unsupported' }),
-  applyProviderModelSetting = async () => {},
   normalizeTimeoutMs,
   safeError,
   stopChildProcess,
@@ -218,14 +217,6 @@ export function createRunnerExecutor({
     }
 
     const normalizedProvider = normalizeProvider(provider);
-    if (normalizedProvider === 'antigravity') {
-      const modelSetting = resolveModelSetting(session);
-      const modelValue = String(modelSetting?.value || '').trim();
-      if (modelValue && modelSetting?.source !== 'settings.json') {
-        await applyProviderModelSetting({ provider: normalizedProvider, session, modelSetting });
-      }
-    }
-
     const grokPrompt = normalizedProvider === 'grok'
       ? await stageGrokPromptFileFn({ prompt, inputImages })
       : null;

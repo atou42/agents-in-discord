@@ -6,6 +6,8 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 import { buildCodexLongConfig, createCodexAppServerRunner } from '../src/codex-app-server-runner.js';
 import { CODEX_GOAL_CONTINUATION_PROMPT } from '../src/codex-goal-flow.js';
+import { createSessionSettings } from '../src/session-settings.js';
+import { createSessionCommandActions } from '../src/session-command-actions.js';
 
 function waitFor(check, { timeoutMs = 1000, intervalMs = 10 } = {}) {
   return new Promise((resolve, reject) => {
@@ -133,6 +135,48 @@ test('buildCodexLongConfig pins openai-curated marketplace to local cache when p
     if (previous === undefined) delete process.env.CODEX_OPENAI_CURATED_MARKETPLACE_SOURCE;
     else process.env.CODEX_OPENAI_CURATED_MARKETPLACE_SOURCE = previous;
   }
+});
+
+test('Codex long runner refreshes saved model effort and actual fast tier on resumed turns', async (t) => {
+  const fakes = [];
+  const settings = createSessionSettings();
+  const session = { provider: 'codex', mode: 'safe', runnerSessionId: 'existing-thread' };
+  const actions = createSessionCommandActions({ saveDb() {}, resolveFastModeSetting: settings.resolveFastModeSetting });
+  const runner = createCodexAppServerRunner({
+    ...settings,
+    getSessionId: current => current.runnerSessionId,
+    idleMs: 0,
+    log() {},
+    spawnFn(...args) {
+      const fake = createFakeAppServerSpawn();
+      fakes.push(fake);
+      return fake.spawnFn(...args);
+    },
+  });
+  t.after(() => runner.closeAll('test done'));
+  for (const [model, effort, enabled, tier] of [
+    ['gpt-6-astra', 'max', true, 'fast'],
+    ['gpt-5.6-luna', 'high', false, 'default'],
+    ['gpt-5.6-sol', 'ultra', null, 'default'],
+  ]) {
+    actions.setModel(session, model);
+    actions.setReasoningEffort(session, effort);
+    actions.setFastMode(session, enabled);
+    const result = await runner.runTask({ session, sessionKey: 'channel-1', workspaceDir: '/tmp', prompt: 'test' });
+    assert.equal(result.ok, true);
+    const requests = fakes.at(-1).writes.map(line => JSON.parse(line));
+    const resume = requests.find(r => r.method === 'thread/resume').params;
+    const turn = requests.find(r => r.method === 'turn/start').params;
+    assert.equal(resume.model, model);
+    assert.equal(resume.serviceTier, tier);
+    assert.equal(resume.config.service_tier, tier);
+    assert.equal(resume.config.features.fast_mode, true);
+    assert.equal(turn.model, model);
+    assert.equal(turn.effort, effort);
+    assert.equal(turn.serviceTier, tier);
+    assert.equal(session.runnerSessionId, 'existing-thread');
+  }
+  assert.equal(fakes.length, 3, 'changed settings must replace the previous hot configuration');
 });
 
 test('buildCodexLongConfig forwards the configured model context window with native compaction', () => {

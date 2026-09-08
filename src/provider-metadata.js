@@ -107,6 +107,7 @@ const PROVIDER_METADATA = Object.freeze({
     binEnvName: 'ZCODE_BIN',
     defaultSlashPrefix: 'zc',
     capabilities: Object.freeze({
+      modelSelection: false,
       reasoningEffortLevels: Object.freeze([]),
       rawConfigOverrides: Object.freeze({
         supported: false,
@@ -336,6 +337,17 @@ export function formatWorkspaceSessionResetReason(provider, language = 'en') {
 
 export function getSupportedReasoningEffortLevels(provider) {
   return [...getProviderCapabilities(provider).reasoningEffortLevels];
+}
+
+export function providerSupportsModelSelection(provider) {
+  return getProviderCapabilities(provider).modelSelection !== false;
+}
+
+export function formatModelSelectionUnsupported(provider, language = 'en') {
+  const name = getProviderDisplayName(provider);
+  return language === 'en'
+    ? `${name} headless mode does not support channel model overrides. The model is managed by the native session.`
+    : `${name} headless 模式不支持频道模型覆盖，模型由原生会话管理。`;
 }
 
 export function isReasoningEffortSupported(provider, effort) {

@@ -1,4 +1,9 @@
 import { randomBytes } from 'node:crypto';
+import {
+  formatModelSelectionUnsupported,
+  formatReasoningEffortUnsupported,
+  providerSupportsModelSelection,
+} from './provider-metadata.js';
 
 import {
   formatBusyPromptModeLabel,
@@ -14,6 +19,11 @@ const MODEL_INPUT_ID = 'model_name';
 const MODEL_SEARCH_INPUT_ID = 'model_search_query';
 const CODEX_PROFILE_INPUT_ID = 'codex_profile_name';
 const COMPACT_THRESHOLD_INPUT_ID = 'compact_threshold_tokens';
+const OVERVIEW_SETTING_TARGETS = Object.freeze({
+  overview_model: 'model',
+  overview_effort: 'effort',
+  overview_fast: 'fast',
+});
 
 const ALL_SECTIONS = Object.freeze([
   'overview',
@@ -46,7 +56,7 @@ function formatSettingSourceLabel(source, language) {
     if (value === 'session override') return 'this channel';
     if (value === 'parent channel') return 'parent channel';
     if (value === 'config.toml') return 'global config';
-    if (value === 'settings.json') return 'Antigravity settings';
+    if (value === 'settings.json') return 'settings.json';
     if (value === 'built-in default') return 'built-in default';
     if (value === 'env default') return 'env default';
     if (value === 'provider env') return 'provider env';
@@ -63,7 +73,8 @@ function formatSettingSourceLabel(source, language) {
   if (value === 'session override') return '当前频道';
   if (value === 'parent channel') return '父频道默认';
   if (value === 'config.toml') return '全局配置';
-  if (value === 'settings.json') return 'Antigravity 设置';
+  if (value === 'settings.json') return 'settings.json';
+  if (value === 'native session') return '原生会话';
   if (value === 'built-in default') return '内建默认';
   if (value === 'env default') return '环境默认';
   if (value === 'provider env') return 'provider 环境配置';
@@ -147,7 +158,7 @@ function formatCodexGlobalStringDefault(value, configured, language) {
 function formatSectionButtonLabel(section, language) {
   const labels = {
     overview: { en: 'overview', zh: '总览' },
-    defaults: { en: 'defaults', zh: '默认' },
+    defaults: { en: 'global defaults', zh: '全局默认' },
     provider: { en: 'provider', zh: '后端' },
     profile: { en: 'profile', zh: '配置' },
     model: { en: 'model', zh: '模型' },
@@ -167,7 +178,7 @@ function formatSectionButtonLabel(section, language) {
 function formatSectionTitleLabel(section, language) {
   const labels = {
     overview: { en: 'Overview', zh: '总览' },
-    defaults: { en: 'Codex Defaults', zh: 'Codex 默认' },
+    defaults: { en: 'Global Codex Defaults', zh: 'Codex 全局默认' },
     provider: { en: 'Provider', zh: 'Provider' },
     profile: { en: 'Codex Profile', zh: 'Codex Profile' },
     model: { en: 'Model', zh: '模型' },
@@ -393,6 +404,7 @@ function findCatalogModel(modelCatalog, modelName) {
 }
 
 function resolveModelEffortLevels(snapshot, session, modelName = '') {
+  if (!snapshot.effortLevels.length) return [];
   const effectiveModel = String(modelName || session?.model || snapshot.modelValue || '').trim();
   const catalogModel = findCatalogModel(snapshot.modelCatalog, effectiveModel);
   return catalogModel?.supportedReasoningLevels.length
@@ -503,7 +515,7 @@ export function createSettingsPanel({
     const model = resolveRequestedModel(key, session, requestedModel);
     const catalogModel = findCatalogModel(snapshot.modelCatalog, model);
     const effort = normalizeResolvedEffort(snapshot.effortValue);
-    if (!catalogModel || !effort || catalogModel.supportedReasoningLevels.includes(effort)) return null;
+    if (!catalogModel?.supportedReasoningLevels.length || !effort || catalogModel.supportedReasoningLevels.includes(effort)) return null;
     return { model, effort };
   };
   const findEffortConflict = (key, session, requestedEffort) => {
@@ -515,7 +527,8 @@ export function createSettingsPanel({
     const model = String(snapshot.modelValue || candidate.model || '').trim();
     const catalogModel = findCatalogModel(snapshot.modelCatalog, model);
     const effort = normalizeResolvedEffort(snapshot.effortValue);
-    if (!catalogModel || !effort || catalogModel.supportedReasoningLevels.includes(effort)) return null;
+    if (requestedEffort !== 'default' && !snapshot.modelEffortLevels.includes(effort)) return { model, effort };
+    if (!catalogModel?.supportedReasoningLevels.length || !effort || catalogModel.supportedReasoningLevels.includes(effort)) return null;
     return { model, effort };
   };
   const findGlobalModelEffortConflict = (key, session, requestedModel) => {
@@ -582,10 +595,6 @@ export function createSettingsPanel({
   function resolveActiveSection(session, requested) {
     const normalized = normalizeSection(requested);
     return getAvailableSections(session).includes(normalized) ? normalized : 'overview';
-  }
-
-  function resolveDefaultSection(session) {
-    return getSessionProvider(session) === 'codex' ? 'defaults' : 'overview';
   }
 
   function buildSnapshot(key, session) {
@@ -668,20 +677,55 @@ export function createSettingsPanel({
     );
   }
 
+  function buildModelSelectRow(session, userId, snapshot, { target = 'model', generation = '', modelQuery = '' } = {}) {
+    const modelOptions = buildModelSelectOptions(snapshot, session, { query: modelQuery });
+    return new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(buildSettingsComponentId('set', target, 'preset', userId, generation))
+        .setPlaceholder(snapshot.language === 'en'
+          ? `Current model: ${snapshot.modelValue || '(provider default)'}`
+          : `当前模型：${snapshot.modelValue || 'provider 默认'}`)
+        .addOptions(modelOptions),
+    );
+  }
+
+  function buildEffortOptions(session, snapshot) {
+    return [...snapshot.modelEffortLevels, 'default'].map((value) => ({
+      label: value,
+      value,
+      default: value === 'default' ? !session?.effort : session?.effort === value,
+    }));
+  }
+
+  function buildFastControlRows(userId, snapshot, { target = 'fast', generation = '' } = {}) {
+    const selected = snapshot.fastMode.source === 'session override'
+      ? (snapshot.fastMode.enabled ? 'on' : 'off')
+      : 'follow';
+    const followLabel = snapshot.provider === 'omp'
+      ? (snapshot.isThread
+        ? (snapshot.language === 'en' ? 'Follow parent/OMP default' : '跟随父频道/OMP 默认')
+        : (snapshot.language === 'en' ? 'Follow OMP default' : '跟随 OMP 默认'))
+      : (snapshot.isThread
+        ? (snapshot.language === 'en' ? 'Follow parent/global' : '跟随父频道/全局')
+        : (snapshot.language === 'en' ? 'Follow global' : '跟随全局'));
+    const labels = {
+      follow: followLabel,
+      on: snapshot.language === 'en' ? 'On' : '开启',
+      off: snapshot.language === 'en' ? 'Off' : '关闭',
+    };
+    return [new ActionRowBuilder().addComponents(
+      ...['follow', 'on', 'off'].map((value) => new ButtonBuilder()
+        .setCustomId(buildSettingsComponentId('set', target, value, userId, generation))
+        .setLabel(labels[value])
+        .setStyle(selected === value ? ButtonStyle.Primary : ButtonStyle.Secondary)),
+    )];
+  }
+
   function buildModelControlRows(session, userId, snapshot, { quick = false, generation = '', modelQuery = '' } = {}) {
+    if (!providerSupportsModelSelection(snapshot.provider)) return [];
     const modelTarget = quick ? 'quick_model' : 'model';
     const effortTarget = quick ? 'quick_model_effort' : 'model_effort';
-    const modelOptions = buildModelSelectOptions(snapshot, session, { query: modelQuery });
-    const rows = [
-      new ActionRowBuilder().addComponents(
-        new StringSelectMenuBuilder()
-          .setCustomId(buildSettingsComponentId('set', modelTarget, 'preset', userId, generation))
-          .setPlaceholder(snapshot.language === 'en'
-            ? `Current model: ${snapshot.modelValue || '(provider default)'}`
-            : `当前模型：${snapshot.modelValue || 'provider 默认'}`)
-          .addOptions(modelOptions),
-      ),
-    ];
+    const rows = [buildModelSelectRow(session, userId, snapshot, { target: modelTarget, generation, modelQuery })];
     const modelActionButtons = [
       new ButtonBuilder()
         .setCustomId(buildSettingsComponentId('act', modelTarget, 'search', userId, generation))
@@ -697,16 +741,11 @@ export function createSettingsPanel({
         .setStyle(!session?.model ? ButtonStyle.Primary : ButtonStyle.Secondary),
     ];
     if (snapshot.modelEffortLevels.length) {
-      const effortRows = chunk([...snapshot.modelEffortLevels, 'default'], 5).map((rowValues) => new ActionRowBuilder().addComponents(
-        ...rowValues.map((value) => {
-          const selected = value === 'default'
-            ? !session?.effort
-            : session?.effort === value;
-          return new ButtonBuilder()
-            .setCustomId(buildSettingsComponentId('set', effortTarget, value, userId, generation))
-            .setLabel(value)
-            .setStyle(selected ? ButtonStyle.Primary : ButtonStyle.Secondary);
-        }),
+      const effortRows = chunk(buildEffortOptions(session, snapshot), 5).map((options) => new ActionRowBuilder().addComponents(
+        ...options.map((option) => new ButtonBuilder()
+          .setCustomId(buildSettingsComponentId('set', effortTarget, option.value, userId, generation))
+          .setLabel(option.label)
+          .setStyle(option.default ? ButtonStyle.Primary : ButtonStyle.Secondary)),
       ));
       const lastEffortRow = effortRows.at(-1);
       const lastEffortRowSize = [...snapshot.modelEffortLevels, 'default'].length % 5 || 5;
@@ -724,6 +763,22 @@ export function createSettingsPanel({
 
   function buildSectionControls(key, session, userId, activeSection, snapshot, modelPanelGeneration = '') {
     switch (activeSection) {
+      case 'overview': {
+        if (snapshot.provider !== 'codex') return [];
+        return [
+          buildModelSelectRow(session, userId, snapshot, { target: 'overview_model', generation: modelPanelGeneration }),
+          new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+              .setCustomId(buildSettingsComponentId('set', 'overview_effort', 'preset', userId, modelPanelGeneration))
+              .setPlaceholder(snapshot.language === 'en'
+                ? `Current effort: ${snapshot.effortValue || '(provider default)'}`
+                : `当前 effort：${snapshot.effortValue || 'provider 默认'}`)
+              .addOptions(buildEffortOptions(session, snapshot)),
+          ),
+          ...buildFastControlRows(userId, snapshot, { target: 'overview_fast', generation: modelPanelGeneration }),
+        ];
+      }
+
       case 'provider': {
         if (botProvider) return [];
         return chunk(['codex', 'claude', 'cursor', 'grok', 'antigravity', 'zcode', 'pi', 'omp'], 5)
@@ -858,32 +913,7 @@ export function createSettingsPanel({
         ];
 
       case 'fast': {
-        const selected = snapshot.fastMode.source === 'session override'
-          ? (snapshot.fastMode.enabled ? 'on' : 'off')
-          : 'follow';
-        const followLabel = snapshot.provider === 'omp'
-          ? (snapshot.isThread
-            ? (snapshot.language === 'en' ? 'Follow parent/OMP default' : '跟随父频道/OMP 默认')
-            : (snapshot.language === 'en' ? 'Follow OMP default' : '跟随 OMP 默认'))
-          : (snapshot.isThread
-            ? (snapshot.language === 'en' ? 'Follow parent/global' : '跟随父频道/全局')
-            : (snapshot.language === 'en' ? 'Follow global' : '跟随全局'));
-        return [
-          new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-              .setCustomId(buildSettingsComponentId('set', 'fast', 'follow', userId))
-              .setLabel(followLabel)
-              .setStyle(selected === 'follow' ? ButtonStyle.Primary : ButtonStyle.Secondary),
-            new ButtonBuilder()
-              .setCustomId(buildSettingsComponentId('set', 'fast', 'on', userId))
-              .setLabel(snapshot.language === 'en' ? 'On' : '开启')
-              .setStyle(selected === 'on' ? ButtonStyle.Primary : ButtonStyle.Secondary),
-            new ButtonBuilder()
-              .setCustomId(buildSettingsComponentId('set', 'fast', 'off', userId))
-              .setLabel(snapshot.language === 'en' ? 'Off' : '关闭')
-              .setStyle(selected === 'off' ? ButtonStyle.Primary : ButtonStyle.Secondary),
-          ),
-        ];
+        return buildFastControlRows(userId, snapshot);
       }
 
       case 'runtime': {
@@ -932,17 +962,11 @@ export function createSettingsPanel({
       }
 
       case 'effort': {
-        const values = [...snapshot.effortLevels, 'default'];
-        return chunk(values, 5).map((rowValues) => new ActionRowBuilder().addComponents(
-          ...rowValues.map((value) => {
-            const selected = value === 'default'
-              ? !session?.effort
-              : session?.effort === value;
-            return new ButtonBuilder()
-              .setCustomId(buildSettingsComponentId('set', 'effort', value, userId))
-              .setLabel(value)
-              .setStyle(selected ? ButtonStyle.Primary : ButtonStyle.Secondary);
-          }),
+        return chunk(buildEffortOptions(session, snapshot), 5).map((options) => new ActionRowBuilder().addComponents(
+          ...options.map((option) => new ButtonBuilder()
+            .setCustomId(buildSettingsComponentId('set', 'effort', option.value, userId))
+            .setLabel(option.label)
+            .setStyle(option.default ? ButtonStyle.Primary : ButtonStyle.Secondary)),
         ));
       }
 
@@ -1047,7 +1071,7 @@ function formatOverviewSection(snapshot) {
   if (snapshot.language === 'en') {
     return [
       'Choose a section below.',
-      snapshot.provider === 'codex' ? 'Defaults edits global Codex settings in `~/.codex/config.toml`.' : null,
+      snapshot.provider === 'codex' ? 'Global defaults: `~/.codex/config.toml`' : null,
       'Compact controls strategy and token limit for automatic context compaction.',
       'Reply controls whether the bot only updates the progress card or also sends process messages.',
       !botProvider ? 'Provider switches this channel to a different CLI lane and restores that provider’s saved channel settings.' : null,
@@ -1055,7 +1079,7 @@ function formatOverviewSection(snapshot) {
   }
   return [
     '请选择下方的设置项。',
-    snapshot.provider === 'codex' ? '默认分区会直接修改 `~/.codex/config.toml` 里的全局 Codex 默认值。' : null,
+    snapshot.provider === 'codex' ? '全局默认：`~/.codex/config.toml`' : null,
     '压缩分区管理 compact 策略和 token 阈值。',
     '回复分区管理只更新进度卡还是发送过程消息，以及完成时是否触发 @。',
     !botProvider ? '切换 provider 会切到另一条 CLI 运行时，并恢复这个频道里该 provider 自己保存的设置。' : null,
@@ -1093,11 +1117,11 @@ function formatOverviewSection(snapshot) {
         }
         return snapshot.language === 'en'
           ? (snapshot.isThread
-            ? 'Fast mode only exists on Codex. "Follow parent/global" means this thread stops overriding and inherits the parent channel setting first, then `~/.codex/config.toml` (which stays on unless `[features].fast_mode = false` is set).'
-            : 'Fast mode only exists on Codex. "Follow global" means this channel stops overriding and inherits `~/.codex/config.toml` (which stays on unless `[features].fast_mode = false` is set).')
+            ? 'Fast: priority service tier. Inheritance: parent channel, then global service tier.'
+            : 'Fast: priority service tier. Inheritance: global service tier.')
           : (snapshot.isThread
-            ? 'Fast mode 仅对 Codex 生效。选择“跟随父频道/全局”表示当前 thread 不再覆盖，优先继承父频道设置，其次继承 `~/.codex/config.toml`；若未显式写 `[features].fast_mode = false`，默认保持开启。'
-            : 'Fast mode 仅对 Codex 生效。选择“跟随全局”表示当前频道不再覆盖，改为继承 `~/.codex/config.toml`；若未显式写 `[features].fast_mode = false`，默认保持开启。');
+            ? 'Fast：priority 服务档位。继承顺序：父频道、全局服务档位。'
+            : 'Fast：priority 服务档位。继承来源：全局服务档位。');
       case 'runtime':
         return snapshot.language === 'en'
           ? 'Runtime chooses exec or long connection. Busy prompt decides what happens when a new message arrives during an active turn. Exec can only queue; steer stays disabled until the provider runner exposes a real active-turn steering path.'
@@ -1131,12 +1155,11 @@ function formatOverviewSection(snapshot) {
     }
   }
 
-  function formatSettingsContent(key, session, activeSection, notice = '') {
-    const snapshot = buildSnapshot(key, session);
+  function formatSettingsContent(session, activeSection, snapshot, notice = '') {
     const isDefaultsSection = activeSection === 'defaults' && snapshot.provider === 'codex';
     const lines = [
       isDefaultsSection
-        ? (snapshot.language === 'en' ? '⚙️ **Global Codex Defaults**' : '⚙️ **Codex 默认设置**')
+        ? (snapshot.language === 'en' ? '⚙️ **Global Codex Defaults**' : '⚙️ **Codex 全局默认设置**')
         : (snapshot.language === 'en' ? '⚙️ **Channel Settings**' : '⚙️ **频道设置**'),
       notice || null,
       ...(isDefaultsSection
@@ -1175,6 +1198,9 @@ function formatOverviewSection(snapshot) {
           snapshot.language === 'en'
             ? `• model: ${formatValueLabel(snapshot.modelValue, '(provider default)', snapshot.language)} (${formatSettingSourceLabel(snapshot.modelSource, snapshot.language)})`
             : `• model：${formatValueLabel(snapshot.modelValue, '（provider 默认）', snapshot.language)}（${formatSettingSourceLabel(snapshot.modelSource, snapshot.language)}）`,
+          !providerSupportsModelSelection(snapshot.provider)
+            ? formatModelSelectionUnsupported(snapshot.provider, snapshot.language)
+            : null,
           snapshot.modelCatalog.error
             ? (snapshot.language === 'en'
               ? `• model catalog: unavailable (${truncateOptionText(snapshot.modelCatalog.error, 120)})`
@@ -1241,10 +1267,10 @@ function formatOverviewSection(snapshot) {
   }
 
   function buildSettingsPayload({ key, session, userId, flags = undefined, activeSection = '', activeDefaultsGroup = 'model', notice = '' } = {}) {
-    const section = resolveActiveSection(session, activeSection || resolveDefaultSection(session));
+    const section = resolveActiveSection(session, activeSection || 'overview');
     const snapshot = buildSnapshot(key, session);
     const issuedGeneration = issueModelPanelGeneration(key, userId);
-    const modelPanelGeneration = (section === 'model' || section === 'defaults')
+    const modelPanelGeneration = (section === 'model' || section === 'defaults' || section === 'overview')
       ? issuedGeneration
       : '';
     const sectionControls = buildSectionControls(key, session, userId, section, snapshot, modelPanelGeneration);
@@ -1264,7 +1290,7 @@ function formatOverviewSection(snapshot) {
       ...sectionControls,
     ];
     const payload = {
-      content: formatSettingsContent(key, session, section, notice),
+      content: formatSettingsContent(session, section, snapshot, notice),
       components,
     };
     if (flags !== undefined) payload.flags = flags;
@@ -1279,6 +1305,9 @@ function formatOverviewSection(snapshot) {
       snapshot.language === 'en'
         ? `• model: ${formatValueLabel(snapshot.modelValue, '(provider default)', snapshot.language)} (${formatSettingSourceLabel(snapshot.modelSource, snapshot.language)})`
         : `• model：${formatValueLabel(snapshot.modelValue, '（provider 默认）', snapshot.language)}（${formatSettingSourceLabel(snapshot.modelSource, snapshot.language)}）`,
+      !providerSupportsModelSelection(snapshot.provider)
+        ? formatModelSelectionUnsupported(snapshot.provider, snapshot.language)
+        : null,
       snapshot.modelCatalog.error
         ? (snapshot.language === 'en'
           ? `• model catalog: unavailable (${truncateOptionText(snapshot.modelCatalog.error, 120)})`
@@ -1292,9 +1321,6 @@ function formatOverviewSection(snapshot) {
           ? `• effort: not exposed on ${snapshot.providerLabel}`
           : `• effort：${snapshot.providerLabel} 当前未暴露`),
       '',
-      snapshot.language === 'en'
-        ? 'Choose a model from the CLI catalog, type a custom model, or set effort below.'
-        : '从 CLI 读取到的模型里选择，也可以手写模型名；推理力度在下面一起调。',
     ];
     return lines.filter(Boolean).join('\n');
   }
@@ -1425,6 +1451,9 @@ function formatOverviewSection(snapshot) {
   async function handleSettingsPanelInteraction(interaction) {
     const parsed = parseSettingsComponentId(interaction.customId);
     if (!parsed) return false;
+    // Overview changes share the section handlers; only the return view differs.
+    const overviewAction = Object.hasOwn(OVERVIEW_SETTING_TARGETS, parsed.target);
+    if (overviewAction) parsed.target = OVERVIEW_SETTING_TARGETS[parsed.target];
 
     const key = String(interaction.channelId || '').trim();
     const session = key ? getSession(key, { channel: interaction.channel || null }) : null;
@@ -1446,12 +1475,12 @@ function formatOverviewSection(snapshot) {
       return true;
     }
 
-    if (isModelPanelTarget(parsed.target) && !isCurrentModelPanelGeneration(key, parsed.userId, parsed.generation)) {
-      const isGlobalDefault = parsed.target === 'default_model' || parsed.target === 'default_effort';
+    if ((overviewAction || isModelPanelTarget(parsed.target)) && !isCurrentModelPanelGeneration(key, parsed.userId, parsed.generation)) {
+      const isSettingsPanel = overviewAction || parsed.target === 'default_model' || parsed.target === 'default_effort';
       await interaction.reply({
         content: language === 'en'
-          ? `❌ This ${isGlobalDefault ? 'settings' : 'model'} panel has expired. Open /${isGlobalDefault ? 'settings' : 'model'} again.`
-          : `❌ 这个${isGlobalDefault ? '设置' : '模型'}面板已过期，请重新打开 /${isGlobalDefault ? 'settings' : 'model'}。`,
+          ? `❌ This ${isSettingsPanel ? 'settings' : 'model'} panel has expired. Open /${isSettingsPanel ? 'settings' : 'model'} again.`
+          : `❌ 这个${isSettingsPanel ? '设置' : '模型'}面板已过期，请重新打开 /${isSettingsPanel ? 'settings' : 'model'}。`,
         flags: 64,
       });
       return true;
@@ -1467,6 +1496,18 @@ function formatOverviewSection(snapshot) {
         userId: interaction.user.id,
         activeSection: nextSection,
       }));
+      return true;
+    }
+
+    const provider = getSessionProvider(session);
+    if (['model', 'quick_model', 'model_search', 'quick_model_search'].includes(parsed.target)
+      && parsed.value !== 'close' && !providerSupportsModelSelection(provider)) {
+      await interaction.reply({ content: formatModelSelectionUnsupported(provider, language), flags: 64 });
+      return true;
+    }
+    if (['effort', 'model_effort', 'quick_model_effort'].includes(parsed.target)
+      && !getSupportedReasoningEffortLevels(provider).length) {
+      await interaction.reply({ content: formatReasoningEffortUnsupported(provider, language), flags: 64 });
       return true;
     }
 
@@ -1774,7 +1815,17 @@ function formatOverviewSection(snapshot) {
         }
         commandActions.setGlobalReasoningEffortDefault?.(session, selectedEffort);
       } else if (parsed.target === 'effort' || parsed.target === 'model_effort' || parsed.target === 'quick_model_effort') {
-        const conflict = findEffortConflict(key, session, parsed.value);
+        const selectedEffort = parsed.value === 'preset'
+          ? String(interaction.values?.[0] || '').trim().toLowerCase()
+          : parsed.value;
+        if (!selectedEffort) {
+          await interaction.reply({
+            content: language === 'en' ? '❌ No effort selected.' : '❌ 没有选择 effort。',
+            flags: 64,
+          });
+          return true;
+        }
+        const conflict = findEffortConflict(key, session, selectedEffort);
         if (conflict) {
           await interaction.reply({
             content: formatUnsupportedModelEffort(conflict.model, conflict.effort, language),
@@ -1782,7 +1833,7 @@ function formatOverviewSection(snapshot) {
           });
           return true;
         }
-        commandActions.setReasoningEffort?.(session, parsed.value);
+        commandActions.setReasoningEffort?.(session, selectedEffort);
         closeRuntimeForKey(key);
       } else if (parsed.target === 'compact') {
         commandActions.setCompactStrategy?.(session, parsed.value === 'follow' ? null : parsed.value);
@@ -1813,7 +1864,9 @@ function formatOverviewSection(snapshot) {
         key,
         session,
         userId: interaction.user.id,
-        activeSection: parsed.target === 'default_reply'
+        activeSection: overviewAction
+          ? 'overview'
+          : parsed.target === 'default_reply'
           ? 'reply'
           : (parsed.target === 'busy_prompt')
             ? 'runtime'
@@ -1872,6 +1925,13 @@ function formatOverviewSection(snapshot) {
           : `❌ 这个${isGlobalDefault ? '设置' : '模型'}面板已过期，请重新打开 /${isGlobalDefault ? 'settings' : 'model'}。`,
         flags: 64,
       });
+      return true;
+    }
+
+    const provider = getSessionProvider(session);
+    if (['model', 'quick_model', 'model_search', 'quick_model_search'].includes(parsed.target)
+      && !providerSupportsModelSelection(provider)) {
+      await interaction.reply({ content: formatModelSelectionUnsupported(provider, language), flags: 64 });
       return true;
     }
 

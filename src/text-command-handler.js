@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { formatModelSelectionUnsupported, providerSupportsModelSelection } from './provider-metadata.js';
 import {
   getProviderCommandAlias,
   normalizeCommandName,
@@ -750,6 +751,11 @@ export function createTextCommandHandler({
       }
 
       case 'model': {
+        const provider = getSessionProvider(session);
+        if (arg.trim().toLowerCase() !== 'default' && !providerSupportsModelSelection(provider)) {
+          await safeReply(message, formatModelSelectionUnsupported(provider, getSessionLanguage(session)));
+          return;
+        }
         if (!arg) {
           await safeReply(message, formatModelCommandHelp(getSessionProvider(session)));
           return;

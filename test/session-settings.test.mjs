@@ -30,6 +30,17 @@ import {
   normalizeProvider as testNormalizeProvider,
 } from '../src/provider-metadata.js';
 
+test('session-settings does not report unsupported ZCode model overrides as effective', () => {
+  const settings = createSessionSettings({
+    defaultModel: 'environment-model',
+    getParentSession: () => ({ provider: 'zcode', model: 'parent-model' }),
+  });
+  assert.deepEqual(settings.resolveModelSetting({ provider: 'zcode', model: 'ignored-model' }), {
+    value: null, source: 'native session',
+  });
+  assert.equal(settings.getProviderDefaults('zcode').model, null);
+});
+
 test('session-settings normalizes ui language labels and fallbacks', () => {
   const settings = createSessionSettings({ defaultUiLanguage: 'en' });
 
@@ -80,9 +91,10 @@ test('session-settings resolves timeout security profile and compact values with
     source: 'session override',
   });
   assert.deepEqual(settings.resolveFastModeSetting({ provider: 'codex' }), {
-    enabled: true,
+    enabled: false,
     supported: true,
     source: 'config.toml',
+    serviceTier: null,
   });
   assert.deepEqual(settings.resolveFastModeSetting({ provider: 'omp', fastMode: 'on' }), {
     enabled: true,

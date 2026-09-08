@@ -1,13 +1,14 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
+import { parse as parseToml } from 'smol-toml';
 import { ProxyAgent, setGlobalDispatcher } from 'undici';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 
 import { autoRepairProxyEnv } from './proxy-env.js';
 
-const FEATURES_SECTION = 'features';
 const CODEX_MODEL_CATALOG_CACHE = new Map();
 const CLAUDE_MODEL_CATALOG_CACHE = new Map();
 const CURSOR_MODEL_CATALOG_CACHE = new Map();
@@ -74,25 +75,10 @@ function readJsonObjectFile(filePath) {
   return parsed;
 }
 
-function normalizeTomlLines(lines) {
-  const normalized = [];
-  let previousBlank = true;
-  for (const line of lines) {
-    const current = String(line ?? '');
-    const isBlank = current.trim() === '';
-    if (isBlank && previousBlank) continue;
-    normalized.push(isBlank ? '' : current);
-    previousBlank = isBlank;
-  }
-  while (normalized.length > 0 && normalized[0] === '') normalized.shift();
-  while (normalized.length > 0 && normalized[normalized.length - 1] === '') normalized.pop();
-  return normalized;
-}
-
 function setTopLevelTomlKey(raw, key, renderedLine) {
-  const lines = String(raw || '').split(/\r?\n/);
+  const lines = raw ? String(raw).split(/\r?\n/) : [];
   const keyPattern = new RegExp(`^${escapeRegExp(key)}\\s*=`);
-  const firstSectionIndex = lines.findIndex((line) => /^\s*\[[^\]]+\]\s*$/.test(line));
+  const firstSectionIndex = lines.findIndex((line) => /^\s*\[/.test(line));
   const searchEnd = firstSectionIndex === -1 ? lines.length : firstSectionIndex;
   const matchedIndexes = [];
 
@@ -106,7 +92,7 @@ function setTopLevelTomlKey(raw, key, renderedLine) {
     for (let index = matchedIndexes.length - 1; index >= 0; index -= 1) {
       lines.splice(matchedIndexes[index], 1);
     }
-    return normalizeTomlLines(lines).join('\n');
+    return lines.join('\n');
   }
 
   if (matchedIndexes.length > 0) {
@@ -114,86 +100,47 @@ function setTopLevelTomlKey(raw, key, renderedLine) {
     for (let index = matchedIndexes.length - 1; index >= 1; index -= 1) {
       lines.splice(matchedIndexes[index], 1);
     }
-    return normalizeTomlLines(lines).join('\n');
+    return lines.join('\n');
   }
 
   const insertAt = firstSectionIndex === -1 ? lines.length : firstSectionIndex;
   lines.splice(insertAt, 0, renderedLine);
-  return normalizeTomlLines(lines).join('\n');
+  return lines.join('\n');
 }
 
-function setSectionTomlKey(raw, section, key, renderedLine) {
-  const lines = String(raw || '').split(/\r?\n/);
-  const sectionHeader = `[${section}]`;
-  const sectionIndex = lines.findIndex((line) => line.trim() === sectionHeader);
-
-  if (sectionIndex === -1) {
-    if (!renderedLine) return normalizeTomlLines(lines).join('\n');
-    if (lines.length > 0 && lines.at(-1).trim() !== '') lines.push('');
-    lines.push(sectionHeader, renderedLine);
-    return normalizeTomlLines(lines).join('\n');
-  }
-
-  let sectionEnd = lines.length;
-  for (let index = sectionIndex + 1; index < lines.length; index += 1) {
-    if (/^\s*\[[^\]]+\]\s*$/.test(lines[index])) {
-      sectionEnd = index;
-      break;
+function codexDefaultsFromConfig(config, configPath) {
+  const readString = (key) => {
+    const value = config[key];
+    if (value === undefined) return null;
+    if (typeof value !== 'string' || !value.trim()) {
+      throw new Error(`Invalid ${key} in ${configPath}: expected a non-empty string`);
     }
-  }
-
-  const keyPattern = new RegExp(`^${escapeRegExp(key)}\\s*=`);
-  const matchedIndexes = [];
-  for (let index = sectionIndex + 1; index < sectionEnd; index += 1) {
-    if (keyPattern.test(lines[index].trim())) {
-      matchedIndexes.push(index);
-    }
-  }
-
-  if (!renderedLine) {
-    for (let index = matchedIndexes.length - 1; index >= 0; index -= 1) {
-      lines.splice(matchedIndexes[index], 1);
-    }
-    return normalizeTomlLines(lines).join('\n');
-  }
-
-  if (matchedIndexes.length > 0) {
-    lines[matchedIndexes[0]] = renderedLine;
-    for (let index = matchedIndexes.length - 1; index >= 1; index -= 1) {
-      lines.splice(matchedIndexes[index], 1);
-    }
-    return normalizeTomlLines(lines).join('\n');
-  }
-
-  lines.splice(sectionEnd, 0, renderedLine);
-  return normalizeTomlLines(lines).join('\n');
+    return value.trim();
+  };
+  const model = readString('model');
+  const effort = readString('model_reasoning_effort');
+  const serviceTier = readString('service_tier');
+  return {
+    model,
+    modelConfigured: model !== null,
+    effort,
+    effortConfigured: effort !== null,
+    fastMode: serviceTier === 'fast' || serviceTier === 'priority',
+    fastModeConfigured: serviceTier !== null,
+    serviceTier,
+  };
 }
 
 export function readCodexDefaults({ env = process.env } = {}) {
+  const configPath = resolveCodexConfigPath({ env });
+  let raw;
   try {
-    const configPath = resolveCodexConfigPath({ env });
-    const raw = fs.readFileSync(configPath, 'utf-8');
-    const modelMatch = raw.match(/^model\s*=\s*"([^"]+)"/m);
-    const effortMatch = raw.match(/^model_reasoning_effort\s*=\s*"([^"]+)"/m);
-    const fastModeMatch = raw.match(/^\s*fast_mode\s*=\s*(true|false)\s*$/m);
-    return {
-      model: modelMatch?.[1] || null,
-      modelConfigured: Boolean(modelMatch),
-      effort: effortMatch?.[1] || null,
-      effortConfigured: Boolean(effortMatch),
-      fastMode: fastModeMatch ? fastModeMatch[1] === 'true' : true,
-      fastModeConfigured: Boolean(fastModeMatch),
-    };
-  } catch {
-    return {
-      model: null,
-      modelConfigured: false,
-      effort: null,
-      effortConfigured: false,
-      fastMode: true,
-      fastModeConfigured: false,
-    };
+    raw = fs.readFileSync(configPath, 'utf-8');
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    raw = '';
   }
+  return codexDefaultsFromConfig(parseToml(raw), configPath);
 }
 
 export function readCodexProfileCatalog({ env = process.env } = {}) {
@@ -899,12 +846,16 @@ export function writeCodexDefaults({
 
   try {
     raw = fs.readFileSync(configPath, 'utf-8');
-  } catch {
-    raw = '';
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
   }
+  const expected = { ...parseToml(raw) };
+  codexDefaultsFromConfig(expected, configPath);
 
   if (model !== undefined) {
     const normalizedModel = normalizeOptionalTomlString(model);
+    if (normalizedModel === null) delete expected.model;
+    else expected.model = normalizedModel;
     raw = setTopLevelTomlKey(
       raw,
       'model',
@@ -914,6 +865,8 @@ export function writeCodexDefaults({
 
   if (effort !== undefined) {
     const normalizedEffort = normalizeOptionalTomlString(effort);
+    if (normalizedEffort === null) delete expected.model_reasoning_effort;
+    else expected.model_reasoning_effort = normalizedEffort;
     raw = setTopLevelTomlKey(
       raw,
       'model_reasoning_effort',
@@ -922,16 +875,24 @@ export function writeCodexDefaults({
   }
 
   if (fastMode !== undefined) {
-    raw = setSectionTomlKey(
+    if (fastMode !== null && typeof fastMode !== 'boolean') throw new Error('Invalid Codex fast mode');
+    const tier = fastMode ? 'fast' : 'default';
+    if (fastMode === null) delete expected.service_tier;
+    else expected.service_tier = tier;
+    raw = setTopLevelTomlKey(
       raw,
-      FEATURES_SECTION,
-      'fast_mode',
-      fastMode === null ? null : `fast_mode = ${fastMode ? 'true' : 'false'}`,
+      'service_tier',
+      fastMode === null ? null : `service_tier = ${quoteTomlString(tier)}`,
     );
   }
 
+  const parsed = parseToml(raw);
+  codexDefaultsFromConfig(parsed, configPath);
+  if (!isDeepStrictEqual(parsed, expected)) {
+    throw new Error('Codex settings edit would change unrelated configuration');
+  }
   fs.mkdirSync(configDir, { recursive: true });
-  fs.writeFileSync(configPath, raw ? `${raw}\n` : '', 'utf-8');
+  fs.writeFileSync(configPath, raw && !raw.endsWith('\n') ? `${raw}\n` : raw, 'utf-8');
   return readCodexDefaults({ env });
 }
 

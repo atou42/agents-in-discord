@@ -3,6 +3,7 @@ import {
   normalizeExtraInfoEnabled,
   normalizeExtraInfoTemplate,
 } from './extra-info.js';
+import { providerSupportsModelSelection } from './provider-metadata.js';
 
 export function parseUiLanguageInput(value) {
   const raw = String(value || '').trim().toLowerCase();
@@ -89,6 +90,14 @@ export function normalizeSessionFastMode(value) {
   if (['1', 'true', 'on', 'enable', 'enabled', 'yes', '开启', '启用', '打开'].includes(raw)) return true;
   if (['0', 'false', 'off', 'disable', 'disabled', 'no', '关闭', '禁用'].includes(raw)) return false;
   return null;
+}
+
+export function resolveCodexServiceTier(fastMode) {
+  if (fastMode.source === 'provider unsupported') return null;
+  if (fastMode.source === 'session override' || fastMode.source === 'parent channel') {
+    return fastMode.enabled ? 'fast' : 'default';
+  }
+  return fastMode.serviceTier || 'default';
 }
 
 export function normalizeSessionRuntimeMode(value) {
@@ -390,8 +399,9 @@ export function createSessionSettings({
     modelConfigured: false,
     effort: null,
     effortConfigured: false,
-    fastMode: true,
+    fastMode: false,
     fastModeConfigured: false,
+    serviceTier: null,
   }),
   readAntigravityDefaults = () => ({
     model: null,
@@ -546,10 +556,12 @@ export function createSessionSettings({
       };
     }
 
+    const defaults = readCodexDefaults();
     return {
-      enabled: Boolean(readCodexDefaults().fastMode),
+      enabled: Boolean(defaults.fastMode),
       supported: true,
       source: 'config.toml',
+      serviceTier: defaults.serviceTier || null,
     };
   }
 
@@ -626,6 +638,7 @@ export function createSessionSettings({
 
   function resolveModelSetting(session) {
     const provider = normalizeProvider(session?.provider);
+    if (!providerSupportsModelSelection(provider)) return { value: null, source: 'native session' };
     const currentValue = String(session?.model || '').trim();
     if (currentValue) {
       return { value: currentValue, source: 'session override' };
@@ -1076,14 +1089,15 @@ export function createSessionSettings({
     }
 
     if (normalizedProvider !== 'codex') {
-      const defaultModelValue = getDefaultModelValue();
+      const modelSupported = providerSupportsModelSelection(normalizedProvider);
+      const defaultModelValue = modelSupported ? getDefaultModelValue() : null;
       return {
         model: defaultModelValue || null,
         profile: null,
         profileConfigured: false,
         effort: null,
         fastMode: false,
-        source: defaultModelValue ? 'env default' : 'provider',
+        source: modelSupported ? (defaultModelValue ? 'env default' : 'provider') : 'native session',
       };
     }
     const codexDefaults = readCodexDefaults();

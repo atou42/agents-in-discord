@@ -162,7 +162,6 @@ import {
   readCursorModelCatalog,
   readOmpDefaults,
   renderMissingDiscordTokenHint,
-  writeAntigravityModelSetting,
   writeCodexDefaults,
 } from './runtime-bootstrap.js';
 import {
@@ -747,13 +746,6 @@ const appContext = createAppContext({
       extractAgentMessageText,
       isFinalAnswerLikeAgentMessage,
       readAntigravitySessionState,
-      applyProviderModelSetting: ({ provider, modelSetting }) => {
-        if (normalizeProvider(provider) !== 'antigravity') return null;
-        return writeAntigravityModelSetting({
-          env: SPAWN_ENV,
-          model: modelSetting?.value,
-        });
-      },
       getCodexThreadGoal: (options) => getCodexThreadGoal({
         ...options,
         codexBin: CODEX_BIN,

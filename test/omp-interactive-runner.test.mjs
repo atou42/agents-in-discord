@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createSessionSettings } from '../src/session-settings.js';
 
 import {
   createOmpInteractiveRunner,
@@ -30,6 +31,7 @@ function createFakeRuntime({ acceptInputAfterMs = 0, runnerOptions = {} } = {}) 
 
   function spawnFn(_bin, args, options) {
     const child = new EventEmitter();
+    child.args = args;
     child.pid = nextPid++;
     child.exitCode = null;
     child.signalCode = null;
@@ -221,6 +223,29 @@ test('OMP interactive runner reuses one process per Discord thread and isolates 
   assert.equal(children[0].writes.length, 2);
   assert.equal(children[1].writes.length, 1);
   runner.closeAll('test complete');
+});
+
+test('OMP hot runner applies model effort and fast changes while keeping the native session', async (t) => {
+  const settings = createSessionSettings({
+    getParentSession: () => ({ provider: 'omp', model: 'parent-model', effort: 'medium', fastMode: true }),
+  });
+  const { root, runner, children, resumedSessionId } = createFakeRuntime({ runnerOptions: { ...settings, resumedStartupSettleMs: 0 } });
+  t.after(() => { runner.closeAll(); fs.rmSync(root, { recursive: true, force: true }); });
+  const session = { provider: 'omp', mode: 'safe', runnerSessionId: resumedSessionId, parentChannelId: 'parent' };
+  for (const [model, effort, fastMode, expectedTier] of [
+    ['model-a', 'high', true, 'priority'], ['model-b', 'low', false, 'none'], [null, null, null, 'priority'],
+  ]) {
+    Object.assign(session, { model, effort, fastMode });
+    const result = await runner.runTask({ session, sessionKey: 'thread-1', workspaceDir: '/tmp/resumed', prompt: 'test' });
+    assert.equal(result.ok, true);
+    const args = children.at(-1).args;
+    assert.equal(args[args.indexOf('--model') + 1], model || 'parent-model');
+    assert.equal(args[args.indexOf('--thinking') + 1], effort || 'medium');
+    assert.equal(args[args.indexOf('--service-tier') + 1], expectedTier);
+    assert.equal(args[args.indexOf('--resume') + 1], resumedSessionId);
+  }
+  assert.equal(children.length, 3);
+  assert.ok(children.slice(0, -1).every(child => child.killed));
 });
 
 test('OMP native goal controls stay in the live process and clear confirms the TUI dialog', async () => {

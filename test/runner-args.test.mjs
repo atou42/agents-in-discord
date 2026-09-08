@@ -40,6 +40,8 @@ test('createRunnerArgsBuilder builds Antigravity args instead of codex args', ()
     '--dangerously-skip-permissions',
     '--conversation',
     'sess-agy-1',
+    '--model',
+    'Claude Opus 4.6 (Thinking)',
     '--prompt',
     'summarize the repo',
   ]);
@@ -356,6 +358,8 @@ test('createRunnerArgsBuilder adds native compact config for fresh codex session
     '-c',
     'features.fast_mode=true',
     '-c',
+    'service_tier="fast"',
+    '-c',
     'model_context_window=1050000',
     '-c',
     'model_auto_compact_token_limit=123456',
@@ -403,6 +407,8 @@ test('createRunnerArgsBuilder keeps native compact config for resumed codex sess
     'gpt-5-codex',
     '-c',
     'features.fast_mode=true',
+    '-c',
+    'service_tier="fast"',
     '-c',
     'model_context_window=1050000',
     '-c',
@@ -522,7 +528,9 @@ test('createRunnerArgsBuilder passes native image inputs to codex exec', () => {
     '-m',
     'gpt-5-codex',
     '-c',
-    'features.fast_mode=false',
+    'features.fast_mode=true',
+    '-c',
+    'service_tier="default"',
     '--image',
     '/tmp/image-a.jpg',
     '--image',
@@ -597,7 +605,9 @@ test('createRunnerArgsBuilder passes fast mode through when inherited from the p
     '-m',
     'gpt-5-codex',
     '-c',
-    'features.fast_mode=false',
+    'features.fast_mode=true',
+    '-c',
+    'service_tier="default"',
     'inspect',
   ]);
 });
@@ -647,7 +657,9 @@ test('createRunnerArgsBuilder uses inherited model and effort settings', () => {
     '-c',
     'model_reasoning_effort="high"',
     '-c',
-    'features.fast_mode=false',
+    'features.fast_mode=true',
+    '-c',
+    'service_tier="default"',
     'inspect',
   ]);
 });
@@ -716,7 +728,9 @@ test('createRunnerArgsBuilder explicitly disables fast mode when config.toml res
     '-m',
     'gpt-5-codex',
     '-c',
-    'features.fast_mode=false',
+    'features.fast_mode=true',
+    '-c',
+    'service_tier="default"',
     'inspect',
   ]);
 });

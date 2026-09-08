@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { resolveCodexServiceTier } from './session-settings.js';
 import { buildCodexPermissionArgs } from './codex-permissions.js';
 import { buildCodexOpenAICuratedMarketplaceArgs } from './codex-marketplaces.js';
 import { createClaudeProviderAdapter } from './providers/claude.js';
@@ -156,10 +157,6 @@ export function createRunnerArgsBuilder({
     const compactEnabled = resolveCompactEnabledSetting(session);
     const nativeLimit = resolveNativeCompactTokenLimitSetting(session);
     const systemText = String(systemPrompt || '').trim();
-    const shouldPassFastMode = fastMode.source === 'session override'
-      || fastMode.source === 'parent channel'
-      || fastMode.enabled === false;
-
     const common = ['--enable', 'goals', ...buildCodexOpenAICuratedMarketplaceArgs()];
     if (codexModelCatalogJson) {
       common.push('-c', `model_catalog_json=${tomlString(codexModelCatalogJson)}`);
@@ -173,8 +170,9 @@ export function createRunnerArgsBuilder({
     }
     if (model) common.push('-m', model);
     if (effort) common.push('-c', `model_reasoning_effort="${effort}"`);
-    if (shouldPassFastMode) {
-      common.push('-c', `features.fast_mode=${fastMode.enabled ? 'true' : 'false'}`);
+    const serviceTier = resolveCodexServiceTier(fastMode);
+    if (serviceTier !== null) {
+      common.push('-c', 'features.fast_mode=true', '-c', `service_tier=${tomlString(serviceTier)}`);
     }
     const modelContextWindow = modelLimit(codexModelContextWindows, model)
       ?? (codexModelContextWindow !== null && matchesContextModel(model, codexModelContextWindowModel)
@@ -315,6 +313,8 @@ export function createRunnerArgsBuilder({
     }
 
     if (sessionId) args.push('--conversation', sessionId);
+    const model = resolveModelSetting(session).value;
+    if (model) args.push('--model', model);
     args.push('--prompt', promptText);
     return args;
   }

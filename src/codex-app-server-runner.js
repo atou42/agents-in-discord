@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import readline from 'node:readline';
+import { resolveCodexServiceTier } from './session-settings.js';
 import { buildCodexAppServerArgs } from './codex-app-server-args.js';
 import { applyCodexOpenAICuratedMarketplaceConfig } from './codex-marketplaces.js';
 import { isCodexGoalContinuationPrompt } from './codex-goal-flow.js';
@@ -97,8 +98,11 @@ export function buildCodexLongConfig({
     setConfigPath(config, 'model_context_window', selectedContextWindow);
   }
   const fastMode = resolveFastModeSetting(session);
-  if (fastMode.source === 'session override' || fastMode.source === 'parent channel' || fastMode.enabled === false) {
-    setConfigPath(config, 'features.fast_mode', Boolean(fastMode.enabled));
+  const serviceTier = resolveCodexServiceTier(fastMode);
+  if (serviceTier !== null) {
+    // Disabling the feature makes Codex ignore the selected service tier.
+    setConfigPath(config, 'features.fast_mode', true);
+    config.service_tier = serviceTier;
   }
 
   const compactSetting = resolveCompactStrategySetting(session);
@@ -757,6 +761,7 @@ export function createCodexAppServerRunner({
     return {
       cwd: workspaceDir,
       model,
+      serviceTier: resolveCodexServiceTier(resolveFastModeSetting(session)),
       approvalPolicy: permissions.approvalPolicy,
       approvalsReviewer: permissions.approvalsReviewer,
       sandbox: permissions.sandbox,
@@ -1070,11 +1075,13 @@ export function createCodexAppServerRunner({
 
       const effort = resolveReasoningEffortSetting(session).value || null;
       const model = resolveModelSetting(session).value || null;
+      const serviceTier = resolveCodexServiceTier(resolveFastModeSetting(session));
       send(entry, 'turn/start', {
         threadId: sideTargetThreadId || entry.threadId,
         input: buildUserInput(prompt, inputImages),
         model,
         effort,
+        serviceTier,
       }).then((result) => {
         const turnId = result?.turn?.id || result?.turnId || null;
         if (turnId) {

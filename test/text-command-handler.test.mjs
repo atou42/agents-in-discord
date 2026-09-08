@@ -853,6 +853,23 @@ test('createTextCommandHandler shows Claude model examples on Claude provider', 
   assert.doesNotMatch(replies[0], /gpt-5\.3-codex/);
 });
 
+test('ZCode text model commands report the native limitation without saving', async () => {
+  const replies = [];
+  const session = { provider: 'zcode', language: 'en' };
+  const handleCommand = createTextCommandHandler({
+    getSession: () => session,
+    getSessionProvider: current => current.provider,
+    getSessionLanguage: current => current.language,
+    commandActions: { setModel() { assert.fail('unsupported model must not be saved'); } },
+    safeReply: async (_message, payload) => replies.push(payload),
+  });
+  for (const command of ['!model', '!model ignored-model']) {
+    await handleCommand(createMessage(), 'thread-1', command);
+  }
+  assert.equal(replies.length, 2);
+  for (const reply of replies) assert.match(reply, /ZCode.*not .*support.*native session/i);
+});
+
 test('createTextCommandHandler accepts !c as cancel alias', async () => {
   const replies = [];
   const cancelCalls = [];

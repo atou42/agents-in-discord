@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createClaudeLongRunner } from '../src/claude-long-runner.js';
+import { createSessionSettings } from '../src/session-settings.js';
 
 class FakeChild extends EventEmitter {
   constructor({ writes }) {
@@ -161,6 +162,34 @@ test('Claude long runner applies native auto-compact and restarts when its limit
   assert.equal(fake.children[1].args[fake.children[1].args.indexOf('--autocompact') + 1], '320000');
   emitEvent(fake.children[1], { type: 'result', session_id: 'compact-session' });
   await second;
+});
+
+test('Claude long runner applies model and effort changes and restores inheritance on resume', async (t) => {
+  const fake = createFakeSpawn();
+  const settings = createSessionSettings({ getParentSession: () => ({ provider: 'claude', model: 'sonnet', effort: 'medium' }) });
+  const runner = createClaudeLongRunner({
+    ...settings, spawnFn: fake.spawnFn, getProviderBin: () => 'claude',
+    log: () => {},
+    getSessionId: session => session.runnerSessionId,
+    resolveTimeoutSetting: () => ({ timeoutMs: 0 }),
+    stopChildProcess: child => child.kill('SIGTERM'),
+  });
+  t.after(() => runner.closeAll());
+  const session = { provider: 'claude', mode: 'safe', runnerSessionId: 'native-session', parentChannelId: 'parent' };
+  for (const [model, effort, expectedModel, expectedEffort] of [
+    ['opus', 'high', 'opus', 'high'], ['sonnet', 'low', 'sonnet', 'low'], [null, null, 'sonnet', 'medium'],
+  ]) {
+    Object.assign(session, { model, effort });
+    const result = runner.runTask({ session, sessionKey: 'thread-1', workspaceDir: '/tmp/workspace', prompt: 'test' });
+    const child = fake.children.at(-1);
+    assert.equal(child.args[child.args.indexOf('--model') + 1], expectedModel);
+    assert.equal(child.args[child.args.indexOf('--effort') + 1], expectedEffort);
+    assert.equal(child.args[child.args.indexOf('--resume') + 1], 'native-session');
+    emitEvent(child, { type: 'result', session_id: 'native-session' });
+    assert.equal((await result).ok, true);
+  }
+  assert.equal(fake.children.length, 3);
+  assert.ok(fake.children.slice(0, -1).every(child => child.killed));
 });
 
 test('Claude long runner starts pending forks with --fork-session and the child session id', async () => {
