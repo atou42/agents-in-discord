@@ -276,7 +276,7 @@ test('createDiscordLifecycle scheduleSelfHeal restarts the client without cancel
   assert.equal(lifecycle.getClient(), clients[1]);
 });
 
-test('createDiscordLifecycle stops scheduling self-heal after the restart rate limit is exceeded', async () => {
+test('createDiscordLifecycle wakes when the self-heal restart window expires', async () => {
   const clients = [];
   let scheduled = null;
   let now = 0;
@@ -322,9 +322,60 @@ test('createDiscordLifecycle stops scheduling self-heal after the restart rate l
   scheduled = null;
   lifecycle.scheduleSelfHeal('third');
 
-  assert.equal(scheduled, null);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(scheduled.ms, 40000);
   assert.equal(clients.length, 3);
+  now = 60000;
+  scheduled.fn();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(clients.length, 4);
 });
+
+for (const startup of [false, true]) {
+  test(`cooldown retires client and resumes once at expiry (startup=${startup})`, async () => {
+    let now = 1000;
+    let scheduled;
+    let timers = 0;
+    const clients = [];
+    const error = Object.assign(new Error('budget exhausted'), { code: 'DISCORD_GATEWAY_COOLDOWN', retryAt: 86401000 });
+    const lifecycle = createDiscordLifecycle({
+      logger: createLogger(), bindClientHandlers() {}, nowFn: () => now,
+      cancelAllChannelWork: () => assert.fail('must preserve channel work'),
+      setTimeoutFn: (fn, ms) => { timers++; scheduled = { fn, ms }; return timers; },
+      clearTimeoutFn() {},
+      createClient: () => {
+        const bot = { destroys: 0, logins: 0, removeAllListeners() {},
+          async destroy() { this.destroys++; },
+          async login() { this.logins++; if (startup && clients.length === 1) throw error; } };
+        clients.push(bot);
+        return bot;
+      },
+    });
+    const boot = lifecycle.bootClient('test');
+    if (!startup) await boot;
+    if (!startup) {
+      lifecycle.scheduleSelfHeal('budget', error);
+      lifecycle.scheduleSelfHeal('budget_duplicate', error);
+    }
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(clients[0].destroys, 1);
+    assert.equal(clients.length, 1);
+    assert.equal(timers, 1);
+    assert.equal(scheduled.ms, 86400000);
+    now = error.retryAt - 1;
+    scheduled.fn();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(clients.length, 1);
+    assert.equal(scheduled.ms, 1);
+    now++;
+    scheduled.fn();
+    await new Promise(resolve => setImmediate(resolve));
+    await boot;
+    assert.equal(clients.length, 2);
+    assert.equal(clients[1].logins, 1);
+    assert.equal(lifecycle.getTerminalError(), null);
+  });
+}
 
 for (const selfHealEnabled of [true, false]) {
   test(`disk-full runtime failure stops the gateway without replacement (selfHeal=${selfHealEnabled})`, async () => {
@@ -382,3 +433,147 @@ test('a terminal error cancels an already scheduled self-heal', async () => {
   await assert.rejects(lifecycle.restartClient('test'), /Authentication failed/);
   assert.equal(creates, 1);
 });
+
+test('cooldown destruction failure blocks replacement and rejects startup', async () => {
+  let creates = 0;
+  let timers = 0;
+  const lifecycle = createDiscordLifecycle({
+    logger: createLogger(), bindClientHandlers() {},
+    setTimeoutFn() { timers++; },
+    createClient: () => {
+      creates++;
+      return {
+        async login() { throw Object.assign(new Error('budget'), { code: 'DISCORD_GATEWAY_COOLDOWN', retryAt: Date.now() + 1000 }); },
+        async destroy() { throw new Error('cannot stop'); },
+      };
+    },
+  });
+  await assert.rejects(lifecycle.bootClient('test'), /cannot stop/);
+  assert.equal(creates, 1);
+  assert.equal(timers, 0);
+  assert.equal(lifecycle.getTerminalError().code, 'DISCORD_GATEWAY_BLOCKED');
+});
+
+test('terminal failure interrupts startup cooldown without another connection', async () => {
+  let creates = 0;
+  let cleared = 0;
+  const lifecycle = createDiscordLifecycle({
+    logger: createLogger(), bindClientHandlers() {}, nowFn: () => 1000,
+    setTimeoutFn: () => 1, clearTimeoutFn: () => { cleared++; },
+    createClient: () => {
+      creates++;
+      return {
+        async login() { throw Object.assign(new Error('budget'), { code: 'DISCORD_GATEWAY_COOLDOWN', retryAt: 2000 }); },
+        async destroy() {},
+      };
+    },
+  });
+  const boot = lifecycle.bootClient('test');
+  await new Promise(resolve => setImmediate(resolve));
+  lifecycle.scheduleSelfHeal('token', Object.assign(new Error('bad token'), { code: 'TokenInvalid' }));
+  await assert.rejects(boot, { code: 'TokenInvalid' });
+  assert.equal(cleared, 1);
+  assert.equal(creates, 1);
+});
+
+test('malformed cooldown deadlines fail closed', async () => {
+  for (const retryAt of [undefined, NaN, -1, '1000']) {
+    let attempts = 0;
+    const lifecycle = createDiscordLifecycle({
+      logger: createLogger(), bindClientHandlers() {},
+      createClient: () => ({ async login() { attempts++; throw Object.assign(new Error('bad deadline'), { code: 'DISCORD_GATEWAY_COOLDOWN', retryAt }); } }),
+      sleep: async () => assert.fail('must not retry malformed deadline'),
+    });
+    await assert.rejects(lifecycle.bootClient('test'), /bad deadline/);
+    assert.equal(attempts, 1);
+    assert.equal(lifecycle.getTerminalError().message, 'bad deadline');
+  }
+});
+
+test('network outage after a restart schedules a bounded retry instead of remaining offline', async () => {
+  let now = 0;
+  let scheduled;
+  let creates = 0;
+  const lifecycle = createDiscordLifecycle({
+    logger: createLogger(), bindClientHandlers() {}, nowFn: () => now, restartDelayMs: 1000, maxLoginAttempts: 1,
+    setTimeoutFn: (fn, ms) => { scheduled = { fn, ms }; return 1; }, clearTimeoutFn() {},
+    createClient: () => {
+      const id = ++creates;
+      return { async destroy() {}, async login() {
+        if (id === 2) throw Object.assign(new Error('proxy refused'), { code: 'ECONNREFUSED' });
+      } };
+    },
+  });
+  await lifecycle.bootClient('test');
+  const restarting = lifecycle.restartClient('test');
+  // Observe the returned failure before asserting scheduling in the broken implementation.
+  restarting.catch(() => {});
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(scheduled?.ms, 1000);
+  assert.equal(creates, 2);
+  now = 1000;
+  scheduled.fn();
+  await restarting;
+  assert.equal(creates, 3);
+});
+
+test('cooldown emitted while disposing a restart does not create a client before expiry', async () => {
+  let lifecycle;
+  let now = 0;
+  let timer;
+  let creates = 0;
+  lifecycle = createDiscordLifecycle({
+    logger: createLogger(), bindClientHandlers() {}, nowFn: () => now,
+    setTimeoutFn: (fn, ms) => { timer = { fn, ms }; return 1; }, clearTimeoutFn() {},
+    createClient: () => {
+      creates++;
+      return { async login() {}, async destroy() {
+        lifecycle.scheduleSelfHeal('disposing', Object.assign(new Error('budget'), { code: 'DISCORD_GATEWAY_COOLDOWN', retryAt: 1000 }));
+      } };
+    },
+  });
+  await lifecycle.bootClient('test');
+  const restarting = lifecycle.restartClient('test');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(creates, 1);
+  now = 1000;
+  timer.fn();
+  await restarting;
+  assert.equal(creates, 2);
+});
+
+for (const destroyFails of [false, true]) {
+  test(`permanent failure after cooldown destroys the replacement (destroyFails=${destroyFails})`, async () => {
+    const destroys = [0, 0];
+    let creates = 0;
+    let now = 0;
+    let timer;
+    const lifecycle = createDiscordLifecycle({
+      logger: createLogger(), bindClientHandlers() {}, nowFn: () => now,
+      setTimeoutFn: fn => { timer = fn; return 1; }, clearTimeoutFn() {},
+      createClient: () => {
+        const id = creates++;
+        return {
+          async login() {
+            if (!id) throw Object.assign(new Error('budget'), { code: 'DISCORD_GATEWAY_COOLDOWN', retryAt: 1000 });
+            throw Object.assign(new Error('disk full'), { code: 'ENOSPC' });
+          },
+          async destroy() {
+            destroys[id]++;
+            if (id && destroyFails) throw new Error('replacement destroy failed');
+          },
+        };
+      },
+    });
+    const boot = lifecycle.bootClient('test');
+    const rejected = assert.rejects(boot, destroyFails ? /replacement destroy failed/ : { code: 'ENOSPC' });
+    await new Promise(resolve => setImmediate(resolve));
+    now = 1000;
+    timer();
+    await rejected;
+    assert.deepEqual(destroys, [1, 1]);
+    assert.equal(creates, 2);
+    await assert.rejects(lifecycle.restartClient('test'));
+    assert.equal(creates, 2);
+  });
+}

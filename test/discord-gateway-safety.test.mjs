@@ -69,21 +69,23 @@ test('IDENTIFY budget survives new clients and rejects attempt 11 before writing
   const { config, budget } = budgetFixture(t);
   for (let i = 0; i < 10; i++) budget.reserve('identify');
   const before = fs.readFileSync(budget.file, 'utf8');
-  assert.throws(() => createGatewayBudget(config).reserve('identify'), { code: 'DISCORD_GATEWAY_BLOCKED' });
+  assert.throws(() => createGatewayBudget(config).reserve('identify'), { code: 'DISCORD_GATEWAY_COOLDOWN' });
   assert.equal(fs.readFileSync(budget.file, 'utf8'), before);
 });
 
-test('daily budget survives short-window expiry and remains paused until manual restart', t => {
+test('daily budget reports precise expiry and automatically permits reservations at expiry', t => {
   let time = 1_800_000_000_000;
+  const start = time;
   const { config, budget } = budgetFixture(t, { now: () => time });
   for (let window = 0; window < 10; window++) {
     for (let i = 0; i < 10; i++) budget.reserve('identify');
     time += 15 * 60_000;
   }
-  assert.throws(() => budget.reserve('identify'), /budget exhausted/);
-  time += 24 * 60 * 60_000;
-  assert.throws(() => budget.reserve('identify'), /budget exhausted/);
-  assert.equal(createGatewayBudget(config).reserve('identify').daily, 1);
+  assert.throws(() => budget.reserve('identify'), { code: 'DISCORD_GATEWAY_COOLDOWN', retryAt: start + 86400000 });
+  time = start + 86400000 - 1;
+  assert.throws(() => budget.reserve('identify'), { code: 'DISCORD_GATEWAY_COOLDOWN' });
+  time++;
+  assert.equal(budget.reserve('identify').daily, 91);
 });
 
 test('handshake attempts have a separate persistent limit', t => {
@@ -163,7 +165,7 @@ test('automatic reconnect cannot bypass IDENTIFY budget', { timeout: 5000 }, asy
   await sleep(650);
   assert.deepEqual(auth, [2]);
   assert.equal(sockets.length, 2);
-  assert.equal(errors[0].code, 'DISCORD_GATEWAY_BLOCKED');
+  assert.equal(errors[0].code, 'DISCORD_GATEWAY_COOLDOWN');
   assert.equal(shard.retired, true);
 });
 
@@ -171,7 +173,7 @@ test('exhausted startup budget rejects login without sending credentials', { tim
   const { budget } = budgetFixture(t);
   for (let i = 0; i < 10; i++) budget.reserve('identify');
   const { shard, auth } = await localGateway(t, budget);
-  await assert.rejects(shard.connect(), { code: 'DISCORD_GATEWAY_BLOCKED' });
+  await assert.rejects(shard.connect(), { code: 'DISCORD_GATEWAY_COOLDOWN' });
   assert.deepEqual(auth, []);
 });
 

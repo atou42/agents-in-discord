@@ -33,6 +33,7 @@ export function createGatewayBudget({ dataDir, token, now = Date.now, fsImpl = f
       if (!['connect', 'identify'].includes(kind)) throw new Error('Invalid gateway budget operation');
       return persistReservation(kind);
     } catch (err) {
+      if (err.code === 'DISCORD_GATEWAY_COOLDOWN') throw err;
       failure = blocked(`Discord gateway paused: ${err.message}`, err);
       throw failure;
     }
@@ -61,10 +62,18 @@ export function createGatewayBudget({ dataDir, token, now = Date.now, fsImpl = f
       if (records.some(record => record.at > at)) throw new Error('Clock moved backwards; gateway budget cannot be verified');
       records = records.filter(record => record.at > at - DAY_MS);
       const matching = records.filter(record => record.kind === kind);
-      const recent = matching.filter(record => record.at > at - WINDOW_MS).length;
+      const recentRecords = matching.filter(record => record.at > at - WINDOW_MS).sort((a, b) => a.at - b.at);
+      matching.sort((a, b) => a.at - b.at);
+      const recent = recentRecords.length;
       const limit = kind === 'identify' ? 10 : 30;
       if (recent >= limit || (kind === 'identify' && matching.length >= 100)) {
-        throw new Error(`Gateway ${kind} budget exhausted (${recent}/15min, ${matching.length}/24h); fix the connection and restart after the budget window expires`);
+        const retryAt = Math.max(
+          recent >= limit ? recentRecords[recent - limit].at + WINDOW_MS : at,
+          kind === 'identify' && matching.length >= 100 ? matching[matching.length - 100].at + DAY_MS : at,
+        );
+        throw Object.assign(new Error(`Gateway ${kind} budget exhausted (${recent}/15min, ${matching.length}/24h); cooling down until ${new Date(retryAt).toISOString()}`), {
+          code: 'DISCORD_GATEWAY_COOLDOWN', retryAt,
+        });
       }
       records.push({ kind, at });
       const temporary = `${file}.${randomUUID()}.tmp`;

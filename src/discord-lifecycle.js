@@ -13,6 +13,7 @@ export function isInvalidTokenError(err) {
 
 export function isTerminalDiscordError(err) {
   return isInvalidTokenError(err)
+    || (err?.code === 'DISCORD_GATEWAY_COOLDOWN' && (!Number.isSafeInteger(err.retryAt) || err.retryAt < 0))
     || ['DISCORD_GATEWAY_BLOCKED', 'ENOSPC', 'EDQUOT', 'EROFS'].includes(err?.code)
     || [4010, 4011, 4012, 4013, 4014].includes(Number(err?.code))
     || /^(Invalid shard|Sharding is required|Used an invalid API version|Used invalid intents|Used disallowed intents)$/.test(err?.message || '');
@@ -77,13 +78,82 @@ export function createDiscordLifecycle({
   let selfHealInFlight = false;
   let loginInFlight = false;
   let terminalError = null;
+  let cooldownError = null;
+  let recovery = null;
+  let wakeRecovery = null;
+  let disposedClient = null;
+  let disposal = null;
   const selfHealRestartTimestamps = [];
 
   function pruneSelfHealRestartTimestamps(now = nowFn()) {
     const cutoff = now - Math.max(1000, selfHealWindowMs);
-    while (selfHealRestartTimestamps.length && selfHealRestartTimestamps[0] < cutoff) {
+    while (selfHealRestartTimestamps.length && selfHealRestartTimestamps[0] <= cutoff) {
       selfHealRestartTimestamps.shift();
     }
+  }
+
+  function stopClient() {
+    if (!client) return Promise.resolve();
+    if (disposedClient !== client) {
+      disposedClient = client;
+      const oldClient = client;
+      disposal = Promise.resolve().then(async () => {
+        await oldClient.destroy();
+        oldClient.removeAllListeners?.();
+      }).catch(err => {
+        terminalError = Object.assign(new Error(`Failed to destroy previous Discord client: ${safeError(err)}`, { cause: err }), { code: 'DISCORD_GATEWAY_BLOCKED' });
+        throw terminalError;
+      });
+    }
+    return disposal;
+  }
+
+  function recoverAfterCooldown(reason, err) {
+    if (!cooldownError || err.retryAt > cooldownError.retryAt) cooldownError = err;
+    if (recovery) return recovery;
+    if (selfHealTimer) clearTimeoutFn(selfHealTimer);
+    selfHealTimer = null;
+    recovery = Promise.resolve().then(async () => {
+      while (true) {
+        await stopClient();
+        if (terminalError) throw terminalError;
+        const retryAt = Math.max(cooldownError.retryAt, hasSelfHealCapacity() ? 0
+          : selfHealRestartTimestamps[0] + Math.max(1000, selfHealWindowMs));
+        const delay = Math.max(retryAt - nowFn(), loginInFlight || selfHealInFlight ? 1000 : 0);
+        if (delay > 0) {
+          logger.warn(`Discord cooling down (${reason}) until ${new Date(nowFn() + delay).toISOString()}`);
+          await new Promise(resolve => {
+            wakeRecovery = resolve;
+            selfHealTimer = setTimeoutFn(() => {
+              selfHealTimer = null;
+              wakeRecovery = null;
+              resolve();
+            }, Math.min(delay, 2_147_483_647));
+          });
+          continue;
+        }
+        cooldownError = null;
+        selfHealRestartTimestamps.push(nowFn());
+        client = createClient();
+        bindClientHandlers(client, lifecycleApi);
+        try {
+          await loginClientWithRetry(client, `cooldown:${reason}`);
+          logger.log(`Discord cooldown recovered (reason=${reason}).`);
+          return client;
+        } catch (error) {
+          if (isTerminalDiscordError(error)) {
+            await stopClient();
+            throw error;
+          }
+          if (error?.code === 'DISCORD_GATEWAY_COOLDOWN') cooldownError = error;
+          else if (isTransientDiscordNetworkError(error)) {
+            cooldownError = { retryAt: nowFn() + Math.max(1000, restartDelayMs) };
+          } else throw error;
+        }
+      }
+    }).finally(() => { recovery = null; });
+    recovery.catch(error => logger.error('Discord cooldown recovery failed:', safeError(error)));
+    return recovery;
   }
 
   function hasSelfHealCapacity(now = nowFn()) {
@@ -101,10 +171,12 @@ export function createDiscordLifecycle({
 
       while (true) {
         if (terminalError) throw terminalError;
+        if (cooldownError) throw cooldownError;
         attempt += 1;
         try {
           await bot.login(discordToken);
           if (terminalError) throw terminalError;
+          if (cooldownError) throw cooldownError;
           if (attempt > 1) {
             logger.log(`✅ Discord reconnect success after ${attempt} attempts (reason=${reason}).`);
           }
@@ -115,6 +187,7 @@ export function createDiscordLifecycle({
             terminalError = err;
             throw err;
           }
+          if (err?.code === 'DISCORD_GATEWAY_COOLDOWN') throw err;
           if (!selfHealEnabled) throw err;
           if (attempt >= maxLoginAttempts) {
             // Let the supervisor retry a network outage without clearing safety blocks.
@@ -133,11 +206,19 @@ export function createDiscordLifecycle({
   }
 
   async function bootClient(reason) {
+    if (recovery) return recovery;
     if (!client) {
       client = createClient();
       bindClientHandlers(client, lifecycleApi);
     }
-    await loginClientWithRetry(client, reason);
+    try {
+      await loginClientWithRetry(client, reason);
+    } catch (err) {
+      if (selfHealEnabled && err?.code === 'DISCORD_GATEWAY_COOLDOWN' && !isTerminalDiscordError(err)) {
+        return recoverAfterCooldown(reason, err);
+      }
+      throw err;
+    }
     return client;
   }
 
@@ -147,21 +228,28 @@ export function createDiscordLifecycle({
       terminalError = err;
       if (selfHealTimer) clearTimeoutFn(selfHealTimer);
       selfHealTimer = null;
+      wakeRecovery?.();
+      wakeRecovery = null;
       // Stop the gateway but leave ongoing agent/channel work alone.
-      Promise.resolve().then(() => client?.destroy()).catch(destroyErr => {
+      stopClient().catch(destroyErr => {
         logger.error('Failed to stop paused Discord client:', safeError(destroyErr));
       });
       logger.error(`[${new Date(nowFn()).toISOString()}] Discord paused (${reason}); manual intervention required: ${safeError(err)}`);
       return;
     }
     if (!selfHealEnabled) return;
+    if (err?.code === 'DISCORD_GATEWAY_COOLDOWN') {
+      recoverAfterCooldown(reason, err);
+      return;
+    }
+    if (recovery) return;
     if (err && isTransientDiscordNetworkError(err)) {
       logger.warn(`🌐 Transient Discord network error (${reason}). Self-heal skipped: ${safeError(err)}`);
       return;
     }
     if (selfHealInFlight || selfHealTimer || loginInFlight) return;
     if (!hasSelfHealCapacity()) {
-      logger.error(`🛑 Self-heal paused after ${selfHealRestartTimestamps.length} restarts within ${Math.round(selfHealWindowMs / 60000)} minutes. Fix network/proxy first, then restart manually.`);
+      recoverAfterCooldown(reason, { retryAt: selfHealRestartTimestamps[0] + Math.max(1000, selfHealWindowMs) });
       return;
     }
 
@@ -185,6 +273,7 @@ export function createDiscordLifecycle({
   async function restartClient(reason) {
     if (terminalError) throw terminalError;
     if (!selfHealEnabled) return;
+    if (recovery) return recovery;
     if (selfHealInFlight || loginInFlight || !hasSelfHealCapacity()) return;
 
     selfHealInFlight = true;
@@ -192,20 +281,19 @@ export function createDiscordLifecycle({
     selfHealRestartTimestamps.push(nowFn());
 
     try {
-      try {
-        if (client) {
-          await client.destroy();
-          client.removeAllListeners();
-        }
-      } catch (err) {
-        terminalError = Object.assign(new Error(`Failed to destroy previous Discord client: ${safeError(err)}`, { cause: err }), { code: 'DISCORD_GATEWAY_BLOCKED' });
-        throw terminalError;
-      }
+      await stopClient();
       if (terminalError) throw terminalError;
+      if (cooldownError) return recoverAfterCooldown(reason, cooldownError);
       client = createClient();
       bindClientHandlers(client, lifecycleApi);
       await loginClientWithRetry(client, `self_heal:${reason}`);
       logger.log(`✅ Self-heal recovered (reason=${reason}).`);
+    } catch (err) {
+      if (err?.code === 'DISCORD_GATEWAY_COOLDOWN' && !isTerminalDiscordError(err)) return recoverAfterCooldown(reason, err);
+      if (!terminalError && isTransientDiscordNetworkError(err)) {
+        return recoverAfterCooldown(reason, { retryAt: nowFn() + Math.max(1000, restartDelayMs) });
+      }
+      throw err;
     } finally {
       selfHealInFlight = false;
     }
