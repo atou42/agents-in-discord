@@ -59,5 +59,16 @@
     "smol-toml": "1.8.0",
     "socks-proxy-agent": "^8.0.5",
     "undici": "^6.21.3"
+  },
+  "overrides": {
+    "ip-address": {
+      "ip-address": "10.3.1"
+    },
+    "socks": {
+      "ip-address": "10.3.1"
+    },
+    "socks-proxy-agent": {
+      "ip-address": "10.3.1"
+    }
   }
 }
