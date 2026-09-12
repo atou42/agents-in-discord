@@ -56,7 +56,7 @@ test('session commands reject unsupported model and effort overrides without sav
   const session = { provider: 'zcode', model: 'old-value', effort: null };
   assert.throws(() => actions.setModel(session, 'new-model'), /ZCode.*not .*support/i);
   assert.equal(session.model, 'old-value');
-  for (const provider of ['cursor', 'antigravity', 'zcode']) {
+  for (const provider of ['antigravity', 'zcode']) {
     assert.throws(() => actions.setReasoningEffort({ provider }, 'high'), /effort/i);
   }
   assert.equal(saves, 0);

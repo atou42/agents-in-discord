@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { decorateCursorModelCatalog } from './cursor-model-settings.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -785,7 +786,7 @@ export function readCursorModelCatalog({
       maxBuffer: 8 * 1024 * 1024,
       timeout: 30_000,
     });
-    catalog = normalizeCursorModelCatalog(raw);
+    catalog = decorateCursorModelCatalog(normalizeCursorModelCatalog(raw));
   } catch (err) {
     catalog = {
       models: [],

@@ -591,6 +591,7 @@ const appContext = createAppContext({
     defaultProvider: DEFAULT_PROVIDER,
   },
   sessionSettingsOptions: {
+    readCursorModelCatalog: () => readCursorModelCatalog({ cursorBin: CURSOR_BIN, env: SPAWN_ENV }),
     defaultUiLanguage: DEFAULT_UI_LANGUAGE,
     securityProfile: SECURITY_PROFILE,
     codexTimeoutMs: CODEX_TIMEOUT_MS,

@@ -47,7 +47,7 @@ const PROVIDER_METADATA = Object.freeze({
     binEnvName: 'CURSOR_BIN',
     defaultSlashPrefix: 'cursor',
     capabilities: Object.freeze({
-      reasoningEffortLevels: Object.freeze([]),
+      reasoningEffortLevels: Object.freeze(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']),
       rawConfigOverrides: Object.freeze({
         supported: false,
       }),

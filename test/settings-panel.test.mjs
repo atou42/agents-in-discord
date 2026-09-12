@@ -505,7 +505,7 @@ test('settings overview rejects stale owner mismatched empty and incompatible ch
 test('other provider panels persist aligned model effort and fast settings through runner arguments', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'provider-settings-roundtrip-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  for (const provider of ['claude', 'cursor', 'grok', 'antigravity', 'pi', 'omp']) {
+  for (const provider of ['claude', 'grok', 'antigravity', 'pi', 'omp']) {
     const storeOptions = {
       dataFile: path.join(root, `${provider}.json`), workspaceRoot: root, botProvider: provider,
       defaults: { provider, mode: 'safe', language: 'en' },
@@ -1989,24 +1989,24 @@ test('settings use provider effort levels when the catalog does not specify them
   }
 });
 
-test('Cursor does not expose ineffective effort controls from model catalog metadata', async () => {
+test('Cursor exposes only the catalog effort choices for a parameterized model', async () => {
   const session = { provider: 'cursor', language: 'en', model: 'claude-fable-5-1[context=300k,effort=high]' };
   const panel = createPanel({
     session,
     modelCatalog: { models: [{ slug: session.model, supportedReasoningLevels: ['high'] }] },
     panelOptions: { getSupportedReasoningEffortLevels },
-    commandActions: { setReasoningEffort() { assert.fail('unsupported effort must not be saved'); } },
+    commandActions: { setReasoningEffort() { assert.fail('invalid effort must not be saved'); } },
   });
   for (const payload of [
     panel.openModelSettingsPanel({ key: 'thread-1', session, userId: '12345' }),
     panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345', activeSection: 'model' }),
   ]) {
-    assert.ok(!payload.components.flatMap(row => row.components).some(c => c.data.customId?.includes('model_effort')));
-    assert.match(payload.content, /effort: .*not exposed/);
+    const control = payload.components.flatMap(row => row.components).find(c => c.data.customId?.includes('model_effort'));
+    assert.deepEqual(control.data.options.map(option => option.value), ['high', 'default']);
   }
   let response;
   await panel.handleSettingsPanelInteraction({
-    customId: 'stg:set:effort:high:12345', channelId: 'thread-1', user: { id: '12345' },
+    customId: 'stg:set:effort:invalid:12345', channelId: 'thread-1', user: { id: '12345' },
     async reply(result) { response = result; }, async update() { assert.fail('unsupported effort must not succeed'); },
   });
   assert.match(response.content, /not .*support|not .*expose/i);

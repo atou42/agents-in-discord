@@ -78,7 +78,7 @@ const ALL_SESSION_COMMAND_ALIASES = Object.freeze({
   resume: Object.freeze(['rollout_resume', 'project_resume', 'cursor_resume', 'grok_resume', 'conversation_resume', 'chat_resume', 'zcode_resume', 'pi_resume', 'omp_resume']),
 });
 
-const REASONING_LEVEL_DISPLAY_ORDER = Object.freeze(['auto', 'max', 'xhigh', 'high', 'medium', 'low', 'minimal', 'off']);
+const REASONING_LEVEL_DISPLAY_ORDER = Object.freeze(['auto', 'max', 'xhigh', 'high', 'medium', 'low', 'minimal', 'none', 'off']);
 
 const COMMAND_ALIASES = Object.freeze({
   c: 'cancel',
@@ -276,10 +276,19 @@ export function buildSlashCommandEntries({ botProvider = null } = {}) {
     {
       name: 'model',
       description: '打开模型与推理力度选择面板',
+      configure(builder) {
+        if (lockedProvider !== 'cursor') return builder;
+        return builder
+          .addStringOption(o => o.setName('name').setDescription('模型 ID；default 清除覆盖，留空打开面板'))
+          .addStringOption(o => o.setName('effort').setDescription('推理力度，按模型支持范围校验').addChoices(...effortChoices))
+          .addStringOption(o => o.setName('fast').setDescription('Fast 模式，按模型支持范围校验').addChoices(
+            { name: 'on', value: 'on' }, { name: 'off', value: 'off' }, { name: 'default', value: 'default' },
+          ));
+      },
     },
-    (!lockedProvider || lockedProvider === 'codex' || lockedProvider === 'omp') && {
+    (!lockedProvider || ['codex', 'cursor', 'omp'].includes(lockedProvider)) && {
       name: 'fast',
-      description: '切换 Fast mode（Codex/OMP，on/off/status/default）',
+      description: '切换 Fast mode（Codex/Cursor/OMP，on/off/status/default）',
       configure(builder) {
         return builder.addStringOption(o => o.setName('action').setDescription('Fast mode 操作').setRequired(true)
           .addChoices(

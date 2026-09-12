@@ -115,6 +115,7 @@ export function createSessionCommandActions({
   getSessionLanguage = () => 'zh',
   normalizeUiLanguage = (value) => (String(value || '').trim().toLowerCase() === 'en' ? 'en' : 'zh'),
   getProviderShortName = (provider) => String(provider || ''),
+  resolveModelSetting = (session) => ({ value: session.model }),
   resolveFastModeSetting = () => ({ enabled: false, supported: false, source: 'provider unsupported' }),
   formatProviderSessionLabel = (provider, language = 'en', { plural = false } = {}) => (
     language === 'en'
@@ -201,6 +202,7 @@ export function createSessionCommandActions({
     if (model && !providerSupportsModelSelection(provider)) {
       throw new Error(formatModelSelectionUnsupported(provider, getSessionLanguage(session)));
     }
+    if (provider === 'cursor') return setModelSettings(session, { model });
     session.model = model;
     saveDb();
     return { model: session.model };
@@ -218,15 +220,29 @@ export function createSessionCommandActions({
     if (value && !getSupportedReasoningEffortLevels(provider).length) {
       throw new Error(formatReasoningEffortUnsupported(provider, getSessionLanguage(session)));
     }
+    if (provider === 'cursor') return setModelSettings(session, { effort: value });
     session.effort = value;
     saveDb();
     return { effort: session.effort };
   }
 
   function setFastMode(session, enabled) {
+    if ((getSessionProvider?.(session) || session?.provider) === 'cursor') {
+      setModelSettings(session, { fastMode: enabled });
+      return { fastModeSetting: resolveFastModeSetting(session) };
+    }
     session.fastMode = enabled;
     saveDb();
     return { fastModeSetting: resolveFastModeSetting(session) };
+  }
+
+  function setModelSettings(session, updates) {
+    const candidate = { ...session, ...updates };
+    // Validate the whole combination before persisting any of its dimensions.
+    const effectiveModel = resolveModelSetting(candidate).value;
+    Object.assign(session, updates);
+    saveDb();
+    return { model: session.model, effort: session.effort, effectiveModel };
   }
 
   function setRuntimeMode(session, mode) {
@@ -668,6 +684,7 @@ export function createSessionCommandActions({
     setTimeoutMs,
     setProvider,
     setModel,
+    setModelSettings,
     setCodexProfile,
     setReasoningEffort,
     setFastMode,

@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { cursorModelFamily, groupCursorModelCatalog, parseCursorModel } from './cursor-model-settings.js';
 import {
   formatModelSelectionUnsupported,
   formatReasoningEffortUnsupported,
@@ -272,6 +273,10 @@ function normalizeModelCatalog(catalog) {
         ? levels.map((level) => String(level?.effort || level || '').trim()).filter(Boolean)
         : [];
       return {
+        cursorFamily: model.cursorFamily,
+        cursorAliases: model.cursorAliases,
+        cursorVariants: model.cursorVariants,
+        supportsFast: model.supportsFast,
         slug,
         displayName: displayName || slug,
         description: String(model?.description || '').trim(),
@@ -289,7 +294,7 @@ function normalizeModelSearchQuery(value) {
 }
 
 function rankModelSearchMatch(model, query) {
-  const fields = [model.slug, model.displayName, model.description]
+  const fields = [model.slug, model.displayName, model.description, ...(model.cursorAliases || [])]
     .map((value) => String(value || '').trim().toLowerCase());
   if (fields.some((value) => value === query)) return 0;
   if (fields.some((value) => value.startsWith(query))) return 1;
@@ -312,8 +317,9 @@ function buildModelSelectOptions(snapshot, session, {
   effectiveModel: effectiveValue = snapshot.modelValue,
   query = '',
 } = {}) {
-  const currentOverride = String(overrideValue || '').trim();
-  const effectiveModel = String(effectiveValue || '').trim();
+  const canonicalModel = (value) => findCatalogModel(snapshot.modelCatalog, value)?.slug || String(value || '').trim();
+  const currentOverride = canonicalModel(overrideValue);
+  const effectiveModel = canonicalModel(effectiveValue);
   const providerDefaultModel = String(snapshot.defaults?.model || '').trim();
   const normalizedQuery = normalizeModelSearchQuery(query);
   const options = [{
@@ -400,13 +406,19 @@ function buildModelSelectOptions(snapshot, session, {
 function findCatalogModel(modelCatalog, modelName) {
   const slug = String(modelName || '').trim();
   if (!slug) return null;
-  return modelCatalog.models.find((model) => model.slug === slug) || null;
+  return modelCatalog.models.find((model) => model.slug === slug || model.cursorAliases?.includes(slug)
+    || (model.cursorFamily && slug && model.cursorFamily === cursorModelFamily(slug))) || null;
 }
 
 function resolveModelEffortLevels(snapshot, session, modelName = '') {
   if (!snapshot.effortLevels.length) return [];
   const effectiveModel = String(modelName || session?.model || snapshot.modelValue || '').trim();
   const catalogModel = findCatalogModel(snapshot.modelCatalog, effectiveModel);
+  if (snapshot.provider === 'cursor') {
+    return [...new Set((catalogModel?.cursorVariants || []).map(parseCursorModel)
+      .filter((variant) => variant.fast === snapshot.fastMode.enabled)
+      .map((variant) => variant.effort).filter(Boolean))];
+  }
   return catalogModel?.supportedReasoningLevels.length
     ? [...catalogModel.supportedReasoningLevels]
     : [...snapshot.effortLevels];
@@ -500,6 +512,8 @@ export function createSettingsPanel({
     'model_effort',
     'quick_model',
     'quick_model_effort',
+    'quick_model_fast',
+    'model_fast',
     'model_search',
     'quick_model_search',
     'default_model',
@@ -511,6 +525,7 @@ export function createSettingsPanel({
     return String(buildSnapshot(key, { ...session, model: null }).modelValue || '').trim();
   };
   const findModelEffortConflict = (key, session, requestedModel) => {
+    if (getSessionProvider(session) === 'cursor') return null;
     const snapshot = buildSnapshot(key, session);
     const model = resolveRequestedModel(key, session, requestedModel);
     const catalogModel = findCatalogModel(snapshot.modelCatalog, model);
@@ -584,7 +599,7 @@ export function createSettingsPanel({
     if (!botProvider) sections.push('provider');
     if (provider === 'codex') sections.push('profile');
     sections.push('model');
-    if (provider === 'codex' || provider === 'omp') sections.push('fast');
+    if (['codex', 'cursor', 'omp'].includes(provider)) sections.push('fast');
     if (provider === 'codex' || provider === 'claude') sections.push('runtime');
     if (getSupportedReasoningEffortLevels(provider).length) sections.push('effort');
     if (getProviderCompactCapabilities(provider).strategies.length > 0) sections.push('compact');
@@ -618,7 +633,8 @@ export function createSettingsPanel({
     const replyDefault = getReplyDeliveryDefault(session);
     const workspace = getWorkspaceBinding(session, key) || { workspaceDir: null, source: 'unset' };
     const effortLevels = getSupportedReasoningEffortLevels(provider);
-    const modelCatalog = normalizeModelCatalog(getModelCatalog(provider));
+    const rawCatalog = getModelCatalog(provider) || { models: [] };
+    const modelCatalog = normalizeModelCatalog(provider === 'cursor' ? groupCursorModelCatalog(rawCatalog) : rawCatalog);
     const snapshot = {
       language,
       isThread: Boolean(session?.parentChannelId),
@@ -645,6 +661,11 @@ export function createSettingsPanel({
       effortSource: effortLevels.length ? (effortSetting?.source || defaults.source) : defaults.source,
     };
     snapshot.modelEffortLevels = resolveModelEffortLevels(snapshot, session);
+    if (provider === 'cursor') {
+      const model = findCatalogModel(modelCatalog, snapshot.modelValue);
+      snapshot.cursorFastAvailable = (model?.cursorVariants || []).map(parseCursorModel)
+        .some((variant) => variant.fast && variant.effort === effortSetting?.value);
+    }
     return snapshot;
   }
 
@@ -701,7 +722,9 @@ export function createSettingsPanel({
     const selected = snapshot.fastMode.source === 'session override'
       ? (snapshot.fastMode.enabled ? 'on' : 'off')
       : 'follow';
-    const followLabel = snapshot.provider === 'omp'
+    const followLabel = snapshot.provider === 'cursor'
+      ? (snapshot.language === 'en' ? 'Follow parent/model' : '跟随父频道/模型')
+      : snapshot.provider === 'omp'
       ? (snapshot.isThread
         ? (snapshot.language === 'en' ? 'Follow parent/OMP default' : '跟随父频道/OMP 默认')
         : (snapshot.language === 'en' ? 'Follow OMP default' : '跟随 OMP 默认'))
@@ -717,6 +740,7 @@ export function createSettingsPanel({
       ...['follow', 'on', 'off'].map((value) => new ButtonBuilder()
         .setCustomId(buildSettingsComponentId('set', target, value, userId, generation))
         .setLabel(labels[value])
+        .setDisabled(snapshot.provider === 'cursor' && value === 'on' && !snapshot.cursorFastAvailable)
         .setStyle(selected === value ? ButtonStyle.Primary : ButtonStyle.Secondary)),
     )];
   }
@@ -740,6 +764,21 @@ export function createSettingsPanel({
         .setLabel(snapshot.language === 'en' ? 'Use provider default' : '使用 provider 默认')
         .setStyle(!session?.model ? ButtonStyle.Primary : ButtonStyle.Secondary),
     ];
+    if (snapshot.provider === 'cursor') {
+      if (snapshot.modelEffortLevels.length || session.effort) {
+        rows.push(new ActionRowBuilder().addComponents(
+          new StringSelectMenuBuilder()
+            .setCustomId(buildSettingsComponentId('set', effortTarget, 'preset', userId, generation))
+            .setPlaceholder(`Effort: ${snapshot.effortValue || 'default'}`)
+            .addOptions(buildEffortOptions(session, snapshot)),
+        ));
+      }
+      if (snapshot.fastMode.supported || typeof session.fastMode === 'boolean') {
+        rows.push(...buildFastControlRows(userId, snapshot, { target: quick ? 'quick_model_fast' : 'model_fast', generation }));
+      }
+      rows.push(new ActionRowBuilder().addComponents(...modelActionButtons));
+      return rows;
+    }
     if (snapshot.modelEffortLevels.length) {
       const effortRows = chunk(buildEffortOptions(session, snapshot), 5).map((options) => new ActionRowBuilder().addComponents(
         ...options.map((option) => new ButtonBuilder()
@@ -1211,8 +1250,8 @@ function formatOverviewSection(snapshot) {
               ? `• fast mode: ${formatFastModeLabel(snapshot.fastMode.enabled, snapshot.language)} (${formatSettingSourceLabel(snapshot.fastMode.source, snapshot.language)})`
               : `• fast mode：${formatFastModeLabel(snapshot.fastMode.enabled, snapshot.language)}（${formatSettingSourceLabel(snapshot.fastMode.source, snapshot.language)}）`)
             : (snapshot.language === 'en'
-              ? '• fast mode: n/a (Codex and OMP only)'
-              : '• fast mode：不适用（仅 Codex 和 OMP）'),
+              ? '• fast mode: unavailable for this provider/model'
+              : '• fast mode：当前 provider/模型不可用'),
           snapshot.runtimeMode.supported
             ? (snapshot.language === 'en'
               ? `• runtime: ${formatRuntimeModeLabel(snapshot.runtimeMode.mode, snapshot.language)} (${formatSettingSourceLabel(snapshot.runtimeMode.source, snapshot.language)})`
@@ -1302,6 +1341,9 @@ function formatOverviewSection(snapshot) {
     const lines = [
       snapshot.language === 'en' ? '**Model**' : '**模型**',
       notice || null,
+      snapshot.provider === 'cursor'
+        ? `Fast: ${snapshot.fastMode.supported ? (snapshot.fastMode.enabled ? 'on' : 'off') : 'n/a'}`
+        : null,
       snapshot.language === 'en'
         ? `• model: ${formatValueLabel(snapshot.modelValue, '(provider default)', snapshot.language)} (${formatSettingSourceLabel(snapshot.modelSource, snapshot.language)})`
         : `• model：${formatValueLabel(snapshot.modelValue, '（provider 默认）', snapshot.language)}（${formatSettingSourceLabel(snapshot.modelSource, snapshot.language)}）`,
@@ -1786,7 +1828,7 @@ function formatOverviewSection(snapshot) {
       } else if (parsed.target === 'default_fast') {
         const next = parsed.value === 'default' ? null : parsed.value === 'on';
         commandActions.setGlobalFastModeDefault?.(session, next);
-      } else if (parsed.target === 'fast') {
+      } else if (['fast', 'model_fast', 'quick_model_fast'].includes(parsed.target)) {
         const next = parsed.value === 'follow' ? null : parsed.value === 'on';
         commandActions.setFastMode?.(session, next);
       } else if (parsed.target === 'runtime') {
@@ -1851,7 +1893,7 @@ function formatOverviewSection(snapshot) {
         });
       }
 
-      if (parsed.target === 'quick_model' || parsed.target === 'quick_model_effort') {
+      if (['quick_model', 'quick_model_effort', 'quick_model_fast'].includes(parsed.target)) {
         await interaction.update(buildModelSettingsPayload({
           key,
           session,
@@ -1872,7 +1914,7 @@ function formatOverviewSection(snapshot) {
             ? 'runtime'
           : (parsed.target === 'model' && parsed.value === 'preset')
             ? 'model'
-            : (parsed.target === 'model_effort')
+            : (parsed.target === 'model_effort' || parsed.target === 'model_fast')
               ? 'model'
               : (parsed.target.startsWith('default_') ? 'defaults' : parsed.target),
         activeDefaultsGroup: parsed.target === 'default_effort'

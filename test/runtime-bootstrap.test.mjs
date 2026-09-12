@@ -68,6 +68,8 @@ test('readCursorModelCatalog exposes Fable 5.1 high with the standard 300k conte
     slug: 'claude-fable-5-1[context=300k,effort=high]',
     displayName: 'Claude Fable 5.1 300k Thinking High',
     description: 'Cursor Agent standard-context Fable 5.1',
+    cursorFamily: 'claude-fable-5-1[context=300k]',
+    supportsFast: false,
     defaultReasoningLevel: 'high',
     supportedReasoningLevels: ['high'],
     visibility: 'catalog',

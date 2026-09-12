@@ -4,6 +4,7 @@ import {
   normalizeExtraInfoTemplate,
 } from './extra-info.js';
 import { providerSupportsModelSelection } from './provider-metadata.js';
+import { parseCursorModel, resolveCursorModel } from './cursor-model-settings.js';
 
 export function parseUiLanguageInput(value) {
   const raw = String(value || '').trim().toLowerCase();
@@ -394,6 +395,7 @@ export function createSessionSettings({
   defaultCodexProfile = null,
   readDefaultCodexProfile = () => ({ profile: defaultCodexProfile, source: 'env default' }),
   defaultModel = null,
+  readCursorModelCatalog = () => ({ models: [], error: null }),
   readCodexDefaults = () => ({
     model: null,
     modelConfigured: false,
@@ -511,6 +513,14 @@ export function createSessionSettings({
 
   function resolveFastModeSetting(session) {
     const provider = normalizeProvider(session?.provider);
+    if (provider === 'cursor') {
+      const model = parseCursorModel(resolveModelSetting(session).value || 'auto');
+      const supported = readCursorModelCatalog().models.some((entry) => {
+        const variant = parseCursorModel(entry.slug);
+        return variant.family === model.family && variant.fast;
+      });
+      return { enabled: model.fast, supported, source: cursorOverride(session, 'fastMode').source || 'model' };
+    }
     if (provider !== 'codex' && provider !== 'omp') {
       return {
         enabled: false,
@@ -636,7 +646,28 @@ export function createSessionSettings({
     };
   }
 
+  function cursorOverride(session, field) {
+    const value = session?.[field];
+    if (value !== null && value !== undefined && value !== '') return { value, source: 'session override' };
+    const parent = readProviderScopedValue(resolveParentSession(session), 'cursor', field);
+    if (parent !== null && parent !== undefined && parent !== '') return { value: parent, source: 'parent channel' };
+    return { value: null, source: null };
+  }
+
   function resolveModelSetting(session) {
+    const setting = resolveRawModelSetting(session);
+    if (normalizeProvider(session?.provider) !== 'cursor') return setting;
+    const effort = cursorOverride(session, 'effort').value;
+    const fast = cursorOverride(session, 'fastMode').value;
+    const params = parseCursorModel(setting.value || 'auto').params;
+    const needsCatalog = effort !== null || fast !== null || params.has('effort') || params.has('fast');
+    return {
+      ...setting,
+      value: resolveCursorModel(setting.value, needsCatalog ? readCursorModelCatalog() : {}, { effort, fast }),
+    };
+  }
+
+  function resolveRawModelSetting(session) {
     const provider = normalizeProvider(session?.provider);
     if (!providerSupportsModelSelection(provider)) return { value: null, source: 'native session' };
     const currentValue = String(session?.model || '').trim();
@@ -699,6 +730,12 @@ export function createSessionSettings({
 
   function resolveReasoningEffortSetting(session) {
     const provider = normalizeProvider(session?.provider);
+    if (provider === 'cursor') {
+      return {
+        value: parseCursorModel(resolveModelSetting(session).value || 'auto').effort,
+        source: cursorOverride(session, 'effort').source || 'model',
+      };
+    }
     const currentValue = String(session?.effort || '').trim();
     if (currentValue) {
       return { value: currentValue, source: 'session override' };

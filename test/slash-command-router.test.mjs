@@ -361,7 +361,7 @@ test('createSlashCommandRouter model command can update model and effort togethe
 });
 
 test('model slash commands reject unsupported overrides before changing either setting', async () => {
-  for (const provider of ['cursor', 'zcode']) {
+  for (const provider of ['zcode']) {
     const state = createRouterState({
       getModelCatalog: () => ({ models: [{ slug: 'new-model', supportedReasoningLevels: ['high'] }] }),
       formatReasoningEffortUnsupported: () => 'effort not supported',

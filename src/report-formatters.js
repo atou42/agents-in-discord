@@ -1012,6 +1012,11 @@ export function createReportFormatters({
   }
 
   function formatFastModeConfigHelp(language, provider = 'codex') {
+    if (provider === 'cursor') {
+      return language === 'en'
+        ? `Usage: !fast <on|off|status|default>. Cursor Fast is model-specific; default follows the parent/model.`
+        : `用法：!fast <on|off|status|default>。Cursor Fast 按模型支持范围校验，default 跟随父频道/模型。`;
+    }
     if (provider !== 'codex' && provider !== 'omp') {
       return language === 'en'
         ? `Current provider ${getProviderDisplayName(provider)} does not expose Fast mode.`
@@ -1051,11 +1056,18 @@ export function createReportFormatters({
 
   function formatFastModeConfigReport(language, provider, fastModeSetting, changed = false) {
     if (!fastModeSetting?.supported) {
+      if (provider === 'cursor') return language === 'en'
+        ? 'The current Cursor model has no Fast variant in the CLI catalog.'
+        : '当前 Cursor 模型在 CLI 目录中没有 Fast 版本。';
       return language === 'en'
         ? `⚠️ Current provider ${getProviderDisplayName(provider)} does not support Fast mode.`
         : `⚠️ 当前 provider ${getProviderDisplayName(provider)} 不支持 Fast mode。`;
     }
-    const note = provider === 'omp'
+    const note = provider === 'cursor'
+      ? (language === 'en'
+        ? 'Cursor Fast is encoded in --model; effort is preserved. Default follows the parent/model.'
+        : 'Cursor Fast 通过 --model 传递，保留 effort；default 跟随父频道/模型。')
+      : provider === 'omp'
       ? (language === 'en'
         ? '• note: On passes OMP service tier `priority`; Off passes `none`; default leaves OMP unchanged.'
         : '• 说明：开启会传给 OMP service tier `priority`，关闭传 `none`，default 不覆盖 OMP。')
@@ -1252,7 +1264,7 @@ export function createReportFormatters({
         '**Model & Runtime**',
         `• \`${slashRef('model')}\` — choose model and effort from a compact panel`,
         `• \`!model <name|default>\` — type a custom model directly`,
-        (provider === 'codex' || provider === 'omp') ? `• \`${slashRef('fast')} <on|off|status|default>\` / \`!fast <...>\` — toggle ${getProviderDisplayName(provider)} Fast mode for this channel` : null,
+        ['codex', 'cursor', 'omp'].includes(provider) ? `• \`${slashRef('fast')} <on|off|status|default>\` / \`!fast <...>\` — toggle ${getProviderDisplayName(provider)} Fast mode for this channel` : null,
         (provider === 'claude' || provider === 'codex') ? `• \`${slashRef('runtime')} <normal|long|status|default>\` / \`!runtime <...>\` — switch ${getProviderDisplayName(provider)} runtime mode for this channel` : null,
         reasoningLevels.length ? null : `• effort — not exposed by current provider (${getProviderDisplayName(provider)})`,
         compact.strategies.length === 0
@@ -1313,7 +1325,7 @@ export function createReportFormatters({
         '**模型 & 执行**',
         `• \`${slashRef('model')}\` — 打开只包含模型和推理力度的小面板`,
         `• \`!model <name|default>\` — 手写设置自定义 model`,
-        (provider === 'codex' || provider === 'omp') ? `• \`${slashRef('fast')} <on|off|status|default>\` / \`!fast <...>\` — 切换当前频道的 ${getProviderDisplayName(provider)} Fast mode` : null,
+        ['codex', 'cursor', 'omp'].includes(provider) ? `• \`${slashRef('fast')} <on|off|status|default>\` / \`!fast <...>\` — 切换当前频道的 ${getProviderDisplayName(provider)} Fast mode` : null,
         (provider === 'claude' || provider === 'codex') ? `• \`${slashRef('runtime')} <normal|long|status|default>\` / \`!runtime <...>\` — 切换当前频道的 ${getProviderDisplayName(provider)} 接入方式` : null,
       reasoningLevels.length ? null : `• effort — 当前 provider (${getProviderDisplayName(provider)}) 未暴露`,
       compact.strategies.length === 0

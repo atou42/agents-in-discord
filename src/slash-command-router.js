@@ -503,10 +503,11 @@ export function createSlashCommandRouter({
   registerSlashHandlers(handlers, ['model'], async ({ interaction, key, session, respond }) => {
     const name = interaction.options.getString('name');
     const effort = interaction.options.getString('effort');
+    const fast = interaction.options.getString('fast');
     const provider = getSessionProvider(session);
     const language = getSessionLanguage(session);
 
-    if (!name && !effort) {
+    if (!name && !effort && !fast) {
       if (typeof openModelSettingsPanel === 'function') {
         await respond(openModelSettingsPanel({
           key,
@@ -529,6 +530,20 @@ export function createSlashCommandRouter({
     }
     if (effort && effort !== 'default' && !getSupportedReasoningEffortLevels(provider).length) {
       await respond({ content: formatReasoningEffortUnsupported(provider, language), flags: 64 });
+      return;
+    }
+
+    if (provider === 'cursor') {
+      const updates = {};
+      if (name) updates.model = name.trim().toLowerCase() === 'default' ? null : name.trim();
+      if (effort) updates.effort = effort === 'default' ? null : effort;
+      if (fast) {
+        if (!['on', 'off', 'default'].includes(fast)) throw new Error('Invalid Cursor fast mode');
+        updates.fastMode = fast === 'default' ? null : fast === 'on';
+      }
+      const result = commandActions.setModelSettings(session, updates);
+      closeRuntimeForKey(key);
+      await respond(`model = ${result.effectiveModel || '(provider default)'}`);
       return;
     }
 
@@ -585,7 +600,7 @@ export function createSlashCommandRouter({
     const provider = getSessionProvider(session);
     const language = getSessionLanguage(session);
     const action = parseFastModeAction(interaction.options.getString('action'));
-    if (provider !== 'codex' && provider !== 'omp') {
+    if (!['codex', 'cursor', 'omp'].includes(provider)) {
       await respond({
         content: formatFastModeConfigReport(language, provider, { enabled: false, supported: false, source: 'provider unsupported' }, false),
         flags: 64,
