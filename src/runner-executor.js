@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { createRunnerArgsBuilder, uniqueDirs } from './runner-args.js';
 import { createClaudeLongRunner } from './claude-long-runner.js';
 import { createCodexAppServerRunner } from './codex-app-server-runner.js';
+import { createCodexDiagnosticLog } from './codex-diagnostic-log.js';
 import { createOmpInteractiveRunner } from './omp-interactive-runner.js';
 import { stageGrokPromptFile } from './grok-prompt-file.js';
 import { CODEX_GOAL_CONTINUATION_PROMPT, isCodexGoalContinuationPrompt } from './codex-goal-flow.js';
@@ -104,6 +105,7 @@ export function createRunnerExecutor({
     maxSessions: claudeLongMaxSessions,
   });
   const codexAppServerRunner = createCodexAppServerRunnerFn({
+    diagnosticLog: createCodexDiagnosticLog(),
     spawnEnv,
     getProviderBin,
     getSessionId,

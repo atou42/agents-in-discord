@@ -28,6 +28,7 @@ function waitFor(check, { timeoutMs = 1000, intervalMs = 10 } = {}) {
 }
 
 function createFakeAppServerSpawn({
+  holdInitialize = false,
   autoComplete = true,
   failSteer = false,
   failInject = false,
@@ -55,6 +56,7 @@ function createFakeAppServerSpawn({
         return true;
       }
       if (request.method === 'initialize') {
+        if (holdInitialize) return true;
         child.stdout.write(`${JSON.stringify({ id: request.id, result: { codexHome: '/tmp/codex' } })}\n`);
       } else if (request.method === 'thread/start') {
         activeThreadId = 'thread-1';
@@ -116,6 +118,81 @@ function createFakeAppServerSpawn({
 
   return { spawnFn, calls, writes, child, completeTurn };
 }
+
+test('Codex diagnostics summarize startup and first output without recording content', async (t) => {
+  const fake = createFakeAppServerSpawn();
+  const records = [];
+  const runner = createCodexAppServerRunner({ spawnFn: fake.spawnFn, log() {}, diagnosticLog: record => records.push(record) });
+  t.after(() => runner.closeAll('test done'));
+  const result = await runner.runTask({ session: {}, sessionKey: 'diag', workspaceDir: '/tmp', prompt: 'private prompt' });
+  assert.equal(result.ok, true);
+  assert.deepEqual(records.map(r => r.event), ['rpc-finished', 'rpc-finished', 'first-output']);
+  assert.deepEqual(records.slice(0, 2).map(r => r.stage), ['initialize', 'thread/start']);
+  assert.ok(records.every(r => !Number.isNaN(Date.parse(r.at))));
+  assert.ok(records[2].prepareMs >= 0);
+  assert.ok(records[2].firstOutputMs >= 0);
+  assert.doesNotMatch(JSON.stringify(records), /private prompt|done from app-server/);
+});
+
+test('Codex stalled startup emits one warning and bounded stderr metadata without interrupting', async (t) => {
+  const fake = createFakeAppServerSpawn({ holdInitialize: true });
+  const records = [];
+  const runner = createCodexAppServerRunner({
+    spawnFn: fake.spawnFn, log() {}, diagnosticSlowMs: 10, diagnosticLog: record => records.push(record),
+  });
+  t.after(() => runner.closeAll('test done'));
+  let settled = false;
+  const pending = runner.runTask({ session: {}, sessionKey: 'slow', workspaceDir: '/tmp', prompt: 'secret' })
+    .then(result => { settled = true; return result; });
+  fake.child.stderr.write('MCP failed: secret-token\n'.repeat(100));
+  await waitFor(() => records.some(r => r.event === 'rpc-slow'));
+  await sleep(30);
+  assert.equal(records.filter(r => r.event === 'rpc-slow').length, 1);
+  assert.equal(settled, false);
+  assert.equal(fake.child.killed, false);
+  assert.equal(records[0].startupStderrKind, 'mcp-error');
+  assert.ok(records[0].startupStderrBytes > 0);
+  assert.doesNotMatch(JSON.stringify(records), /secret/);
+  const request = JSON.parse(fake.writes[0]);
+  fake.child.stdout.write(`${JSON.stringify({ id: request.id, result: {} })}\n`);
+  assert.equal((await pending).ok, true);
+  await sleep(30);
+  assert.equal(records.filter(r => r.event === 'rpc-slow').length, 1);
+});
+
+test('Codex startup failure records stage but not server error text', async (t) => {
+  const fake = createFakeAppServerSpawn({ holdInitialize: true });
+  const records = [];
+  const runner = createCodexAppServerRunner({ spawnFn: fake.spawnFn, log() {}, diagnosticLog: r => records.push(r) });
+  t.after(() => runner.closeAll('test done'));
+  const pending = runner.runTask({ session: {}, sessionKey: 'failure', workspaceDir: '/tmp', prompt: 'private' });
+  const request = JSON.parse(fake.writes[0]);
+  fake.child.stdout.write(`${JSON.stringify({ id: request.id, error: { message: 'secret-server-error' } })}\n`);
+  assert.equal((await pending).ok, false);
+  assert.equal(records.length, 1);
+  assert.equal(records[0].stage, 'initialize');
+  assert.equal(records[0].outcome, 'failed');
+  assert.doesNotMatch(JSON.stringify(records), /secret-server-error/);
+});
+
+test('Codex repeated streamed output produces only one diagnostic per warm turn', async (t) => {
+  const fake = createFakeAppServerSpawn({ autoComplete: false });
+  const records = [];
+  const runner = createCodexAppServerRunner({ spawnFn: fake.spawnFn, log() {}, diagnosticLog: r => records.push(r) });
+  t.after(() => runner.closeAll('test done'));
+  for (let run = 0; run < 2; run += 1) {
+    const pending = runner.runTask({ session: {}, sessionKey: 'warm', workspaceDir: '/tmp', prompt: 'private' });
+    await waitFor(() => fake.writes.filter(line => JSON.parse(line).method === 'turn/start').length === run + 1);
+    for (let i = 0; i < 100; i += 1) {
+      fake.child.stdout.write(`${JSON.stringify({ method: 'item/agentMessage/delta', params: { threadId: 'thread-1', itemId: 'stream', delta: 'private' } })}\n`);
+    }
+    fake.completeTurn();
+    assert.equal((await pending).ok, true);
+  }
+  assert.equal(records.length, 4);
+  assert.equal(records.filter(r => r.event === 'first-output').length, 2);
+  assert.doesNotMatch(JSON.stringify(records), /private/);
+});
 
 test('buildCodexLongConfig pins openai-curated marketplace to local cache when present', () => {
   const previous = process.env.CODEX_OPENAI_CURATED_MARKETPLACE_SOURCE;

@@ -299,8 +299,20 @@ export function createCodexAppServerRunner({
   disabledMcpServers = [],
   spawnFn = spawn,
   log = (message) => console.log(message),
+  diagnosticLog = () => {},
+  diagnosticSlowMs = 30_000,
 } = {}) {
   const entries = new Map();
+
+  function diagnose(entry, fields) {
+    diagnosticLog({ at: new Date().toISOString(), key: entry.key, pid: entry.child?.pid ?? null, ...fields });
+  }
+
+  function markFirstOutput(entry, turn) {
+    if (!turn || turn.firstOutputMs !== null) return;
+    turn.firstOutputMs = Math.round(performance.now() - turn.startedAt);
+    diagnose(entry, { event: 'first-output', prepareMs: turn.prepareMs, firstOutputMs: turn.firstOutputMs });
+  }
 
   function activeTurns(entry) {
     return entry?.turnsByThreadId ? [...entry.turnsByThreadId.values()] : [];
@@ -323,6 +335,13 @@ export function createCodexAppServerRunner({
   function resolveTurn(entry, turn, result) {
     if (!turn || turn.settled) return false;
     turn.settled = true;
+    if (turn.firstOutputMs === null || !result.ok) {
+      diagnose(entry, {
+        event: 'turn-finished', outcome: result.ok ? 'no-text' : 'failed',
+        elapsedMs: Math.round(performance.now() - turn.startedAt),
+        prepareMs: turn.prepareMs, firstOutputMs: turn.firstOutputMs,
+      });
+    }
     detachTurn(entry, turn);
     if (turn.timeout) clearTimeout(turn.timeout);
     turn.childHandle?.markClosed?.();
@@ -540,6 +559,7 @@ export function createCodexAppServerRunner({
       if (!turn) return;
       const itemId = String(params.itemId || '').trim();
       const delta = String(params.delta || '');
+      if (delta.trim()) markFirstOutput(entry, turn);
       if (itemId) {
         turn.deltaByItemId.set(itemId, `${turn.deltaByItemId.get(itemId) || ''}${delta}`);
       }
@@ -581,6 +601,7 @@ export function createCodexAppServerRunner({
       if (!item) return;
       const text = extractItemText(item);
       if (item.type === 'agent_message' || item.type === 'message') {
+        if (text.trim()) markFirstOutput(entry, turn);
         if (isFinalAgentItem(item)) appendUnique(turn.finalAnswerMessages, text);
         else appendUnique(turn.messages, text);
       } else if (item.type === 'reasoning') {
@@ -630,6 +651,14 @@ export function createCodexAppServerRunner({
       const raw = String(line || '').trim();
       if (!raw) return;
       if (source === 'stderr') {
+        if (entry.startupPending) {
+          entry.startupStderrBytes = Math.min(Number.MAX_SAFE_INTEGER, entry.startupStderrBytes + Buffer.byteLength(raw));
+          // Keep only a category, never raw stderr (which may contain credentials or prompts).
+          if (/error|failed|timeout|timed out/i.test(raw)) {
+            entry.startupStderrKind = /mcp/i.test(raw) ? 'mcp-error'
+              : /tls|connect|network/i.test(raw) ? 'network-error' : 'other-error';
+          }
+        }
         for (const turn of activeTurns(entry)) {
           turn.logs.push(raw);
           turn.onLog?.(raw, 'stderr');
@@ -705,7 +734,15 @@ export function createCodexAppServerRunner({
   }
 
   function send(entry, method, params = {}) {
-    return new Promise((resolve, reject) => {
+    const measured = ['initialize', 'thread/resume', 'thread/start', 'turn/start'].includes(method);
+    const startedAt = performance.now();
+    const fields = (event, outcome) => ({
+      event, stage: method, outcome, elapsedMs: Math.round(performance.now() - startedAt),
+      startupStderrBytes: entry.startupStderrBytes, startupStderrKind: entry.startupStderrKind,
+    });
+    const timer = measured ? setTimeout(() => diagnose(entry, fields('rpc-slow', 'pending')), diagnosticSlowMs) : null;
+    timer?.unref?.();
+    const pending = new Promise((resolve, reject) => {
       const id = entry.nextId;
       entry.nextId += 1;
       entry.pending.set(id, { resolve, reject, method });
@@ -716,6 +753,16 @@ export function createCodexAppServerRunner({
         reject(err);
       }
     });
+    if (!measured) return pending;
+    return pending.then(result => {
+      if (method !== 'turn/start' || performance.now() - startedAt >= diagnosticSlowMs) {
+        diagnose(entry, fields('rpc-finished', 'ok'));
+      }
+      return result;
+    }, err => {
+      diagnose(entry, fields('rpc-finished', 'failed'));
+      throw err;
+    }).finally(() => clearTimeout(timer));
   }
 
   function notify(entry, method, params = {}) {
@@ -928,6 +975,9 @@ export function createCodexAppServerRunner({
       closed: false,
       readyPromise: null,
       sideThreadIds: new Set(),
+      startupPending: true,
+      startupStderrBytes: 0,
+      startupStderrKind: 'none',
     };
     entry.readyPromise = initializeEntry(entry);
     entries.set(key, entry);
@@ -955,6 +1005,7 @@ export function createCodexAppServerRunner({
     onEvent,
     onLog,
   }) {
+    const prepareStartedAt = performance.now();
     const key = normalizeText(sessionKey || workspaceDir);
     if (!key) {
       return {
@@ -987,6 +1038,7 @@ export function createCodexAppServerRunner({
       } else {
         entry = getOrCreateEntry({ key, session, workspaceDir, systemPrompt });
         await ensureThread(entry, { session, workspaceDir, systemPrompt });
+        entry.startupPending = false;
         onThreadReady?.(entry.threadId);
       }
     } catch (err) {
@@ -1056,6 +1108,9 @@ export function createCodexAppServerRunner({
         interruptRequested: false,
         interruptSent: false,
         childHandle: null,
+        startedAt: performance.now(),
+        prepareMs: Math.round(performance.now() - prepareStartedAt),
+        firstOutputMs: null,
       };
       entry.turnsByThreadId.set(threadId, turn);
       turn.childHandle = sideTargetThreadId ? createSideTurnChildHandle(entry, turn) : null;
