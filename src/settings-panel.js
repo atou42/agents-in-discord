@@ -406,8 +406,13 @@ function buildModelSelectOptions(snapshot, session, {
 function findCatalogModel(modelCatalog, modelName) {
   const slug = String(modelName || '').trim();
   if (!slug) return null;
-  return modelCatalog.models.find((model) => model.slug === slug || model.cursorAliases?.includes(slug)
-    || (model.cursorFamily && slug && model.cursorFamily === cursorModelFamily(slug))) || null;
+  const exact = modelCatalog.models.find((model) => model.slug === slug || model.cursorAliases?.includes(slug)
+    || (model.cursorFamily && slug && model.cursorFamily === cursorModelFamily(slug)));
+  if (exact) return exact;
+  // CLI catalogs can expose legacy slugs while the session preserves explicit context.
+  return modelCatalog.models.find((model) => model.cursorFamily
+    && !parseCursorModel(model.slug).params.size
+    && parseCursorModel(model.slug).family === parseCursorModel(slug).family) || null;
 }
 
 function resolveModelEffortLevels(snapshot, session, modelName = '') {

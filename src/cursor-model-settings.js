@@ -21,9 +21,13 @@ export function parseCursorModel(value) {
   const effort = effortMatch?.[1].replace('extra-high', 'xhigh') || null;
   if (effortMatch) family = family.slice(0, -effortMatch[0].length);
   if (thinking) family += '-thinking';
-  if (params.has('fast') && !['true', 'false'].includes(params.get('fast'))) {
-    throw new Error('Cursor fast must be true or false');
+  for (const key of ['fast', 'thinking']) {
+    if (params.has(key) && !['true', 'false'].includes(params.get(key))) {
+      throw new Error(`Cursor ${key} must be true or false`);
+    }
   }
+  if (params.get('thinking') === 'true' && !family.endsWith('-thinking')) family += '-thinking';
+  if (params.get('thinking') === 'false' && family.endsWith('-thinking')) family = family.slice(0, -9);
   return {
     raw, base: match[1], family, params,
     effort: params.get('effort') || effort,
@@ -96,7 +100,10 @@ export function resolveCursorModel(value, catalog, { effort = null, fast = null 
   }
   if (parsed.params.size) {
     if (effort !== null) parsed.params.set('effort', effort);
-    if (fast !== null) parsed.params.set('fast', String(fast));
+    // A missing Fast capability is not a boolean parameter set to false.
+    const supportsFast = variants.some((entry) => parseCursorModel(entry.slug).fast);
+    if (!supportsFast) parsed.params.delete('fast');
+    else if (fast !== null) parsed.params.set('fast', String(fast));
     return `${parsed.base}[${[...parsed.params].map(([key, val]) => `${key}=${val}`).join(',')}]`;
   }
   return match.slug;

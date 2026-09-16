@@ -25,6 +25,9 @@ const catalog = { models: [
   ['claude-opus-4-8-thinking-high', 'Claude Opus 4.8 Thinking'],
   ['claude-opus-4-8-high', 'Claude Opus 4.8'],
   ['claude-opus-4-8-low', 'Claude Opus 4.8 Low'],
+  ['claude-fable-5-1-high', 'Claude Fable 5.1 High'],
+  ['claude-fable-5-1-low', 'Claude Fable 5.1 Low'],
+  ['claude-fable-5-1-thinking-high', 'Claude Fable 5.1 Thinking High'],
 ].map(([slug, displayName]) => ({ slug, displayName })), error: null };
 
 function fixture(parent = null) {
@@ -35,9 +38,21 @@ function fixture(parent = null) {
   return { session, settings, actions, saves: () => saves };
 }
 
+test('Cursor Fable parameterized settings never serialize unsupported fast=false', () => {
+  const model = 'claude-fable-5-1[thinking=false,context=300k,effort=high]';
+  assert.equal(resolveCursorModel(model, catalog, { fast: false }), model);
+  assert.equal(resolveCursorModel(model.replace(']', ',fast=false]'), catalog), model);
+  assert.equal(resolveCursorModel(model, catalog, { effort: 'low', fast: false }), model.replace('high', 'low'));
+  assert.throws(() => resolveCursorModel(model, catalog, { fast: true }), /does not support/);
+  const thinkingModel = model.replace('thinking=false', 'thinking=true');
+  assert.equal(parseCursorModel(thinkingModel).family, 'claude-fable-5-1-thinking');
+  assert.throws(() => resolveCursorModel(thinkingModel, catalog, { effort: 'low' }), /does not support/);
+  assert.throws(() => parseCursorModel(model.replace('thinking=false', 'thinking=maybe')), /true or false/);
+});
+
 test('Cursor groups variants without conflating thinking or model names', () => {
   const grouped = groupCursorModelCatalog(catalog);
-  assert.equal(grouped.models.length, 6);
+  assert.equal(grouped.models.length, 8);
   const sol = grouped.models.find(model => model.cursorFamily === 'gpt-5.6-sol');
   assert.equal(sol.slug, 'gpt-5.6-sol-medium');
   assert.equal(sol.displayName, 'GPT-5.6 Sol 1M');
@@ -122,6 +137,16 @@ test('Cursor model slash applies all dimensions atomically and standalone comman
   await invoke('fast', { action: 'off' });
   await invoke('effort', { level: 'none' });
   assert.equal(settings.resolveModelSetting(session).value, 'gpt-5.6-sol-none');
+  const fable = 'claude-fable-5-1[thinking=false,context=300k,effort=high]';
+  await invoke('model', { name: fable, effort: 'high', fast: 'off' });
+  assert.equal(settings.resolveModelSetting(session).value, fable);
+  const beforeFable = structuredClone(session);
+  const savesBeforeFable = saves();
+  await assert.rejects(invoke('fast', { action: 'on' }), /does not support/);
+  assert.deepEqual(session, beforeFable);
+  assert.equal(saves(), savesBeforeFable);
+  await invoke('effort', { level: 'low' });
+  assert.equal(settings.resolveModelSetting(session).value, fable.replace('high', 'low'));
 });
 
 test('Cursor model panels fit Discord limits, group models, and wire effort/Fast controls', async () => {
@@ -143,7 +168,7 @@ test('Cursor model panels fit Discord limits, group models, and wire effort/Fast
     assert.ok(payload.components.length <= 5);
     serialized();
   };
-  assert.equal(serialized()[0].components[0].options.length, 7);
+  assert.equal(serialized()[0].components[0].options.length, 9);
   await interact('quick_model_fast', 'on');
   assert.equal(settings.resolveModelSetting(session).value, 'gpt-5.6-sol-high-fast');
   const effortOptions = serialized().flatMap(row => row.components).find(component => component.custom_id.includes(':quick_model_effort:')).options;
@@ -155,4 +180,14 @@ test('Cursor model panels fit Discord limits, group models, and wire effort/Fast
   serialized();
   await interact('model_fast', 'off');
   assert.equal(settings.resolveModelSetting(session).value, 'gpt-5.6-sol-medium');
+  actions.setModelSettings(session, {
+    model: 'claude-fable-5-1[thinking=false,context=300k,effort=high]', effort: 'high', fastMode: false,
+  });
+  payload = panel.openModelSettingsPanel({ key: 'channel', session, userId: '12345' });
+  const fableControls = serialized().flatMap(row => row.components);
+  const fableEffort = fableControls.find(component => component.custom_id.includes(':quick_model_effort:'));
+  assert.deepEqual(fableEffort.options.map(option => option.value), ['high', 'low', 'default']);
+  assert.equal(fableControls.find(component => component.custom_id.includes(':quick_model_fast:on:'))?.disabled, true);
+  await interact('quick_model_effort', 'preset', ['low']);
+  assert.equal(settings.resolveModelSetting(session).value, 'claude-fable-5-1[thinking=false,context=300k,effort=low]');
 });
