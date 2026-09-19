@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { validateTaskRecord } from './local-task-submission.js';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -844,6 +845,36 @@ export function createSessionStore({
 
   return {
     getSession,
+    getAgentMessagePolicy(guildId) {
+      const policy = db.agentMessagePolicies?.[guildId];
+      if (policy !== undefined && (!policy || !['allow', 'approval'].includes(policy.mode)
+        || !/^\d{16,22}$/.test(policy.ownerUserId || '') || !Number.isFinite(Date.parse(policy.updatedAt)))) {
+        throw new Error('invalid persisted Agent message policy');
+      }
+      return policy ? { ...policy } : null;
+    },
+    setAgentMessagePolicy(guildId, policy) {
+      if (!/^\d{16,22}$/.test(guildId) || !policy || !['allow', 'approval'].includes(policy.mode)
+        || !/^\d{16,22}$/.test(policy.ownerUserId || '') || !Number.isFinite(Date.parse(policy.updatedAt))) throw new Error('invalid Agent message policy');
+      const previous = db.agentMessagePolicies;
+      db.agentMessagePolicies = { ...previous, [guildId]: { ...policy } };
+      try { saveDb(); } catch (err) { db.agentMessagePolicies = previous; throw err; }
+    },
+    getTaskRequest: (id) => Object.hasOwn(db.localTaskRequests || {}, id) ? db.localTaskRequests[id] : null,
+    listTaskRequests: () => Object.values(db.localTaskRequests || {}),
+    putTaskRequest(record) {
+      validateTaskRecord(record, record.requestId);
+      db.localTaskRequests ||= {};
+      const previous = db.localTaskRequests[record.requestId];
+      db.localTaskRequests[record.requestId] = record;
+      try {
+        saveDb();
+      } catch (err) {
+        if (previous) db.localTaskRequests[record.requestId] = previous;
+        else delete db.localTaskRequests[record.requestId];
+        throw err;
+      }
+    },
     peekSession,
     getParentSession,
     saveDb,
@@ -868,8 +899,23 @@ function loadDb(dataFile) {
   const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
   if (!isRecord(db) || !isRecord(db.threads)
     || Object.values(db.threads).some((session) => !isRecord(session))
-    || (db.workspaceFavorites !== undefined && !isRecord(db.workspaceFavorites))) {
+    || (db.workspaceFavorites !== undefined && !isRecord(db.workspaceFavorites))
+    || (db.localTaskRequests !== undefined && (!isRecord(db.localTaskRequests)
+      || Object.entries(db.localTaskRequests).some(([id, record]) => !isRecord(record)
+        || record.requestId !== id || !isRecord(record.input) || typeof record.status !== 'string'
+        || !Array.isArray(record.history))))) {
     throw new Error(`Invalid session DB ${dataFile}; preserve the file and repair its structure before restarting`);
+  }
+  for (const [id, record] of Object.entries(db.localTaskRequests || {})) {
+    try { validateTaskRecord(record, id); } catch (err) {
+      throw new Error(`Invalid task request in session DB ${dataFile}: ${id}: ${err.message}; preserve the file before repair`);
+    }
+  }
+  if (db.agentMessagePolicies !== undefined && (!isRecord(db.agentMessagePolicies)
+    || Object.entries(db.agentMessagePolicies).some(([guildId, policy]) => !/^\d{16,22}$/.test(guildId)
+      || !isRecord(policy) || !['allow', 'approval'].includes(policy.mode)
+      || !/^\d{16,22}$/.test(policy.ownerUserId || '') || !Number.isFinite(Date.parse(policy.updatedAt))))) {
+    throw new Error(`Invalid Agent message policy in session DB ${dataFile}; preserve the file before repair`);
   }
   return db;
 }

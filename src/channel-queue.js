@@ -1,4 +1,5 @@
 import { withRetryAction } from './retry-action-button.js';
+import { TASK_SUBMISSION, promptRequesterId, taskSubmissionEvent } from './task-submission-events.js';
 
 function isOpenSideSession(session) {
   const meta = session?.sideConversation;
@@ -69,6 +70,7 @@ export function createChannelQueue({
   }
 
   async function trySteerRunningPrompt({ state, message, key, content, session }) {
+    if (message?.[TASK_SUBMISSION]) return null;
     if (!state.running) return null;
     if (message?.providerControlCommand === true) return null;
     const busyPrompt = resolveBusyPromptModeSetting(session);
@@ -156,12 +158,18 @@ export function createChannelQueue({
       message,
       key,
       content,
-      authorId: normalizeUserId(message?.author?.id),
+      authorId: normalizeUserId(promptRequesterId(message)),
       messageId: normalizeMessageId(message?.id),
       channelId: normalizeMessageId(message?.channel?.id),
       enqueuedAt: Date.now(),
     });
     nextQueueItemId += 1;
+    try {
+      taskSubmissionEvent(message, 'queued');
+    } catch (err) {
+      state.queue.pop();
+      throw err;
+    }
 
     let notificationError;
     if (queuedAhead > 0) {
@@ -189,7 +197,7 @@ export function createChannelQueue({
       message: job.message,
       key: job.key,
       content: job.content,
-      authorId: String(job?.message?.author?.id || '').trim() || null,
+      authorId: String(promptRequesterId(job?.message) || '').trim() || null,
       failedAt: Date.now(),
       reason: reason || null,
       error: err ? safeError(err) : null,
@@ -272,6 +280,7 @@ export function createChannelQueue({
         return { ok: false, reason: 'forbidden_all', removedCount: 0 };
       }
       const removed = state.queue.splice(0);
+      for (const job of removed) taskSubmissionEvent(job.message, 'cancelled', { error: 'dequeued' });
       return {
         ok: true,
         removed,
@@ -297,6 +306,7 @@ export function createChannelQueue({
     }
 
     const removed = state.queue.splice(index, 1);
+    for (const job of removed) taskSubmissionEvent(job.message, 'cancelled', { error: 'dequeued' });
     return {
       ok: true,
       removed,
@@ -331,6 +341,10 @@ export function createChannelQueue({
     try {
       await message.react('⚡').catch(() => {});
       const outcome = await handlePrompt(message, key, content, channelState);
+      taskSubmissionEvent(message, outcome.ok ? 'succeeded' : outcome.cancelled ? 'cancelled' : 'failed', {
+        error: outcome.error || outcome.reason || null,
+        timedOut: Boolean(outcome.timedOut),
+      });
       const currentUserId = resolveCurrentUserId(message);
       if (currentUserId) {
         await message.reactions.cache.get('⚡')?.users.remove(currentUserId).catch(() => {});
@@ -346,6 +360,7 @@ export function createChannelQueue({
     } catch (err) {
       console.error('runPromptJob error:', err);
       try {
+        taskSubmissionEvent(message, 'failed', { error: safeError(err) });
         rememberFailedPrompt(channelState, createFailedPromptRecord(job, err));
         const currentUserId = resolveCurrentUserId(message);
         if (currentUserId) {
@@ -354,7 +369,7 @@ export function createChannelQueue({
         await message.react('❌').catch(() => {});
         await safeReply(
           message,
-          withRetryAction(`❌ 处理失败：${safeError(err)}`, message?.author?.id || null),
+          withRetryAction(`❌ 处理失败：${safeError(err)}`, promptRequesterId(message)),
         );
       } catch {
         // ignore

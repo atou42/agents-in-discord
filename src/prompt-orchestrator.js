@@ -1,4 +1,5 @@
 import { createPromptResultRenderer } from './prompt-result-renderer.js';
+import { TASK_SUBMISSION, promptRequesterId, taskSubmissionEvent } from './task-submission-events.js';
 import { buildNativeImagePromptNote, stageNativeImageAttachments } from './native-image-inputs.js';
 import { withRetryAction } from './retry-action-button.js';
 import { buildClaudeSessionRescueSummary as defaultBuildClaudeSessionRescueSummary } from './provider-sessions.js';
@@ -386,7 +387,7 @@ export function createPromptOrchestrator({
 
   function applyTerminalMention(message, payload, mode) {
     if (!shouldMentionOnTerminalReply(mode)) return payload;
-    const userId = String(message?.author?.id || '').trim();
+    const userId = String(promptRequesterId(message) || '').trim();
     if (!userId) return payload;
     const prefix = `<@${userId}> `;
     if (typeof payload === 'string') return `${prefix}${payload}`;
@@ -596,7 +597,7 @@ export function createPromptOrchestrator({
             return safeReply(message, buildWorkspaceBusyPayload({
               key,
               session,
-              userId: message?.author?.id || null,
+              userId: promptRequesterId(message),
               workspaceDir,
               owner,
             })).catch(() => {});
@@ -632,6 +633,7 @@ export function createPromptOrchestrator({
         return { ok: false, error };
       }
 
+      message[TASK_SUBMISSION]?.validate?.();
       const extraInfoSetting = providerControlCommand
         ? { enabled: false, text: '' }
         : resolveExtraInfoSetting(session);
@@ -668,28 +670,42 @@ export function createPromptOrchestrator({
         promptToRun = `${promptToRun}${extraInfoPromptSuffix}`;
       }
 
-      const runPromptAttempt = async ({ promptText, phase }) => runTask({
-        session,
-        sessionKey: key,
-        workspaceDir,
-        prompt: promptText,
-        systemPrompt: extraInfoSystemPrompt,
-        inputImages: nativeInputs.inputImages,
-        onSpawn: (child) => {
-          setActiveRun(channelState, message, promptText, child, phase);
-          progress.sync({ forceEmit: true });
-          if (channelState.cancelRequested) stopChildProcess(child);
-        },
-        onThreadReady: (threadId) => {
-          const normalizedThreadId = String(threadId || '').trim();
-          if (!normalizedThreadId || getSessionId(session) === normalizedThreadId) return;
+      const observeThread = (threadId, started = false) => {
+        const normalizedThreadId = String(threadId || '').trim();
+        if (!normalizedThreadId) return;
+        if (getSessionId(session) !== normalizedThreadId) {
           setSessionId(session, normalizedThreadId);
           saveDb();
-        },
-        wasCancelled: () => Boolean(channelState.cancelRequested || channelState.activeRun?.cancelRequested),
-        onEvent: progress.onEvent,
-        onLog: progress.onLog,
-      });
+        }
+        taskSubmissionEvent(message, started ? 'started' : 'starting', { sessionId: normalizedThreadId });
+      };
+      const runPromptAttempt = async ({ promptText, phase }) => {
+        taskSubmissionEvent(message, 'starting');
+        return runTask({
+          session,
+          sessionKey: key,
+          workspaceDir,
+          prompt: promptText,
+          systemPrompt: extraInfoSystemPrompt,
+          inputImages: nativeInputs.inputImages,
+          onSpawn: (child) => {
+            setActiveRun(channelState, message, promptText, child, phase);
+            progress.sync({ forceEmit: true });
+            if (channelState.cancelRequested) stopChildProcess(child);
+          },
+          onThreadReady: observeThread,
+          wasCancelled: () => Boolean(channelState.cancelRequested || channelState.activeRun?.cancelRequested),
+          onEvent: (event) => {
+            if (message[TASK_SUBMISSION] && event?.type === 'thread.started') observeThread(event.thread_id, true);
+            if (message[TASK_SUBMISSION] && getSessionProvider(session) !== 'codex'
+              && ['text', 'assistant', 'message_end', 'session.created', 'session.resumed', 'session'].includes(event?.type)) {
+              taskSubmissionEvent(message, 'started', { startedEvent: event.type });
+            }
+            progress.onEvent(event);
+          },
+          onLog: progress.onLog,
+        });
+      };
 
       const retryEvents = [];
       const runtimeNotes = Array.isArray(nativeInputs.notes) ? [...nativeInputs.notes] : [];
@@ -974,8 +990,9 @@ export function createPromptOrchestrator({
         await finishProgress();
         await safeReply(
           message,
-          applyCurrentTerminalMention(message, session, withRetryAction(failText, message?.author?.id || null)),
+          applyCurrentTerminalMention(message, session, withRetryAction(failText, promptRequesterId(message))),
         );
+        taskSubmissionEvent(message, 'failed', { timedOut: progressOutcome.timedOut, error: progressOutcome.error, logs: result.logs });
         return { ok: false, cancelled: false };
       }
 

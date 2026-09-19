@@ -108,6 +108,10 @@ test('buildSlashCommands includes workspace commands and aliases', () => {
   assert.ok(names.includes('cx_fork'));
   assert.ok(names.includes('cx_goal'));
   assert.ok(names.includes('cx_settings'));
+  assert.ok(names.includes('cx_agent-messages'));
+  const messaging = commands.find(command => command.name === 'cx_agent-messages');
+  assert.deepEqual(messaging.options.map(option => option.name), ['action', 'mode', 'request-id']);
+  assert.deepEqual(messaging.options[1].choices.map(choice => choice.value), ['allow', 'approval']);
   assert.ok(names.includes('cx_abort'));
   assert.ok(names.includes('cx_project_sessions'));
   assert.ok(names.includes('cx_chat_resume'));

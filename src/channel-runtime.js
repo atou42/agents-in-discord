@@ -1,3 +1,5 @@
+import { taskSubmissionEvent } from './task-submission-events.js';
+
 const STOP_CHILD_PROCESS_STATE = Symbol('agentsInDiscordStopChildProcessState');
 
 export function createChannelRuntimeStore({
@@ -51,6 +53,7 @@ export function createChannelRuntimeStore({
   function cancelChannelWork(key, reason = 'manual') {
     const state = getChannelState(key);
     const queued = state.queue.length;
+    for (const job of state.queue) taskSubmissionEvent(job.message, 'cancelled', { error: reason });
     state.queue.length = 0;
     state.cancelRequested = true;
 

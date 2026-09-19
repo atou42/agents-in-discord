@@ -174,6 +174,7 @@ export function createSlashCommandRouter({
   applyProjectUpgrade = null,
   requestProjectUpgradeRestart = null,
   canManageProjectUpgrade = () => true,
+  manageAgentMessages = null,
   providerSupportsCompactConfigAction = () => true,
   cancelChannelWork,
   closeRuntimeSession = () => false,
@@ -331,6 +332,11 @@ export function createSlashCommandRouter({
       content: await formatStatusReport(key, session, interaction.channel),
       flags: 64,
     });
+  });
+
+  registerSlashHandlers(handlers, ['agent-messages'], async ({ interaction, respond }) => {
+    if (!manageAgentMessages) return respond({ content: '此 Agent 尚未启用本机消息入口。', flags: 64 });
+    await manageAgentMessages(interaction, respond);
   });
 
   registerSlashHandlers(handlers, ['settings'], async ({ interaction, key, session, respond }) => {

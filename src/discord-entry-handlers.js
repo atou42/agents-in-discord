@@ -15,6 +15,7 @@ export function createDiscordEntryHandlers({
   getSession,
   resolveSecurityContext,
   handleCommand,
+  handleTaskAuthorization = null,
   enqueuePrompt,
   messageInput = {},
   parseCommandActionButtonId,
@@ -125,6 +126,10 @@ export function createDiscordEntryHandlers({
       const isCommand = rawContent.startsWith('!');
 
       if (isCommand) {
+        if (handleTaskAuthorization && /^!task-authorize(?:\s|$)/.test(rawContent)) {
+          await handleTaskAuthorization(message);
+          return;
+        }
         await handleCommand(message, key, rawContent);
         return;
       }

@@ -220,6 +220,17 @@ export function buildSlashCommandEntries({ botProvider = null } = {}) {
 
   return [
     {
+      name: 'agent-messages',
+      description: '管理此 Agent 的跨会话消息策略和审批',
+      configure: (builder) => builder
+        .addStringOption(o => o.setName('action').setDescription('操作').setRequired(true).addChoices(
+          { name: '查看策略和待审批请求', value: 'status' }, { name: '设置策略', value: 'policy' },
+          { name: '查看完整请求', value: 'show' }, { name: '批准请求', value: 'approve' }, { name: '拒绝请求', value: 'reject' }))
+        .addStringOption(o => o.setName('mode').setDescription('接收策略').addChoices(
+          { name: '完全放行', value: 'allow' }, { name: '需要我审批', value: 'approval' }))
+        .addStringOption(o => o.setName('request-id').setDescription('请求 ID')),
+    },
+    {
       name: 'status',
       description: '查看当前 thread 的 CLI 配置',
     },

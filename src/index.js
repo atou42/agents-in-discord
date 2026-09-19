@@ -4,6 +4,10 @@ import path from 'node:path';
 import { safeChannelSend, safeReply, withDiscordNetworkRetry } from './discord-reply-utils.js';
 import { splitForDiscord } from './discord-message-splitter.js';
 import { bootApp, createAppContext } from './app-context.js';
+import { createLocalTaskSubmission } from './local-task-submission.js';
+import { createLocalTaskSourceAccess } from './local-task-source-access.js';
+import { startLocalTaskSocket } from './local-task-socket.js';
+import { createLocalTaskDiscordWriter } from './local-task-discord.js';
 import {
   appendProviderSuffix,
   describeBotMode,
@@ -200,6 +204,8 @@ const DATA_DIR = path.join(ROOT, 'data');
 const envState = loadRuntimeEnv({ rootDir: ROOT, env: process.env });
 const ENV_FILE = envState.writableEnvFile;
 const BOT_PROVIDER = parseOptionalProvider(process.env.BOT_PROVIDER);
+const LOCAL_TASK_SOCKET_DIR = resolveProviderScopedEnv('LOCAL_TASK_SOCKET_DIR', BOT_PROVIDER, process.env);
+let localTaskService = null;
 const BOT_MODE = describeBotMode(BOT_PROVIDER);
 const DATA_FILE = path.join(DATA_DIR, appendProviderSuffix('sessions.json', BOT_PROVIDER));
 const LOCK_FILE = path.join(DATA_DIR, appendProviderSuffix('bot.lock', BOT_PROVIDER));
@@ -258,6 +264,7 @@ const {
   TextInputBuilder,
   TextInputStyle,
   REST,
+  MessagePayload,
   Routes,
 } = await import('discord.js');
 
@@ -833,6 +840,15 @@ const appContext = createAppContext({
       parseTimeoutConfigAction,
     },
     settingsPanelOptions: {
+      getAgentMessageSettings: (key) => {
+        const channel = getActiveDiscordClient()?.channels.cache.get(key);
+        if (!localTaskService || !channel?.guild?.id) return { enabled: false };
+        return { enabled: true, ...appContext.core.sessionStore.getAgentMessagePolicy(channel.guild.id) };
+      },
+      setAgentMessagePolicy: (interaction, mode) => {
+        if (!localTaskService) throw new Error('此 Agent 尚未启用本机消息入口');
+        return localTaskService.setPolicy(interaction, mode);
+      },
       ActionRowBuilder,
       ButtonBuilder,
       ButtonStyle,
@@ -928,6 +944,10 @@ const appContext = createAppContext({
       getProjectUpgradeStatus: (options = {}) => projectUpgradeManager.getCachedStatus({ refresh: options.fetch !== false }),
       setProjectUpgradeMode: projectUpgradeManager.setMode,
       canManageProjectUpgrade,
+      manageAgentMessages: (interaction, respond) => {
+        if (!localTaskService) throw new Error('此 Agent 尚未启用本机消息入口');
+        return localTaskService.manage(interaction, respond);
+      },
       applyProjectUpgrade: () => projectUpgradeManager.apply({
         restart: false,
         requireIdle: () => {
@@ -1062,6 +1082,9 @@ const appContext = createAppContext({
     allowedUserIds: ALLOWED_USER_IDS,
   },
   entryHandlerOptions: {
+    handleTaskAuthorization: LOCAL_TASK_SOCKET_DIR
+      ? (message) => localTaskService.acknowledgeAuthorization(message)
+      : null,
     logger: console,
     registerSlashCommands,
     REST,
@@ -1095,6 +1118,22 @@ const appContext = createAppContext({
   },
 });
 activeLifecycle = appContext.lifecycle;
+if (LOCAL_TASK_SOCKET_DIR) {
+  localTaskService = createLocalTaskSubmission({
+    provider: DEFAULT_PROVIDER,
+    canManage: (userId) => Boolean(ALLOWED_USER_IDS?.has(String(userId || '').trim())),
+    slashPrefix: SLASH_PREFIX,
+    getClient: getActiveDiscordClient,
+    sessionStore: appContext.core.sessionStore,
+    identity: appContext.core.identity,
+    accessPolicy: appContext.accessPolicy,
+    isAllowedSourceChannel: createLocalTaskSourceAccess({ accessPolicy: appContext.accessPolicy, env: process.env }),
+    securityPolicy: appContext.core.securityPolicy,
+    enqueuePrompt: appContext.promptRuntime.enqueuePrompt,
+    workspaceRoot: WORKSPACE_ROOT,
+    discordWriter: createLocalTaskDiscordWriter({ REST, Routes, MessagePayload }),
+  });
+}
 
 const projectUpgradeScheduler = createProjectUpgradeScheduler({
   manager: projectUpgradeManager,
@@ -1150,6 +1189,10 @@ try {
     reason: 'startup',
   });
   projectUpgradeScheduler.start();
+  if (localTaskService) {
+    const endpoint = await startLocalTaskSocket({ directory: LOCAL_TASK_SOCKET_DIR, service: localTaskService });
+    console.log(`Local task submission socket: ${endpoint.socketPath}`);
+  }
 } catch (err) {
   console.error(`❌ Failed to boot Discord client: ${safeError(err)}`);
   if (appContext.lifecycle.getTerminalError()) {

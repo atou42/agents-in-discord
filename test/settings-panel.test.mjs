@@ -312,6 +312,65 @@ function createPanel({
   });
 }
 
+test('Agent messages settings selects shared receiver policy and refreshes current value', async () => {
+  let policy = { enabled: true };
+  const calls = [];
+  const panel = createPanel({ session: { provider: 'codex', language: 'zh' }, panelOptions: {
+    getAgentMessageSettings: () => policy,
+    setAgentMessagePolicy: (interaction, mode) => {
+      calls.push({ interaction, mode }); policy = { enabled: true, mode, ownerUserId: interaction.user.id };
+    },
+  } });
+  const open = () => panel.openSettingsPanel({ key: 'thread-1', userId: '12345', activeSection: 'agent_messages' });
+  const initial = open();
+  assert.match(initial.content, /尚未配置/);
+  assert.match(initial.content, /全部 thread/);
+  const items = initial.components.flatMap(row => row.components);
+  assert.ok(items.find(item => item.data.options?.some(o => o.value === 'agent_messages')));
+  const picker = items.find(item => item.data.customId === 'stg:set:agent_messages:policy:12345');
+  assert.deepEqual(picker.data.options.map(o => o.value), ['allow', 'approval']);
+  assert.ok(picker.data.options.every(o => !o.default));
+  for (const mode of ['allow', 'approval']) {
+    let updated;
+    const interaction = { customId: picker.data.customId, channelId: 'thread-1', user: { id: '12345' },
+      values: [mode], update: async payload => { updated = payload; } };
+    await panel.handleSettingsPanelInteraction(interaction);
+    assert.equal(calls.at(-1).interaction, interaction);
+    assert.equal(calls.at(-1).mode, mode);
+    assert.match(updated.content, /接收策略已保存/);
+    const selected = updated.components.flatMap(r => r.components).find(c => c.data.customId === picker.data.customId);
+    assert.equal(selected.data.options.find(o => o.default).value, mode);
+    assert.equal(updated.components.length, 3);
+  }
+});
+
+test('Agent message settings reject another user, invalid mode and backend denial without success update', async () => {
+  let calls = 0;
+  const panel = createPanel({ session: { provider: 'codex' }, panelOptions: {
+    getAgentMessageSettings: () => ({ enabled: true, mode: 'approval' }),
+    setAgentMessagePolicy: () => { calls++; throw new Error('not authorized'); },
+  } });
+  const interaction = { customId: 'stg:set:agent_messages:policy:12345', channelId: 'thread-1',
+    user: { id: '12345' }, values: ['allow'], update: async () => assert.fail('must not report saved') };
+  let denied;
+  await panel.handleSettingsPanelInteraction({ ...interaction, user: { id: '99999' }, reply: async p => { denied = p; } });
+  assert.match(denied.content, /其他用户/);
+  assert.equal(calls, 0);
+  await assert.rejects(panel.handleSettingsPanelInteraction({ ...interaction, values: ['invalid'] }), /invalid/);
+  assert.equal(calls, 0);
+  await assert.rejects(panel.handleSettingsPanelInteraction(interaction), /not authorized/);
+  assert.equal(calls, 1);
+});
+
+test('disabled Agent message endpoint shows no policy selector', () => {
+  const panel = createPanel({ session: { provider: 'claude' }, panelOptions: {
+    getAgentMessageSettings: () => ({ enabled: false }),
+  } });
+  const payload = panel.openSettingsPanel({ key: 'thread-1', userId: '12345', activeSection: 'agent_messages' });
+  assert.match(payload.content, /未启用或不可用/);
+  assert.ok(!payload.components.flatMap(r => r.components).some(c => c.data.customId?.startsWith('stg:set:agent_messages:')));
+});
+
 test('createSettingsPanel opens an overview payload with key channel settings', () => {
   const session = {
     provider: 'codex',

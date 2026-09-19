@@ -40,6 +40,7 @@ const ALL_SECTIONS = Object.freeze([
   'language',
   'mode',
   'workspace',
+  'agent_messages',
 ]);
 
 function normalizeLanguage(value) {
@@ -171,6 +172,7 @@ function formatSectionButtonLabel(section, language) {
     language: { en: 'language', zh: '语言' },
     mode: { en: 'mode', zh: '执行' },
     workspace: { en: 'workspace', zh: '目录' },
+    agent_messages: { en: 'agent messages', zh: '跨会话消息' },
     close: { en: 'close', zh: '关闭' },
   };
   return labels[section]?.[language] || section;
@@ -191,6 +193,7 @@ function formatSectionTitleLabel(section, language) {
     language: { en: 'Language', zh: '语言' },
     mode: { en: 'Execution Mode', zh: '执行模式' },
     workspace: { en: 'Workspace', zh: '工作目录' },
+    agent_messages: { en: 'Agent Messages', zh: '跨会话消息' },
   };
   return labels[section]?.[language] || section;
 }
@@ -457,6 +460,8 @@ function normalizeResolvedEffort(value) {
 }
 
 export function createSettingsPanel({
+  getAgentMessageSettings = null,
+  setAgentMessagePolicy = null,
   botProvider = null,
   defaultUiLanguage = 'zh',
   ActionRowBuilder,
@@ -609,6 +614,7 @@ export function createSettingsPanel({
     if (getSupportedReasoningEffortLevels(provider).length) sections.push('effort');
     if (getProviderCompactCapabilities(provider).strategies.length > 0) sections.push('compact');
     sections.push('reply', 'language', 'mode', 'workspace');
+    if (getAgentMessageSettings) sections.push('agent_messages');
     return sections;
   }
 
@@ -807,6 +813,15 @@ export function createSettingsPanel({
 
   function buildSectionControls(key, session, userId, activeSection, snapshot, modelPanelGeneration = '') {
     switch (activeSection) {
+      case 'agent_messages':
+        if (!snapshot.agentMessages?.enabled) return [];
+        return [new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
+          .setCustomId(buildSettingsComponentId('set', 'agent_messages', 'policy', userId))
+          .setPlaceholder(snapshot.language === 'en' ? 'Receiving policy' : '接收策略')
+          .addOptions([
+            { label: snapshot.language === 'en' ? 'Allow all' : '完全放行', value: 'allow', default: snapshot.agentMessages.mode === 'allow' },
+            { label: snapshot.language === 'en' ? 'Require my approval' : '需要我审批', value: 'approval', default: snapshot.agentMessages.mode === 'approval' },
+          ]))];
       case 'overview': {
         if (snapshot.provider !== 'codex') return [];
         return [
@@ -1133,6 +1148,16 @@ function formatOverviewSection(snapshot) {
   function formatActiveSection(activeSection, snapshot) {
     const compactSurface = `${slashRef('compact')} key:<...> value:<...>`;
     switch (activeSection) {
+      case 'agent_messages': {
+        const settings = snapshot.agentMessages;
+        if (!settings?.enabled) return snapshot.language === 'en' ? 'Local message endpoint unavailable in this server.' : '当前服务器中此 Agent 的本机消息入口未启用或不可用。';
+        const mode = settings.mode === 'allow' ? (snapshot.language === 'en' ? 'Allow all' : '完全放行')
+          : settings.mode === 'approval' ? (snapshot.language === 'en' ? 'Require approval' : '需要我审批')
+            : (snapshot.language === 'en' ? 'Not configured' : '尚未配置');
+        return snapshot.language === 'en'
+          ? `Receiving policy: ${mode}\nScope: all threads of this Agent in this server.\nDelegating user: ${settings.ownerUserId || 'none'}\nExisting pending requests remain pending. Channel and workspace restrictions still apply.`
+          : `接收策略：${mode}\n作用域：当前服务器内此 Agent 的全部 thread。\n归属用户：${settings.ownerUserId || '无'}\n已有待审批请求不会自动放行；频道和工作区限制保持不变。`;
+      }
       case 'defaults':
         return snapshot.language === 'en'
           ? 'This section edits global Codex defaults in `~/.codex/config.toml`. Model, effort, and fast are selected here. Custom model and profile names still use the buttons below. Provider default clears the matching global override. Channel and thread overrides still win.'
@@ -1313,6 +1338,7 @@ function formatOverviewSection(snapshot) {
   function buildSettingsPayload({ key, session, userId, flags = undefined, activeSection = '', activeDefaultsGroup = 'model', notice = '' } = {}) {
     const section = resolveActiveSection(session, activeSection || 'overview');
     const snapshot = buildSnapshot(key, session);
+    if (section === 'agent_messages') snapshot.agentMessages = getAgentMessageSettings?.(key);
     const issuedGeneration = issueModelPanelGeneration(key, userId);
     const modelPanelGeneration = (section === 'model' || section === 'defaults' || section === 'overview')
       ? issuedGeneration
@@ -1543,6 +1569,16 @@ function formatOverviewSection(snapshot) {
         userId: interaction.user.id,
         activeSection: nextSection,
       }));
+      return true;
+    }
+
+    if (parsed.kind === 'set' && parsed.target === 'agent_messages') {
+      if (!setAgentMessagePolicy) throw new Error('Agent message endpoint unavailable');
+      const mode = interaction.values?.[0];
+      if (!['allow', 'approval'].includes(mode)) throw new Error('invalid Agent message policy');
+      await setAgentMessagePolicy(interaction, mode);
+      await interaction.update(buildSettingsPayload({ key, session, userId: interaction.user.id,
+        activeSection: 'agent_messages', notice: language === 'en' ? 'Receiving policy saved.' : '接收策略已保存。' }));
       return true;
     }
 
