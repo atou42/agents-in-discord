@@ -6,6 +6,7 @@ import { splitForDiscord } from './discord-message-splitter.js';
 import { bootApp, createAppContext } from './app-context.js';
 import { createLocalTaskSubmission } from './local-task-submission.js';
 import { createLocalTaskSourceAccess } from './local-task-source-access.js';
+import { applyInitialTaskPolicies } from './local-task-policy-config.js';
 import { startLocalTaskSocket } from './local-task-socket.js';
 import { createLocalTaskDiscordWriter } from './local-task-discord.js';
 import {
@@ -1190,6 +1191,12 @@ try {
   });
   projectUpgradeScheduler.start();
   if (localTaskService) {
+    applyInitialTaskPolicies({
+      raw: resolveProviderScopedEnv('LOCAL_TASK_INITIAL_POLICIES', BOT_PROVIDER, process.env),
+      sessionStore: appContext.core.sessionStore,
+      accessPolicy: appContext.accessPolicy,
+      canManage: (userId) => Boolean(ALLOWED_USER_IDS?.has(userId)),
+    });
     const endpoint = await startLocalTaskSocket({ directory: LOCAL_TASK_SOCKET_DIR, service: localTaskService });
     console.log(`Local task submission socket: ${endpoint.socketPath}`);
   }

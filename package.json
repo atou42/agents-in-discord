@@ -26,7 +26,7 @@
     "start:omp": "node scripts/start-instance.mjs omp",
     "send:channel": "node scripts/send-channel-message.mjs",
     "submit:task": "node scripts/submit-task.mjs",
-    "test:task-submit": "node --test test/local-task-source-access.test.mjs test/local-task-submission.test.mjs",
+    "test:task-submit": "node --test test/local-task-policy-config.test.mjs test/local-task-source-access.test.mjs test/local-task-submission.test.mjs",
     "dev": "node --watch src/index.js",
     "dev:codex": "BOT_PROVIDER=codex node --watch src/index.js",
     "dev:claude": "BOT_PROVIDER=claude node --watch src/index.js",
