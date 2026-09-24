@@ -79,7 +79,7 @@ export function createPromptOrchestrator({
   sleep = defaultSleep,
   prepareNativeInputs = async ({ message, session }) => {
     const provider = String(getSessionProvider(session) || '').trim().toLowerCase();
-    if (provider !== 'codex') {
+    if (!['codex', 'mirasim'].includes(provider)) {
       return {
         inputImages: [],
         promptNote: '',
@@ -235,6 +235,7 @@ export function createPromptOrchestrator({
       && !result.ok
       && !result.cancelled
       && !result.timedOut
+      && result.retryable !== false
       && !isMissingBoundClaudeSession(result, session);
   }
 

@@ -137,6 +137,8 @@ export function getProviderBin(provider, options = {}) {
     ompBin = 'omp',
   } = options;
   switch (normalizeProvider(provider)) {
+    case 'mirasim':
+      return 'mirasim-local-api';
     case 'claude':
       return claudeBin;
     case 'cursor':
@@ -196,6 +198,10 @@ function getCliHealthForBin({
 }
 
 export function getCliHealth(provider, options = {}) {
+  if (normalizeProvider(provider) === 'mirasim') {
+    return { ok: false, bin: 'Mirasim local API', envKey: 'MIRASIM_URL',
+      error: 'Mirasim uses desktop API health checks, not a CLI version check' };
+  }
   const {
     codexBin = 'codex',
     claudeBin = 'claude',

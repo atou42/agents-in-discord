@@ -530,7 +530,7 @@ test('createReportFormatters.formatHelpReport documents browse actions and provi
   const sharedHelp = sharedFormatters.formatHelpReport({ language: 'en' });
   const lockedHelp = lockedFormatters.formatHelpReport({ language: 'en' });
 
-  assert.match(sharedHelp, /!provider <codex\|claude\|cursor\|grok\|antigravity\|zcode\|pi\|omp\|status>/);
+  assert.match(sharedHelp, /!provider <codex\|claude\|cursor\|grok\|antigravity\|zcode\|pi\|omp\|mirasim\|status>/);
   assert.match(sharedHelp, /!setdir <path\|browse\|default\|status>/);
   assert.match(sharedHelp, /!setdefaultdir <path\|browse\|clear\|status>/);
   assert.match(sharedHelp, /!dq/);
@@ -542,7 +542,7 @@ test('createReportFormatters.formatHelpReport documents browse actions and provi
   assert.doesNotMatch(antigravityHelp, /!config <key=value>/);
   assert.doesNotMatch(antigravityHelp, /!effort </);
   assert.match(antigravityHelp, /raw config passthrough/);
-  assert.doesNotMatch(lockedHelp, /!provider <codex\|claude\|cursor\|grok\|antigravity\|zcode\|pi\|omp\|status>/);
+  assert.doesNotMatch(lockedHelp, /!provider <codex\|claude\|cursor\|grok\|antigravity\|zcode\|pi\|omp\|mirasim\|status>/);
 });
 
 test('createReportFormatters omits unsupported compact and Codex-only commands for Cursor', () => {

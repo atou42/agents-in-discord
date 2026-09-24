@@ -8,6 +8,7 @@ import { createSessionStore, normalizeChildThreadWorkspaceMode } from '../src/se
 import { normalizeProvider as normalizeAllProviders } from '../src/provider-metadata.js';
 import { createSessionCommandActions } from '../src/session-command-actions.js';
 import { createRunnerArgsBuilder } from '../src/runner-args.js';
+import { createSessionSettings } from '../src/session-settings.js';
 
 function createModeInheritanceFixture(t, { provider = 'cursor', mode = 'safe', threads = {} } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'discord-mode-inheritance-'));
@@ -32,6 +33,26 @@ function createModeInheritanceFixture(t, { provider = 'cursor', mode = 'safe', t
   const actions = createSessionCommandActions({ saveDb: store.saveDb });
   return { store, actions, dataFile, reload: () => createSessionStore(options) };
 }
+
+test('Mirasim harness switch persists inherited thread resets across store reload', (t) => {
+  const { store, reload } = createModeInheritanceFixture(t, { provider: 'mirasim' });
+  const parent = store.getSession('parent');
+  const child = store.getSession('child', { parentChannelId: 'parent' });
+  parent.runnerSessionId = 'claude:parent';
+  child.runnerSessionId = 'claude:child';
+  child.model = 'old-model';
+  store.saveDb();
+  const settings = createSessionSettings({ getParentSession: store.getParentSession });
+  const actions = createSessionCommandActions({ saveDb: store.saveDb, listStoredSessions: store.listSessions,
+    getSessionProvider: (s) => s.provider, resolveMirasimHarnessSetting: settings.resolveMirasimHarnessSetting });
+  actions.setMirasimHarness(parent, 'codex', { key: 'parent' });
+  const restored = reload();
+  assert.equal(restored.getSession('parent').mirasimHarness, 'codex');
+  const restoredChild = restored.getSession('child');
+  assert.equal(restoredChild.runnerSessionId, null);
+  assert.equal(restoredChild.model, null);
+  assert.equal(createSessionSettings({ getParentSession: restored.getParentSession }).resolveMirasimHarnessSetting(restoredChild).value, 'codex');
+});
 
 for (const provider of ['codex', 'claude', 'cursor', 'grok', 'antigravity', 'zcode', 'pi', 'omp']) {
   test(`${provider}: permission mode follows parent dynamically until explicitly overridden`, (t) => {

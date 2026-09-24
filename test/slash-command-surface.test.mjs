@@ -158,7 +158,7 @@ test('buildSlashCommands exposes all supported provider choices', () => {
   const provider = commands.find((command) => command.name === 'cx_provider');
   const choices = provider.options[0].choices.map((choice) => choice.value);
 
-  assert.deepEqual(choices, ['codex', 'claude', 'cursor', 'grok', 'antigravity', 'zcode', 'pi', 'omp', 'status']);
+  assert.deepEqual(choices, ['codex', 'claude', 'cursor', 'grok', 'antigravity', 'zcode', 'pi', 'omp', 'mirasim', 'status']);
 });
 
 test('buildSlashCommands registers model as a picker-only command', () => {

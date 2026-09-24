@@ -10,6 +10,7 @@ import { createAntigravityProviderAdapter } from './providers/antigravity.js';
 import { createZCodeProviderAdapter } from './providers/zcode.js';
 import { createPiProviderAdapter } from './providers/pi.js';
 import { createOmpProviderAdapter } from './providers/omp.js';
+import { createMirasimProviderAdapter } from './providers/mirasim.js';
 import { createProviderAdapterRegistry } from './providers/index.js';
 
 export function uniqueDirs(dirs = []) {
@@ -68,6 +69,7 @@ export function createRunnerArgsBuilder({
   resolveNativeCompactTokenLimitSetting = () => ({ tokens: 0 }),
 } = {}) {
   const providerAdapters = createProviderAdapterRegistry([
+    createMirasimProviderAdapter(),
     createCodexProviderAdapter({
       buildArgs: ({ session, workspaceDir, prompt, inputImages = [], systemPrompt = '' }) => buildCodexArgs({
         session,

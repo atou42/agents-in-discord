@@ -368,7 +368,7 @@ export function createTextCommandHandler({
         }
         const requested = parseProviderInput(arg);
         if (!requested) {
-          await safeReply(message, '用法：`!provider <codex|claude|cursor|grok|antigravity|zcode|pi|omp|status>`');
+          await safeReply(message, '用法：`!provider <codex|claude|cursor|grok|antigravity|zcode|pi|omp|mirasim|status>`');
           break;
         }
         const { previous } = commandActions.setProvider(session, requested);
@@ -601,7 +601,7 @@ export function createTextCommandHandler({
 
       case 'sessions': {
         try {
-          const report = commandActions.formatRecentSessionsReport({
+          const report = await commandActions.formatRecentSessionsReport({
             key,
             session,
             resumeRef: '!resume <id>',

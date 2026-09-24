@@ -7,8 +7,8 @@ const providerArg = process.argv.find((arg, index) => index > 1 && arg !== '--dr
 const provider = String(providerArg || '').trim().toLowerCase();
 const mode = provider || 'shared';
 
-if (!['shared', 'codex', 'claude', 'cursor', 'grok', 'antigravity', 'agy', 'zcode', 'pi', 'omp'].includes(mode)) {
-  console.error('Usage: node scripts/start-instance.mjs <shared|codex|claude|cursor|grok|antigravity|zcode|pi|omp>');
+if (!['shared', 'codex', 'claude', 'cursor', 'grok', 'antigravity', 'agy', 'zcode', 'pi', 'omp', 'mirasim'].includes(mode)) {
+  console.error('Usage: node scripts/start-instance.mjs <shared|codex|claude|cursor|grok|antigravity|zcode|pi|omp|mirasim>');
   process.exit(1);
 }
 

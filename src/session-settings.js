@@ -5,6 +5,7 @@ import {
 } from './extra-info.js';
 import { providerSupportsModelSelection } from './provider-metadata.js';
 import { parseCursorModel, resolveCursorModel } from './cursor-model-settings.js';
+import { MIRASIM_DEFAULT_MODEL, MIRASIM_DEFAULT_EFFORT } from './mirasim-client.js';
 
 export function parseUiLanguageInput(value) {
   const raw = String(value || '').trim().toLowerCase();
@@ -359,7 +360,7 @@ export function parseReasoningEffortInput(value, { allowDefault = false } = {}) 
   const raw = String(value || '').trim().toLowerCase();
   if (!raw) return null;
   if (allowDefault && raw === 'default') return 'default';
-  if (['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'auto'].includes(raw)) return raw;
+  if (['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'auto', 'ultra'].includes(raw)) return raw;
   return null;
 }
 
@@ -395,6 +396,10 @@ export function createSessionSettings({
   defaultCodexProfile = null,
   readDefaultCodexProfile = () => ({ profile: defaultCodexProfile, source: 'env default' }),
   defaultModel = null,
+  mirasimDefaultModel = MIRASIM_DEFAULT_MODEL,
+  mirasimDefaultEffort = MIRASIM_DEFAULT_EFFORT,
+  mirasimDefaultHarness = 'claude',
+  readMirasimModelCatalog = () => ({}),
   readCursorModelCatalog = () => ({ models: [], error: null }),
   readCodexDefaults = () => ({
     model: null,
@@ -667,6 +672,22 @@ export function createSessionSettings({
     };
   }
 
+  function resolveMirasimHarnessSetting(session) {
+    const value = session?.provider === 'mirasim' ? session.mirasimHarness : session?.providers?.mirasim?.mirasimHarness;
+    if (value) return { value, source: 'session override' };
+    const parent = resolveParentSession(session);
+    const inherited = parent?.provider === 'mirasim' ? parent.mirasimHarness : parent?.providers?.mirasim?.mirasimHarness;
+    return inherited ? { value: inherited, source: 'parent channel' } : { value: mirasimDefaultHarness, source: 'provider' };
+  }
+
+  function mirasimDefaults(session) {
+    const harness = resolveMirasimHarnessSetting(session).value;
+    const catalog = readMirasimModelCatalog(harness);
+    return harness === 'claude'
+      ? { model: mirasimDefaultModel, effort: mirasimDefaultEffort }
+      : { model: catalog.defaultModel || null, effort: catalog.defaultEffort || null };
+  }
+
   function resolveRawModelSetting(session) {
     const provider = normalizeProvider(session?.provider);
     if (!providerSupportsModelSelection(provider)) return { value: null, source: 'native session' };
@@ -677,11 +698,12 @@ export function createSessionSettings({
 
     const parentSession = resolveParentSession(session);
     const parentValue = String(readProviderScopedValue(parentSession, provider, 'model') || '').trim();
-    if (parentValue) {
+    if (parentValue && (provider !== 'mirasim' || resolveMirasimHarnessSetting(parentSession).value === resolveMirasimHarnessSetting(session).value)) {
       return { value: parentValue, source: 'parent channel' };
     }
 
     const defaultModelValue = getDefaultModelValue();
+    if (provider === 'mirasim') return { value: mirasimDefaults(session).model, source: 'provider' };
     if (provider === 'codex') {
       const codexDefaults = readCodexDefaults() || {};
       const value = String(codexDefaults.model ?? '').trim();
@@ -743,9 +765,11 @@ export function createSessionSettings({
 
     const parentSession = resolveParentSession(session);
     const parentValue = String(readProviderScopedValue(parentSession, provider, 'effort') || '').trim();
-    if (parentValue) {
+    if (parentValue && (provider !== 'mirasim' || resolveMirasimHarnessSetting(parentSession).value === resolveMirasimHarnessSetting(session).value)) {
       return { value: parentValue, source: 'parent channel' };
     }
+
+    if (provider === 'mirasim') return { value: mirasimDefaults(session).effort, source: 'provider' };
 
     if (provider === 'codex') {
       const codexDefaults = readCodexDefaults() || {};
@@ -1071,7 +1095,7 @@ export function createSessionSettings({
     return { tokens, source: 'env default' };
   }
 
-  function getProviderDefaults(provider) {
+  function getProviderDefaults(provider, session = { provider }) {
     const normalizedProvider = normalizeProvider(provider);
     if (normalizedProvider === 'antigravity') {
       const antigravityDefaults = readAntigravityDefaults() || {};
@@ -1125,6 +1149,10 @@ export function createSessionSettings({
       };
     }
 
+    if (normalizedProvider === 'mirasim') {
+      return { ...mirasimDefaults(session), modelConfigured: true,
+        effortConfigured: true, profile: null, fastMode: false, source: 'provider' };
+    }
     if (normalizedProvider !== 'codex') {
       const modelSupported = providerSupportsModelSelection(normalizedProvider);
       const defaultModelValue = modelSupported ? getDefaultModelValue() : null;
@@ -1171,6 +1199,7 @@ export function createSessionSettings({
     resolveCodexProfileSetting,
     resolveModelSetting,
     resolveReasoningEffortSetting,
+    resolveMirasimHarnessSetting,
     resolveFastModeSetting,
     resolveRuntimeModeSetting,
     resolveBusyPromptModeSetting,

@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { createMirasimRunner } from './mirasim-runner.js';
 import { createRunnerArgsBuilder, uniqueDirs } from './runner-args.js';
 import { createClaudeLongRunner } from './claude-long-runner.js';
 import { createCodexAppServerRunner } from './codex-app-server-runner.js';
@@ -34,6 +35,7 @@ export function createRunnerExecutor({
   getSessionId,
   getProviderDefaultWorkspace = () => ({ workspaceDir: null }),
   resolveModelSetting,
+  resolveMirasimHarnessSetting,
   resolveCodexProfileSetting = () => ({ value: null, source: 'provider default', valid: true, isExplicit: false }),
   resolveReasoningEffortSetting,
   resolveTimeoutSetting,
@@ -64,6 +66,7 @@ export function createRunnerExecutor({
   createClaudeLongRunnerFn = createClaudeLongRunner,
   createCodexAppServerRunnerFn = createCodexAppServerRunner,
   createOmpInteractiveRunnerFn = createOmpInteractiveRunner,
+  createMirasimRunnerFn = createMirasimRunner,
   stageGrokPromptFileFn = stageGrokPromptFile,
 } = {}) {
   const { buildSessionRunnerArgs } = createRunnerArgsBuilder({
@@ -143,6 +146,9 @@ export function createRunnerExecutor({
     idleMs: ompInteractiveIdleMs,
     maxSessions: ompInteractiveMaxSessions,
   });
+  const mirasimRunner = createMirasimRunnerFn({
+    spawnEnv, getSessionId, resolveModelSetting, resolveReasoningEffortSetting, resolveTimeoutSetting, resolveMirasimHarnessSetting,
+  });
 
   async function runProviderTask({
     session,
@@ -160,6 +166,10 @@ export function createRunnerExecutor({
     ensureDir(workspaceDir);
 
     const provider = getSessionProvider(session);
+    if (normalizeProvider(provider) === 'mirasim') {
+      return mirasimRunner.runTask({ session, sessionKey, workspaceDir, prompt, systemPrompt, inputImages,
+        onSpawn, onThreadReady, wasCancelled, onEvent, onLog });
+    }
     const notes = [];
     const providerDefault = getProviderDefaultWorkspace(provider) || {};
     const additionalWorkspaceDirs = normalizeProvider(provider) === 'claude'
@@ -795,12 +805,14 @@ export function createRunnerExecutor({
       const closedClaude = claudeLongRunner.closeSession(sessionKey, reason);
       const closedCodex = codexAppServerRunner.closeSession(sessionKey, reason);
       const closedOmp = ompInteractiveRunner.closeSession(sessionKey, reason);
-      return Boolean(closedClaude || closedCodex || closedOmp);
+      const closedMirasim = mirasimRunner.closeSession(sessionKey, reason);
+      return Boolean(closedClaude || closedCodex || closedOmp || closedMirasim);
     },
     closeAllRuntimeSessions: (reason = 'closed') => (
       claudeLongRunner.closeAll(reason)
       + codexAppServerRunner.closeAll(reason)
       + ompInteractiveRunner.closeAll(reason)
+      + mirasimRunner.closeAll(reason)
     ),
     getClaudeLongSessions: () => claudeLongRunner.getSnapshot(),
     getCodexAppServerSessions: () => codexAppServerRunner.getSnapshot(),

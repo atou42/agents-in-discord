@@ -129,6 +129,9 @@ export function createRuntimePresentation({
 
   function formatPermissionsLabel(session, language = 'en') {
     const provider = getSessionProvider(session);
+    if (provider === 'mirasim') return language === 'en'
+      ? 'managed by Mirasim desktop; Discord safe/dangerous does not apply'
+      : '由 Mirasim 桌面端管理；Discord safe/dangerous 不适用';
     if (provider === 'antigravity') {
       if (session.mode === 'dangerous') {
         return language === 'en'

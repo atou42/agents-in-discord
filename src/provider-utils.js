@@ -39,6 +39,7 @@ export function buildRunnerArgs({
   pendingForkFromSessionId = null,
 } = {}) {
   const normalizedProvider = normalizeCliProvider(provider);
+  if (normalizedProvider === 'mirasim') throw new Error('Mirasim uses the desktop WebSocket runner, not a CLI');
   if (normalizedProvider === 'claude') {
     return buildClaudeArgs({
       sessionId,

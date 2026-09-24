@@ -954,8 +954,9 @@ export function renderMissingDiscordTokenHint({ botProvider = null, env = proces
   const hasZCodeScopedToken = Boolean(String(env.ZCODE__DISCORD_TOKEN || env.DISCORD_TOKEN_ZCODE || '').trim());
   const hasPiScopedToken = Boolean(String(env.PI__DISCORD_TOKEN || env.DISCORD_TOKEN_PI || '').trim());
   const hasOmpScopedToken = Boolean(String(env.OMP__DISCORD_TOKEN || env.DISCORD_TOKEN_OMP || '').trim());
+  const hasMirasimScopedToken = Boolean(String(env.MIRASIM__DISCORD_TOKEN || env.DISCORD_TOKEN_MIRASIM || '').trim());
 
-  if (hasCodexScopedToken || hasClaudeScopedToken || hasCursorScopedToken || hasGrokScopedToken || hasAntigravityScopedToken || hasZCodeScopedToken || hasPiScopedToken || hasOmpScopedToken) {
+  if (hasCodexScopedToken || hasClaudeScopedToken || hasCursorScopedToken || hasGrokScopedToken || hasAntigravityScopedToken || hasZCodeScopedToken || hasPiScopedToken || hasOmpScopedToken || hasMirasimScopedToken) {
     const availableProviders = [
       hasCodexScopedToken ? 'codex' : null,
       hasClaudeScopedToken ? 'claude' : null,
@@ -965,6 +966,7 @@ export function renderMissingDiscordTokenHint({ botProvider = null, env = proces
       hasZCodeScopedToken ? 'zcode' : null,
       hasPiScopedToken ? 'pi' : null,
       hasOmpScopedToken ? 'omp' : null,
+      hasMirasimScopedToken ? 'mirasim' : null,
     ].filter(Boolean).join(', ');
     return `Missing DISCORD_TOKEN in shared mode. Found provider-scoped tokens for: ${availableProviders}. Start the matching dedicated provider instance, or add a shared DISCORD_TOKEN.`;
   }

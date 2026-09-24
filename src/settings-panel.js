@@ -30,6 +30,7 @@ const ALL_SECTIONS = Object.freeze([
   'overview',
   'defaults',
   'provider',
+  'harness',
   'profile',
   'model',
   'fast',
@@ -162,6 +163,7 @@ function formatSectionButtonLabel(section, language) {
     overview: { en: 'overview', zh: '总览' },
     defaults: { en: 'global defaults', zh: '全局默认' },
     provider: { en: 'provider', zh: '后端' },
+    harness: { en: 'harness', zh: 'Harness' },
     profile: { en: 'profile', zh: '配置' },
     model: { en: 'model', zh: '模型' },
     fast: { en: 'fast', zh: 'fast' },
@@ -183,6 +185,7 @@ function formatSectionTitleLabel(section, language) {
     overview: { en: 'Overview', zh: '总览' },
     defaults: { en: 'Global Codex Defaults', zh: 'Codex 全局默认' },
     provider: { en: 'Provider', zh: 'Provider' },
+    harness: { en: 'Harness', zh: 'Harness' },
     profile: { en: 'Codex Profile', zh: 'Codex Profile' },
     model: { en: 'Model', zh: '模型' },
     fast: { en: 'Fast Mode', zh: 'Fast Mode' },
@@ -422,6 +425,7 @@ function resolveModelEffortLevels(snapshot, session, modelName = '') {
   if (!snapshot.effortLevels.length) return [];
   const effectiveModel = String(modelName || session?.model || snapshot.modelValue || '').trim();
   const catalogModel = findCatalogModel(snapshot.modelCatalog, effectiveModel);
+  if (snapshot.provider === 'mirasim') return [...(catalogModel?.supportedReasoningLevels || [])];
   if (snapshot.provider === 'cursor') {
     return [...new Set((catalogModel?.cursorVariants || []).map(parseCursorModel)
       .filter((variant) => variant.fast === snapshot.fastMode.enabled)
@@ -481,6 +485,10 @@ export function createSettingsPanel({
   getProviderDisplayName = (provider) => String(provider || ''),
   getSupportedReasoningEffortLevels = () => [],
   getModelCatalog = () => ({ models: [], error: null }),
+  getMirasimHarnesses = () => ({ agents: [], error: 'Inventory unavailable' }),
+  refreshMirasimHarnesses = async () => getMirasimHarnesses(),
+  refreshMirasimCatalog = async () => ({}),
+  resolveMirasimHarnessSetting = (session) => ({ value: session?.mirasimHarness || 'claude', source: 'provider' }),
   getProviderCompactCapabilities = () => ({ strategies: ['hard', 'native', 'off'] }),
   normalizeUiLanguage = normalizeLanguage,
   resolveModelSetting = (session) => ({ value: session?.model || '(provider default)', source: session?.model ? 'session override' : 'provider' }),
@@ -607,13 +615,19 @@ export function createSettingsPanel({
     const sections = ['overview'];
     if (provider === 'codex') sections.push('defaults');
     if (!botProvider) sections.push('provider');
+    if (provider === 'mirasim') sections.push('harness');
     if (provider === 'codex') sections.push('profile');
     sections.push('model');
     if (['codex', 'cursor', 'omp'].includes(provider)) sections.push('fast');
     if (provider === 'codex' || provider === 'claude') sections.push('runtime');
-    if (getSupportedReasoningEffortLevels(provider).length) sections.push('effort');
+    const effortAvailable = provider === 'mirasim'
+      ? (getModelCatalog(provider, resolveMirasimHarnessSetting(session).value)?.models || []).some((m) => m.supportedReasoningLevels?.length)
+      : getSupportedReasoningEffortLevels(provider).length;
+    if (effortAvailable) sections.push('effort');
     if (getProviderCompactCapabilities(provider).strategies.length > 0) sections.push('compact');
-    sections.push('reply', 'language', 'mode', 'workspace');
+    sections.push('reply', 'language');
+    if (provider !== 'mirasim') sections.push('mode');
+    sections.push('workspace');
     if (getAgentMessageSettings) sections.push('agent_messages');
     return sections;
   }
@@ -626,7 +640,7 @@ export function createSettingsPanel({
   function buildSnapshot(key, session) {
     const language = normalizeUiLanguage(getSessionLanguage(session) || defaultUiLanguage);
     const provider = getSessionProvider(session);
-    const defaults = getProviderDefaults(provider);
+    const defaults = getProviderDefaults(provider, session);
     const codexDefaults = provider === 'codex'
       ? (getProviderDefaults('codex') || {})
       : null;
@@ -643,13 +657,18 @@ export function createSettingsPanel({
     const replyDelivery = resolveReplyDeliverySetting(session);
     const replyDefault = getReplyDeliveryDefault(session);
     const workspace = getWorkspaceBinding(session, key) || { workspaceDir: null, source: 'unset' };
-    const effortLevels = getSupportedReasoningEffortLevels(provider);
-    const rawCatalog = getModelCatalog(provider) || { models: [] };
+    const harness = provider === 'mirasim' ? resolveMirasimHarnessSetting(session) : null;
+    const rawCatalog = getModelCatalog(provider, harness?.value) || { models: [] };
+    const effortLevels = provider === 'mirasim'
+      ? [...new Set((rawCatalog.models || []).flatMap((m) => m.supportedReasoningLevels || []))]
+      : getSupportedReasoningEffortLevels(provider);
     const modelCatalog = normalizeModelCatalog(provider === 'cursor' ? groupCursorModelCatalog(rawCatalog) : rawCatalog);
     const snapshot = {
       language,
       isThread: Boolean(session?.parentChannelId),
       provider,
+      harness,
+      harnessInventory: provider === 'mirasim' ? getMirasimHarnesses() : null,
       providerLabel: getProviderDisplayName(provider),
       defaults,
       codexDefaults,
@@ -822,6 +841,19 @@ export function createSettingsPanel({
             { label: snapshot.language === 'en' ? 'Allow all' : '完全放行', value: 'allow', default: snapshot.agentMessages.mode === 'allow' },
             { label: snapshot.language === 'en' ? 'Require my approval' : '需要我审批', value: 'approval', default: snapshot.agentMessages.mode === 'approval' },
           ]))];
+      case 'harness': {
+        const installed = (snapshot.harnessInventory?.agents || []).filter((a) => a.installed);
+        const rows = [];
+        if (installed.length <= 24 && !snapshot.harnessInventory?.error) rows.push(new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
+          .setCustomId(buildSettingsComponentId('set', 'harness', 'preset', userId))
+          .setPlaceholder('Harness')
+          .addOptions([{ label: snapshot.language === 'en' ? 'Follow parent / default' : '跟随父频道 / 默认', value: 'default', default: !session.mirasimHarness },
+            ...installed.map((a) => ({ label: truncateOptionText(a.label, 100), value: a.id, default: session.mirasimHarness === a.id }))])));
+        rows.push(new ActionRowBuilder().addComponents(new ButtonBuilder()
+          .setCustomId(buildSettingsComponentId('act', 'harness', 'refresh', userId))
+          .setLabel(snapshot.language === 'en' ? 'Refresh' : '刷新').setStyle(ButtonStyle.Secondary)));
+        return rows;
+      }
       case 'overview': {
         if (snapshot.provider !== 'codex') return [];
         return [
@@ -840,7 +872,7 @@ export function createSettingsPanel({
 
       case 'provider': {
         if (botProvider) return [];
-        return chunk(['codex', 'claude', 'cursor', 'grok', 'antigravity', 'zcode', 'pi', 'omp'], 5)
+        return chunk(['codex', 'claude', 'cursor', 'grok', 'antigravity', 'zcode', 'pi', 'omp', 'mirasim'], 5)
           .map((providers) => new ActionRowBuilder().addComponents(
             ...providers.map((provider) => new ButtonBuilder()
               .setCustomId(buildSettingsComponentId('set', 'provider', provider, userId))
@@ -1023,7 +1055,7 @@ export function createSettingsPanel({
       case 'effort': {
         return chunk(buildEffortOptions(session, snapshot), 5).map((options) => new ActionRowBuilder().addComponents(
           ...options.map((option) => new ButtonBuilder()
-            .setCustomId(buildSettingsComponentId('set', 'effort', option.value, userId))
+            .setCustomId(buildSettingsComponentId('set', 'effort', option.value, userId, snapshot.provider === 'mirasim' ? modelPanelGeneration : ''))
             .setLabel(option.label)
             .setStyle(option.default ? ButtonStyle.Primary : ButtonStyle.Secondary)),
         ));
@@ -1158,6 +1190,17 @@ function formatOverviewSection(snapshot) {
           ? `Receiving policy: ${mode}\nScope: all threads of this Agent in this server.\nDelegating user: ${settings.ownerUserId || 'none'}\nExisting pending requests remain pending. Channel and workspace restrictions still apply.`
           : `接收策略：${mode}\n作用域：当前服务器内此 Agent 的全部 thread。\n归属用户：${settings.ownerUserId || '无'}\n已有待审批请求不会自动放行；频道和工作区限制保持不变。`;
       }
+      case 'harness': {
+        const inventory = snapshot.harnessInventory || {};
+        const current = inventory.agents?.find((a) => a.id === snapshot.harness.value);
+        const capabilities = Object.entries(current?.capabilities || {}).filter(([, enabled]) => enabled).map(([name]) => name).join(', ') || 'none';
+        return [`Harness: ${snapshot.harness.value} (${formatSettingSourceLabel(snapshot.harness.source, snapshot.language)})`,
+          `Native capabilities: ${capabilities}`,
+          inventory.error || null,
+          (inventory.agents || []).filter((a) => a.installed).length > 24 ? 'Harness inventory exceeds the Discord menu limit.' : null,
+          snapshot.language === 'en' ? 'Switching resets the bound conversation, model and effort, including inheriting threads. Native history is kept. Permissions and launch configuration remain managed by Mirasim.'
+            : '切换会重置当前及继承 thread 的会话绑定、模型和推理覆盖，原生历史保留。权限与启动配置仍由 Mirasim 管理。'].filter(Boolean).join('\n');
+      }
       case 'defaults':
         return snapshot.language === 'en'
           ? 'This section edits global Codex defaults in `~/.codex/config.toml`. Model, effort, and fast are selected here. Custom model and profile names still use the buttons below. Provider default clears the matching global override. Channel and thread overrides still win.'
@@ -1259,6 +1302,7 @@ function formatOverviewSection(snapshot) {
           snapshot.language === 'en'
             ? `• provider: \`${snapshot.provider}\` (${snapshot.providerLabel})`
             : `• provider：\`${snapshot.provider}\`（${snapshot.providerLabel}）`,
+          snapshot.harness ? `Harness: ${snapshot.harness.value} (${formatSettingSourceLabel(snapshot.harness.source, snapshot.language)})` : null,
           snapshot.provider === 'codex'
             ? (snapshot.language === 'en'
               ? `• codex profile: ${formatCodexProfileLabel(snapshot.codexProfile.value, snapshot.language)} (${formatSettingSourceLabel(snapshot.codexProfile.source, snapshot.language)}${snapshot.codexProfile.valid ? '' : `, invalid: ${snapshot.codexProfile.error}`})`
@@ -1316,9 +1360,11 @@ function formatOverviewSection(snapshot) {
           snapshot.language === 'en'
             ? `• default reply delivery: ${formatReplyDeliveryModeLabel(snapshot.replyDefault.mode, snapshot.language)} (${formatSettingSourceLabel(snapshot.replyDefault.source, snapshot.language)})`
             : `• 默认回复方式：${formatReplyDeliveryModeLabel(snapshot.replyDefault.mode, snapshot.language)}（${formatSettingSourceLabel(snapshot.replyDefault.source, snapshot.language)}）`,
-          snapshot.language === 'en'
-            ? `• mode: \`${session?.mode || 'safe'}\` (${formatSettingSourceLabel(session?.modeSource || 'session override', snapshot.language)})`
-            : `• mode：\`${session?.mode || 'safe'}\`（${formatSettingSourceLabel(session?.modeSource || 'session override', snapshot.language)}）`,
+          snapshot.provider === 'mirasim'
+            ? (snapshot.language === 'en' ? '• permissions: managed in Mirasim desktop' : '• 权限：由 Mirasim 桌面端管理')
+            : snapshot.language === 'en'
+              ? `• mode: \`${session?.mode || 'safe'}\` (${formatSettingSourceLabel(session?.modeSource || 'session override', snapshot.language)})`
+              : `• mode：\`${session?.mode || 'safe'}\`（${formatSettingSourceLabel(session?.modeSource || 'session override', snapshot.language)}）`,
           snapshot.language === 'en'
             ? `• language: ${snapshot.language === 'en' ? 'English' : '中文'}`
             : `• language：${snapshot.language === 'en' ? 'English' : '中文'}`,
@@ -1340,7 +1386,7 @@ function formatOverviewSection(snapshot) {
     const snapshot = buildSnapshot(key, session);
     if (section === 'agent_messages') snapshot.agentMessages = getAgentMessageSettings?.(key);
     const issuedGeneration = issueModelPanelGeneration(key, userId);
-    const modelPanelGeneration = (section === 'model' || section === 'defaults' || section === 'overview')
+    const modelPanelGeneration = (section === 'model' || section === 'defaults' || section === 'overview' || (snapshot.provider === 'mirasim' && section === 'effort'))
       ? issuedGeneration
       : '';
     const sectionControls = buildSectionControls(key, session, userId, section, snapshot, modelPanelGeneration);
@@ -1548,7 +1594,7 @@ function formatOverviewSection(snapshot) {
       return true;
     }
 
-    if ((overviewAction || isModelPanelTarget(parsed.target)) && !isCurrentModelPanelGeneration(key, parsed.userId, parsed.generation)) {
+    if ((overviewAction || isModelPanelTarget(parsed.target) || (getSessionProvider(session) === 'mirasim' && parsed.target === 'effort')) && !isCurrentModelPanelGeneration(key, parsed.userId, parsed.generation)) {
       const isSettingsPanel = overviewAction || parsed.target === 'default_model' || parsed.target === 'default_effort';
       await interaction.reply({
         content: language === 'en'
@@ -1812,6 +1858,33 @@ function formatOverviewSection(snapshot) {
         }));
         return true;
       }
+    }
+
+    if (parsed.target === 'harness' && ['set', 'act'].includes(parsed.kind)) {
+      if (getSessionProvider(session) !== 'mirasim') return false;
+      await interaction.deferUpdate();
+      let notice = '';
+      try {
+        const inventory = await refreshMirasimHarnesses();
+        if (inventory.error) throw new Error(inventory.error);
+        if (parsed.kind === 'set') {
+          const value = String(interaction.values?.[0] || '');
+          if (value !== 'default' && !inventory.agents.some((a) => a.id === value && a.installed)) throw new Error(`Harness unavailable: ${value}`);
+          if (!commandActions.setMirasimHarness) throw new Error('Harness settings are not configured');
+          const result = commandActions.setMirasimHarness(session, value, { key, availableHarnesses: inventory.agents.filter((a) => a.installed).map((a) => a.id), isBusy: (channelKey) => {
+            const state = getChannelState(channelKey);
+            return Boolean(state?.activeRun || state?.running || state?.queue?.length);
+          } });
+          for (const resetKey of result.resetKeys) closeRuntimeForKey(resetKey);
+          for (const scope of modelPanelGenerations.keys()) {
+            if (result.resetKeys.some((resetKey) => scope.startsWith(`${resetKey}:`))) modelPanelGenerations.delete(scope);
+          }
+        }
+        const catalog = await refreshMirasimCatalog(resolveMirasimHarnessSetting(session).value);
+        if (catalog.error) notice = catalog.error;
+      } catch (error) { notice = error.message; }
+      await interaction.editReply(buildSettingsPayload({ key, session, userId: interaction.user.id, activeSection: 'harness', notice }));
+      return true;
     }
 
     if (parsed.kind === 'set') {

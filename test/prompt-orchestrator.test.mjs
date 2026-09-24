@@ -1396,6 +1396,23 @@ test('createPromptOrchestrator.handlePrompt preserves the current session across
   assert.equal(runCount, 2);
 });
 
+test('Mirasim ambiguous task outcomes are not automatically replayed', async () => {
+  let runCount = 0;
+  const harness = createOrchestrator({
+    runTask: async () => {
+      runCount += 1;
+      return { ok: false, cancelled: false, timedOut: false, retryable: false,
+        error: 'Mirasim disconnected; task outcome unknown', messages: [], finalAnswerMessages: [],
+        logs: [], notes: [], reasonings: [], usage: null };
+    },
+    resolveTaskRetrySetting: () => ({ maxAttempts: 3, baseDelayMs: 0, maxDelayMs: 0, source: 'test' }),
+  });
+  harness.session.provider = 'mirasim';
+  await harness.orchestrator.handlePrompt({ id: 'mirasim-disconnect', channel: { async sendTyping() {}, async send() {} } },
+    'mirasim-thread', 'test', { queue: [], cancelRequested: false, activeRun: null });
+  assert.equal(runCount, 1);
+});
+
 test('createPromptOrchestrator.handlePrompt retries an OMP empty-final protocol failure', async () => {
   let runCount = 0;
   const harness = createOrchestrator({

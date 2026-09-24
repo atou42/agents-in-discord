@@ -555,7 +555,7 @@ export function createReportFormatters({
     const language = getSessionLanguage(session);
     const lang = normalizeUiLanguage(language);
     const provider = getSessionProvider(session);
-    const defaults = getProviderDefaults(provider);
+    const defaults = getProviderDefaults(provider, session);
     const modelSetting = resolveReportedModelSetting(session);
     const codexProfileSetting = resolveCodexProfileSetting(session);
     const effortSetting = resolveReasoningEffortSetting(session);
@@ -726,7 +726,7 @@ export function createReportFormatters({
     const language = getSessionLanguage(session);
     const lang = normalizeUiLanguage(language);
     const provider = getSessionProvider(session);
-    const defaults = getProviderDefaults(provider);
+    const defaults = getProviderDefaults(provider, session);
     const modelSetting = resolveReportedModelSetting(session);
     const effortSetting = resolveReasoningEffortSetting(session);
     const effortValue = getReasoningEffortLevels(provider).length
@@ -1253,7 +1253,7 @@ export function createReportFormatters({
         (['codex', 'claude', 'grok'].includes(provider)) ? `• \`${slashRef('fork')} [name]\` / \`!fork [name]\` — create a native ${getProviderDisplayName(provider)} fork in a new Discord thread` : null,
         provider === 'codex' ? `• \`${slashRef('side')} action:<start|status|close> name:<optional>\` / \`!side [start|status|close] [name]\` — open or manage a temporary Codex side conversation` : null,
         provider === 'codex' ? `• \`${slashRef('goal')} action:<status|set|pause|resume|done|clear|budget>\` / \`!goal <status|objective|pause|resume|done|clear>\` — manage the current Codex goal; active goals continue until marked complete or blocked` : null,
-        !botProvider ? '• `!provider <codex|claude|cursor|grok|antigravity|zcode|pi|omp|status>` — switch provider for current channel' : null,
+        !botProvider ? '• `!provider <codex|claude|cursor|grok|antigravity|zcode|pi|omp|mirasim|status>` — switch provider for current channel' : null,
         '',
         '**Workspace**',
         '• `!setdir <path|browse|default|status>` — set or clear current thread workspace',
@@ -1275,7 +1275,7 @@ export function createReportFormatters({
               ? `• \`${slashRef('compact')} key:<...> value:<...>\` / \`!compact <...>\` — context compaction config (native available; current provider keeps the provider-default native limit)`
               : `• \`${slashRef('compact')} key:<...> value:<...>\` / \`!compact <...>\` — context compaction config (hard only on current provider)`,
         `• \`${slashRef('extra_info')} key:<...> value:<...>\` / \`!extra_info <...>\` — configure extra context and token cost`,
-        '• `!mode <safe|dangerous|default>` — execution mode',
+        provider === 'mirasim' ? '• Permissions are managed in Mirasim desktop; Discord mode overrides do not apply.' : '• `!mode <safe|dangerous|default>` — execution mode',
         providerSupportsRawConfigOverrides(provider)
           ? '• `!config <key=value>` — append raw provider config override'
           : `• raw config passthrough — not exposed by current provider CLI (${getProviderDisplayName(provider)})`,
@@ -1314,7 +1314,7 @@ export function createReportFormatters({
       (['codex', 'claude', 'grok'].includes(provider)) ? `• \`${slashRef('fork')} [name]\` / \`!fork [name]\` — 用 ${getProviderDisplayName(provider)} 原生 fork 创建新 Discord thread` : null,
       provider === 'codex' ? `• \`${slashRef('side')} action:<start|status|close> name:<可选>\` / \`!side [start|status|close] [name]\` — 开启或管理临时 Codex side conversation` : null,
       provider === 'codex' ? `• \`${slashRef('goal')} action:<status|set|pause|resume|done|clear|budget>\` / \`!goal <状态|目标|暂停|恢复|完成|清除>\` — 管理当前 Codex goal；active 时应持续推进直到标记完成或报告阻塞` : null,
-      !botProvider ? '• `!provider <codex|claude|cursor|grok|antigravity|zcode|pi|omp|status>` — 切换当前频道 provider' : null,
+      !botProvider ? '• `!provider <codex|claude|cursor|grok|antigravity|zcode|pi|omp|mirasim|status>` — 切换当前频道 provider' : null,
       '',
       '**工作目录**',
       '• `!setdir <path|browse|default|status>` — 设置或清除当前 thread 的 workspace',
@@ -1336,7 +1336,7 @@ export function createReportFormatters({
             ? `• \`${slashRef('compact')} key:<...> value:<...>\` / \`!compact <...>\` — 上下文压缩配置（当前 provider 支持 native，但 native_limit 走 provider 默认行为）`
             : `• \`${slashRef('compact')} key:<...> value:<...>\` / \`!compact <...>\` — 上下文压缩配置（当前 provider 仅支持 hard）`,
       `• \`${slashRef('extra_info')} key:<...> value:<...>\` / \`!extra_info <...>\` — 配置额外信息和 token 占用`,
-      '• `!mode <safe|dangerous|default>` — 执行模式',
+      provider === 'mirasim' ? '• 权限由 Mirasim 桌面端管理，Discord 执行模式覆盖不适用。' : '• `!mode <safe|dangerous|default>` — 执行模式',
       providerSupportsRawConfigOverrides(provider)
         ? '• `!config <key=value>` — 添加 provider 原生配置透传'
         : `• raw config passthrough — 当前 provider CLI (${getProviderDisplayName(provider)}) 未暴露`,

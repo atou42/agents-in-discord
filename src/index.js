@@ -70,6 +70,7 @@ import {
   resolveAntigravityProjectRootBySessionId,
 } from './provider-sessions.js';
 import { stopChildProcess } from './channel-runtime.js';
+import { createMirasimCatalogReader, MIRASIM_DEFAULT_MODEL, MIRASIM_DEFAULT_EFFORT } from './mirasim-client.js';
 import { loadRuntimeEnv } from './env-loader.js';
 import { buildCompactThresholdDefaults } from './compact-threshold-defaults.js';
 import {
@@ -310,6 +311,7 @@ const PROVIDER_CHILD_THREAD_WORKSPACE_MODE_OVERRIDES = {
   grok: process.env.GROK__CHILD_THREAD_WORKSPACE_MODE,
   antigravity: process.env.ANTIGRAVITY__CHILD_THREAD_WORKSPACE_MODE,
   zcode: process.env.ZCODE__CHILD_THREAD_WORKSPACE_MODE,
+  mirasim: process.env.MIRASIM__CHILD_THREAD_WORKSPACE_MODE,
 };
 const {
   resolve: resolveChildThreadWorkspaceMode,
@@ -328,6 +330,7 @@ const PROVIDER_DEFAULT_WORKSPACE_OVERRIDES = {
   grok: resolveConfiguredWorkspaceDir(process.env.GROK__DEFAULT_WORKSPACE_DIR),
   antigravity: resolveConfiguredWorkspaceDir(process.env.ANTIGRAVITY__DEFAULT_WORKSPACE_DIR),
   zcode: resolveConfiguredWorkspaceDir(process.env.ZCODE__DEFAULT_WORKSPACE_DIR),
+  mirasim: resolveConfiguredWorkspaceDir(process.env.MIRASIM__DEFAULT_WORKSPACE_DIR),
 };
 const {
   resolve: resolveProviderDefaultWorkspace,
@@ -506,6 +509,11 @@ const PROJECT_UPGRADE_RESTART_COMMAND = process.env.AGENTS_IN_DISCORD_UPGRADE_RE
     : `scripts/restart-discord-bot-service.sh ${PROJECT_UPGRADE_RESTART_TARGET}`);
 const SLASH_PREFIX = normalizeSlashPrefix(process.env.SLASH_PREFIX || getDefaultSlashPrefix(BOT_PROVIDER));
 const SPAWN_ENV = buildSpawnEnv(process.env);
+const mirasimCatalogReader = createMirasimCatalogReader({ env: SPAWN_ENV });
+if (BOT_PROVIDER === 'mirasim') {
+  await mirasimCatalogReader.refreshHarnesses();
+  await mirasimCatalogReader.refresh(process.env.MIRASIM_DEFAULT_HARNESS || 'claude');
+}
 const getProviderBin = (provider) => getProviderBinBase(provider, {
   codexBin: CODEX_BIN,
   claudeBin: CLAUDE_BIN,
@@ -516,7 +524,7 @@ const getProviderBin = (provider) => getProviderBinBase(provider, {
   piBin: PI_BIN,
   ompBin: OMP_BIN,
 });
-const getCliHealth = (provider = DEFAULT_PROVIDER) => getCliHealthBase(provider, {
+const getCliHealth = (provider = DEFAULT_PROVIDER) => provider === 'mirasim' ? mirasimCatalogReader.health() : getCliHealthBase(provider, {
   codexBin: CODEX_BIN,
   claudeBin: CLAUDE_BIN,
   cursorBin: CURSOR_BIN,
@@ -572,7 +580,10 @@ function prepareForkWorkspace({ childThreadId } = {}) {
 }
 
 const bootCliHealth = getCliHealth(DEFAULT_PROVIDER);
-if (bootCliHealth.ok) {
+if (DEFAULT_PROVIDER === 'mirasim') {
+  if (bootCliHealth.ok) console.log('Mirasim desktop API connected; model catalog loaded.');
+  else console.warn(`Mirasim desktop API unavailable: ${bootCliHealth.error}. Open and sign in to Mirasim before sending tasks.`);
+} else if (bootCliHealth.ok) {
   console.log(`🧩 ${getProviderDisplayName(DEFAULT_PROVIDER)} CLI: ${bootCliHealth.version} via ${bootCliHealth.bin}`);
 } else {
   console.warn([
@@ -621,6 +632,10 @@ const appContext = createAppContext({
     defaultCodexProfile: resolveDefaultCodexProfile().profile,
     readDefaultCodexProfile: resolveDefaultCodexProfile,
     defaultModel: DEFAULT_MODEL,
+    mirasimDefaultModel: process.env.MIRASIM_DEFAULT_MODEL || MIRASIM_DEFAULT_MODEL,
+    mirasimDefaultEffort: process.env.MIRASIM_DEFAULT_EFFORT || MIRASIM_DEFAULT_EFFORT,
+    mirasimDefaultHarness: process.env.MIRASIM_DEFAULT_HARNESS || 'claude',
+    readMirasimModelCatalog: (harness) => mirasimCatalogReader.read(harness),
     readCodexDefaults,
     readClaudeDefaults: () => readClaudeDefaults({ env: SPAWN_ENV }),
     readAntigravityDefaults: () => readAntigravityDefaults({ env: SPAWN_ENV }),
@@ -859,7 +874,11 @@ const appContext = createAppContext({
       TextInputStyle,
       getProviderDisplayName,
       getSupportedReasoningEffortLevels,
-      getModelCatalog: (provider) => {
+      getMirasimHarnesses: () => mirasimCatalogReader.readHarnesses(),
+      refreshMirasimHarnesses: () => mirasimCatalogReader.refreshHarnesses(),
+      refreshMirasimCatalog: (harness) => mirasimCatalogReader.refresh(harness),
+      getModelCatalog: (provider, harness) => {
+        if (provider === 'mirasim') return mirasimCatalogReader.read(harness);
         if (provider === 'codex') return readCodexModelCatalog({ codexBin: CODEX_BIN, env: SPAWN_ENV });
         if (provider === 'claude') return readClaudeModelCatalog({ claudeBin: CLAUDE_BIN, env: SPAWN_ENV });
         if (provider === 'cursor') return readCursorModelCatalog({ cursorBin: CURSOR_BIN, env: SPAWN_ENV });

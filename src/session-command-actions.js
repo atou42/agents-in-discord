@@ -116,6 +116,7 @@ export function createSessionCommandActions({
   normalizeUiLanguage = (value) => (String(value || '').trim().toLowerCase() === 'en' ? 'en' : 'zh'),
   getProviderShortName = (provider) => String(provider || ''),
   resolveModelSetting = (session) => ({ value: session.model }),
+  resolveMirasimHarnessSetting = (session) => ({ value: session?.mirasimHarness || 'claude' }),
   resolveFastModeSetting = () => ({ enabled: false, supported: false, source: 'provider unsupported' }),
   formatProviderSessionLabel = (provider, language = 'en', { plural = false } = {}) => (
     language === 'en'
@@ -194,6 +195,34 @@ export function createSessionCommandActions({
     if (previous !== provider) clearForkMetadata(session);
     saveDb();
     return { previous, provider };
+  }
+
+  function setMirasimHarness(session, value, { key, isBusy = () => false, availableHarnesses = null } = {}) {
+    if (getSessionProvider(session) !== 'mirasim') throw new Error('Harness selection requires Mirasim');
+    const next = normalizeOptionalOverride(value);
+    if (next && !/^[a-z][a-z0-9_-]*$/.test(next)) throw new Error('Invalid Mirasim harness');
+    const rows = [{ key, session }, ...listStoredSessions().filter((row) => row.session !== session && String(row.session.parentChannelId || '') === String(key))];
+    const states = rows.map((row) => ({ ...row, target: row.session.provider === 'mirasim' ? row.session : row.session.providers?.mirasim }))
+      .filter((row) => row.target && (row.session === session || !row.target.mirasimHarness));
+    const before = states.map((row) => ({ ...row, harness: resolveMirasimHarnessSetting(row.session).value, saved: { ...row.target }, providerState: row.session.providers?.mirasim ? { ...row.session.providers.mirasim } : null }));
+    const effective = resolveMirasimHarnessSetting({ ...session, mirasimHarness: next }).value;
+    // These children have no explicit harness, so they follow the new parent value.
+    const changed = before.filter((row) => row.harness !== effective);
+    if (availableHarnesses && !availableHarnesses.includes(effective)) throw new Error(`Harness unavailable: ${effective}`);
+    if (changed.some((row) => isBusy(row.key))) throw new Error('A channel or inheriting thread is busy; stop or finish its work before switching harness');
+    session.mirasimHarness = next;
+    for (const { target } of changed) {
+      for (const field of ['runnerSessionId', 'codexThreadId', 'model', 'effort', 'lastInputTokens', 'lastObservedModel', 'pendingForkFromSessionId', 'pendingCompactSummary', 'pendingCompactSourceSessionId']) target[field] = null;
+    }
+    try { saveDb(); } catch (error) {
+      for (const row of before) {
+        Object.assign(row.target, row.saved);
+        if (row.providerState) Object.assign(row.session.providers.mirasim, row.providerState);
+        else if (row.session.providers) delete row.session.providers.mirasim;
+      }
+      throw error;
+    }
+    return { harness: resolveMirasimHarnessSetting(session).value, resetKeys: changed.map((row) => row.key) };
   }
 
   function setModel(session, name) {
@@ -345,6 +374,9 @@ export function createSessionCommandActions({
 
   function setMode(session, mode) {
     const override = normalizeSessionModeOverride(mode);
+    if ((getSessionProvider?.(session) || session?.provider) === 'mirasim' && override !== null) {
+      throw new Error('Mirasim permissions are managed in the desktop app, not by the Discord mode setting');
+    }
     session.mode = override;
     session.modeOverride = override;
     saveDb();
@@ -653,28 +685,32 @@ export function createSessionCommandActions({
   function formatRecentSessionsReport({ key, session, resumeRef = '!resume <id>', limit = 10 } = {}) {
     const provider = getSessionProvider(session);
     const language = normalizeUiLanguage(getSessionLanguage(session));
-    const sessions = listRecentSessions({ provider, workspaceDir: ensureWorkspace(session, key), limit });
-    if (!sessions.length) {
-      return language === 'en'
-        ? `No recent ${formatProviderSessionLabel(provider, language)} found.`
-        : `没有找到任何 ${formatProviderSessionLabel(provider, language, { plural: true })}。`;
-    }
-    const lookup = formatRecentSessionsLookup(provider, language);
-    const lines = sessions.map((entry, index) => {
-      const ago = humanAge(Date.now() - entry.mtime);
-      return language === 'en'
-        ? `${index + 1}. \`${entry.id}\` (${ago} ago)`
-        : `${index + 1}. \`${entry.id}\`（${ago}前）`;
-    });
-    return [
-      language === 'en'
-        ? `**${formatRecentSessionsTitle(provider, language)}** (resume with \`${resumeRef}\`)`
-        : `**${formatRecentSessionsTitle(provider, language)}**（用 \`${resumeRef}\` 继承）`,
-      lookup
-        ? (language === 'en' ? `• source: ${lookup}` : `• 来源：${lookup}`)
-        : null,
-      ...lines,
-    ].filter(Boolean).join('\n');
+    const sessions = listRecentSessions({ provider, workspaceDir: ensureWorkspace(session, key), limit,
+      mirasimHarness: provider === 'mirasim' ? resolveMirasimHarnessSetting(session).value : undefined });
+    const render = (sessions) => {
+      if (!sessions.length) {
+        return language === 'en'
+          ? `No recent ${formatProviderSessionLabel(provider, language)} found.`
+          : `没有找到任何 ${formatProviderSessionLabel(provider, language, { plural: true })}。`;
+      }
+      const lookup = formatRecentSessionsLookup(provider, language);
+      const lines = sessions.map((entry, index) => {
+        const ago = humanAge(Date.now() - entry.mtime);
+        return language === 'en'
+          ? `${index + 1}. \`${entry.id}\` (${ago} ago)`
+          : `${index + 1}. \`${entry.id}\`（${ago}前）`;
+      });
+      return [
+        language === 'en'
+          ? `**${formatRecentSessionsTitle(provider, language)}** (resume with \`${resumeRef}\`)`
+          : `**${formatRecentSessionsTitle(provider, language)}**（用 \`${resumeRef}\` 继承）`,
+        lookup
+          ? (language === 'en' ? `• source: ${lookup}` : `• 来源：${lookup}`)
+          : null,
+        ...lines,
+      ].filter(Boolean).join('\n');
+    };
+    return sessions instanceof Promise ? sessions.then(render) : render(sessions);
   }
 
   return {
@@ -684,6 +720,7 @@ export function createSessionCommandActions({
     setTimeoutMs,
     setProvider,
     setModel,
+    setMirasimHarness,
     setModelSettings,
     setCodexProfile,
     setReasoningEffort,

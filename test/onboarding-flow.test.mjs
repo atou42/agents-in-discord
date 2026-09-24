@@ -149,7 +149,7 @@ test('createOnboardingFlow builds provider buttons in shared mode', () => {
   assert.equal(rows.length, 3);
   assert.deepEqual(
     rows.slice(1).flatMap((row) => row.components.map((component) => component.data.label)),
-    ['codex', 'claude', 'cursor', 'grok', 'antigravity', 'zcode', 'pi', 'omp'],
+    ['codex', 'claude', 'cursor', 'grok', 'antigravity', 'zcode', 'pi', 'omp', 'mirasim'],
   );
   assert.equal(rows[1].components[1].data.style, ButtonStyle.Primary);
   assert.ok(rows.every((row) => row.components.length <= 5));

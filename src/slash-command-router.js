@@ -383,7 +383,7 @@ export function createSlashCommandRouter({
   registerSlashHandlers(handlers, ['sessions'], async ({ interaction, key, session, respond }) => {
     try {
       await respond({
-        content: commandActions.formatRecentSessionsReport({
+        content: await commandActions.formatRecentSessionsReport({
           key,
           session,
           resumeRef: slashRef('resume'),

@@ -10,6 +10,25 @@ import {
 } from '../src/codex-event-utils.js';
 import { normalizeProvider as testNormalizeProvider } from '../src/provider-metadata.js';
 
+test('Mirasim dispatch uses the desktop runner and propagates session callbacks without spawning a CLI', async () => {
+  const calls = [];
+  const executor = createRunnerExecutor({
+    ensureDir() {}, normalizeProvider: testNormalizeProvider, getSessionProvider: (s) => s.provider,
+    getProviderBin() { throw new Error('CLI must not be used'); },
+    createMirasimRunnerFn: () => ({
+      async runTask(options) { calls.push(options); options.onThreadReady?.('claude:test'); return { ok: true }; },
+      closeSession(key) { calls.push(key); return true; }, closeAll() { return 1; },
+    }),
+  });
+  const ids = [];
+  const result = await executor.runProviderTask({ session: { provider: 'mirasim' }, sessionKey: 'discord-thread',
+    workspaceDir: '/tmp', prompt: 'test', onThreadReady: (id) => ids.push(id) });
+  assert.equal(result.ok, true);
+  assert.equal(calls[0].sessionKey, 'discord-thread');
+  assert.deepEqual(ids, ['claude:test']);
+  assert.equal(executor.closeRuntimeSession('discord-thread'), true);
+});
+
 test('createRunnerExecutor builds Antigravity args instead of codex args', () => {
   const executor = createRunnerExecutor({
     spawnEnv: process.env,

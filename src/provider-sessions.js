@@ -2,9 +2,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { normalizeProvider } from './provider-metadata.js';
+import { listMirasimSessions } from './mirasim-client.js';
 
-export function listRecentSessions({ provider = 'codex', workspaceDir = '', limit = 10 } = {}) {
+export function listRecentSessions({ provider = 'codex', workspaceDir = '', limit = 10, mirasimHarness = 'claude' } = {}) {
   switch (normalizeProvider(provider)) {
+    case 'mirasim':
+      return listMirasimSessions(workspaceDir, { agent: mirasimHarness }).then((sessions) => sessions.slice(0, limit)
+        .map((session) => ({ id: session.sessionKey, mtime: session.updatedAt, cwd: session.workdir })));
     case 'claude':
       return listRecentClaudeSessions(limit, workspaceDir);
     case 'cursor':

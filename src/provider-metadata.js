@@ -1,4 +1,18 @@
 const PROVIDER_METADATA = Object.freeze({
+  mirasim: Object.freeze({
+    aliases: Object.freeze(['mirasim']),
+    displayName: 'Mirasim',
+    shortName: 'Mirasim',
+    defaultBin: 'mirasim-local-api',
+    binEnvName: 'MIRASIM_URL',
+    defaultSlashPrefix: 'mira',
+    capabilities: Object.freeze({
+      reasoningEffortLevels: Object.freeze(['low', 'medium', 'high', 'xhigh', 'max', 'ultra']),
+      rawConfigOverrides: Object.freeze({ supported: false }),
+      compact: Object.freeze({ strategies: Object.freeze([]), supportsNativeStrategy: false, supportsNativeLimit: false }),
+      workspaceSessionPolicy: 'strict',
+    }),
+  }),
   codex: Object.freeze({
     aliases: Object.freeze(['codex', 'openai']),
     displayName: 'Codex CLI',

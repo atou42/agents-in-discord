@@ -78,7 +78,7 @@ const ALL_SESSION_COMMAND_ALIASES = Object.freeze({
   resume: Object.freeze(['rollout_resume', 'project_resume', 'cursor_resume', 'grok_resume', 'conversation_resume', 'chat_resume', 'zcode_resume', 'pi_resume', 'omp_resume']),
 });
 
-const REASONING_LEVEL_DISPLAY_ORDER = Object.freeze(['auto', 'max', 'xhigh', 'high', 'medium', 'low', 'minimal', 'none', 'off']);
+const REASONING_LEVEL_DISPLAY_ORDER = Object.freeze(['auto', 'ultra', 'max', 'xhigh', 'high', 'medium', 'low', 'minimal', 'none', 'off']);
 
 const COMMAND_ALIASES = Object.freeze({
   c: 'cancel',
@@ -280,6 +280,7 @@ export function buildSlashCommandEntries({ botProvider = null } = {}) {
             { name: 'zcode', value: 'zcode' },
             { name: 'pi', value: 'pi' },
             { name: 'omp', value: 'omp' },
+            { name: 'mirasim', value: 'mirasim' },
             { name: 'status', value: 'status' },
           ));
       },
@@ -360,7 +361,7 @@ export function buildSlashCommandEntries({ botProvider = null } = {}) {
           .addStringOption(o => o.setName('value').setDescription('text 内容；优先用 {thread} {parent}，{msg} 会按消息变化').setRequired(false));
       },
     },
-    {
+    lockedProvider !== 'mirasim' && {
       name: 'mode',
       description: '执行模式',
       configure(builder) {

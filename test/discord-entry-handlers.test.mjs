@@ -2,6 +2,23 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createDiscordEntryHandlers } from '../src/discord-entry-handlers.js';
+import { createDiscordAccessPolicy } from '../src/discord-access-policy.js';
+
+test('Mirasim no-mention threads retain thread routing and the parent allowlist boundary', async () => {
+  const { handlers, calls } = createHarness({
+    accessPolicy: createDiscordAccessPolicy({ allowedChannelIds: new Set(['parent']) }),
+    getSession: () => ({ provider: 'mirasim' }),
+  });
+  const bot = { user: { id: 'bot' } };
+  for (const [id, parentId, authorBot] of [['thread-a', 'parent', false], ['thread-b', 'parent', false],
+    ['outside', 'other-parent', false], ['bot-thread', 'parent', true]]) {
+    await handlers.handleMessageCreate({ content: 'hello without a mention', system: false,
+      author: { id: 'human', bot: authorBot, tag: 'test' },
+      channel: { id, parentId, isThread: () => true }, attachments: new Map(), reactions: { cache: new Map() }, async react() {},
+    }, bot);
+  }
+  assert.deepEqual(calls.enqueuePrompt.map((call) => call[1]), ['thread-a', 'thread-b']);
+});
 
 function createLogger() {
   return {

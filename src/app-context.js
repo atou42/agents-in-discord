@@ -63,6 +63,7 @@ export function createAppContext({
     ensureWorkspace: sessionStore.ensureWorkspace,
     getWorkspaceBinding: sessionStore.getWorkspaceBinding,
     listStoredSessions: sessionStore.listSessions,
+    resolveMirasimHarnessSetting: sessionSettings.resolveMirasimHarnessSetting,
     clearSessionId: identity.clearSessionId,
     getSessionId: identity.getSessionId,
     setSessionId: identity.setSessionId,
@@ -119,6 +120,7 @@ export function createAppContext({
     sessionProgressBridgeOptions,
     runnerExecutorOptions: {
       ...runnerExecutorOptions,
+      resolveMirasimHarnessSetting: sessionSettings.resolveMirasimHarnessSetting,
       getSessionProvider: identity.getSessionProvider,
       getSessionId: identity.getSessionId,
       resolveModelSetting: sessionSettings.resolveModelSetting,
@@ -204,6 +206,7 @@ export function createAppContext({
     },
     settingsPanelOptions: {
       ...settingsPanelOptions,
+      resolveMirasimHarnessSetting: sessionSettings.resolveMirasimHarnessSetting,
       commandActions,
       getSession: sessionStore.getSession,
       getSessionLanguage: sessionSettings.getSessionLanguage,

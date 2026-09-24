@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 
-const PROVIDER_CHOICES = new Set(['shared', 'codex', 'claude', 'cursor', 'grok', 'antigravity', 'agy', 'zcode', 'pi', 'omp']);
+const PROVIDER_CHOICES = new Set(['shared', 'codex', 'claude', 'cursor', 'grok', 'antigravity', 'agy', 'zcode', 'pi', 'omp', 'mirasim']);
 const CHANNEL_ID_RE = /^\d{15,25}$/;
 const NONCE_RE = /^[A-Za-z0-9_-]{1,25}$/;
 const DISCORD_MESSAGE_LIMIT = 2000;
@@ -8,7 +8,7 @@ const DISCORD_MESSAGE_LIMIT = 2000;
 export function buildSendChannelMessageUsage() {
   return [
     'Usage:',
-    '  node scripts/send-channel-message.mjs --channel <channel-id> [--content "text" | --content-file <path> | --stdin] [--provider shared|codex|claude|cursor|grok|antigravity|zcode|pi|omp] [--nonce <id>] [--json]',
+    '  node scripts/send-channel-message.mjs --channel <channel-id> [--content "text" | --content-file <path> | --stdin] [--provider shared|codex|claude|cursor|grok|antigravity|zcode|pi|omp|mirasim] [--nonce <id>] [--json]',
     '',
     'Examples:',
     '  node scripts/send-channel-message.mjs --channel 123456789012345678 --content "Deploy finished."',

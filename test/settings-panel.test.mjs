@@ -1578,6 +1578,64 @@ test('createSettingsPanel searches the full OMP catalog from the model panel', a
     .find((option) => option.value === targetModel).default, true);
 });
 
+test('Mirasim settings show native model effort choices and do not advertise Discord permission overrides', () => {
+  const session = { provider: 'mirasim', language: 'zh', model: 'claude-opus-5-5[1m]', effort: 'high' };
+  const panel = createPanel({ session, botProvider: 'mirasim',
+    modelCatalog: { models: [{ slug: session.model, displayName: 'opus 5.5', supportedReasoningLevels: ['low', 'high', 'ultra'] }] },
+    panelOptions: { getSupportedReasoningEffortLevels: () => ['low', 'high', 'ultra'],
+      getProviderCompactCapabilities: () => ({ strategies: [], supportsNativeStrategy: false, supportsNativeLimit: false }) },
+  });
+  const overview = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  assert.match(overview.content, /权限：由 Mirasim 桌面端管理/);
+  const sections = overview.components[0].components[0].data.options.map((o) => o.value);
+  for (const unsupported of ['mode', 'compact', 'runtime', 'fast']) assert.equal(sections.includes(unsupported), false);
+  const payload = panel.openModelSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  assert.ok(payload.components[0].components[0].data.options.some((o) => o.value === session.model));
+  const effortLabels = payload.components.flatMap((row) => row.components)
+    .filter((c) => c.data.customId?.includes('quick_model_effort')).map((c) => c.data.label);
+  assert.deepEqual(effortLabels, ['low', 'high', 'ultra', 'default']);
+});
+
+test('Mirasim harness menu refreshes native inventory, switches catalog, and rejects stale controls', async () => {
+  const session = { provider: 'mirasim', mirasimHarness: 'claude', language: 'zh' };
+  const inventory = { agents: [{ id: 'claude', label: 'Claude Code', installed: true }, { id: 'codex', label: 'Codex', installed: true }, { id: 'kimi', installed: false }] };
+  let refreshes = 0, saves = 0;
+  const models = [];
+  const panel = createPanel({ session, botProvider: 'mirasim', commandActions: {
+    setMirasimHarness: (s, value, options) => { assert.deepEqual(options.availableHarnesses, ['claude', 'codex']); s.mirasimHarness = value; saves++; return { resetKeys: ['thread-1'] }; },
+    setModel: () => { throw new Error('stale model must not save'); },
+  }, panelOptions: {
+    getMirasimHarnesses: () => inventory,
+    refreshMirasimHarnesses: async () => { refreshes++; return inventory; },
+    refreshMirasimCatalog: async (harness) => { models.push(harness); return {}; },
+    getModelCatalog: (provider, harness) => ({ models: [{ slug: `${harness}-model`, displayName: harness, supportedReasoningLevels: [] }] }),
+  } });
+  const oldModel = panel.openModelSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  const oldControl = oldModel.components[0].components[0].data.customId;
+  const payload = panel.openSettingsPanel({ key: 'thread-1', session, userId: '12345', activeSection: 'harness' });
+  const select = payload.components.flatMap((row) => row.components).find((c) => c.data.customId?.includes('set:harness'));
+  assert.deepEqual(select.data.options.map((o) => o.value), ['default', 'claude', 'codex']);
+  const replies = [];
+  let deferred = 0;
+  const interaction = { customId: select.data.customId, channelId: 'thread-1', user: { id: '12345' }, values: ['codex'],
+    deferUpdate: async () => { deferred++; }, editReply: async (p) => replies.push(p), reply: async (p) => replies.push(p), update: async (p) => replies.push(p) };
+  await panel.handleSettingsPanelInteraction(interaction);
+  assert.equal(session.mirasimHarness, 'codex');
+  assert.equal(saves, 1);
+  assert.equal(deferred, 1);
+  assert.equal(refreshes, 1);
+  assert.deepEqual(models, ['codex']);
+  assert.match(replies.at(-1).content, /Harness: codex/);
+  await panel.handleSettingsPanelInteraction({ ...interaction, customId: oldControl, values: ['claude-model'] });
+  assert.equal(saves, 1);
+  await panel.handleSettingsPanelInteraction({ ...interaction, values: ['kimi'] });
+  assert.match(replies.at(-1).content, /Harness unavailable: kimi/);
+  assert.equal(saves, 1);
+  const modelPanel = panel.openModelSettingsPanel({ key: 'thread-1', session, userId: '12345' });
+  assert.equal(modelPanel.components[0].components[0].data.options.some((o) => o.value === 'codex-model'), true);
+  assert.equal(modelPanel.components.flatMap((r) => r.components).some((c) => c.data.customId?.includes('model_effort')), false);
+});
+
 test('createSettingsPanel uses the selected catalog model effort levels and hides hidden models', () => {
   const session = {
     provider: 'codex',
